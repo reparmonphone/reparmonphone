@@ -1,0 +1,266 @@
+// Schéma Prisma — ReparMonPhone Next.js
+// Base : PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------- Catalogue ----------
+
+model Brand {
+  id     String        @id @default(cuid())
+  name   String        @unique // Apple, Samsung, Xiaomi, Huawei...
+  slug   String        @unique
+  lines  ProductLine[]
+
+  @@map("brands")
+}
+
+// Gamme au sein d'une marque, ex: Apple -> iPhone / iPad / Apple Watch / AirPods
+// Samsung -> Galaxy S / Galaxy A / Galaxy Note / Galaxy Z Flip...
+model ProductLine {
+  id      String  @id @default(cuid())
+  name    String // "iPhone", "Galaxy S", "Redmi Note"...
+  slug    String
+  brandId String
+  brand   Brand   @relation(fields: [brandId], references: [id])
+  models  Model[]
+
+  @@unique([brandId, slug])
+  @@map("product_lines")
+}
+
+model Model {
+  id            String      @id @default(cuid())
+  name          String // ex: "iPhone 16 Pro Max"
+  slug          String
+  productLineId String
+  productLine   ProductLine @relation(fields: [productLineId], references: [id])
+  products      Product[]
+
+  @@unique([productLineId, slug])
+  @@map("models")
+}
+
+enum PieceType {
+  ECRAN
+  BATTERIE
+  NAPPE_CONNECTEUR
+  CAMERA
+  VITRE_ARRIERE
+  CHASSIS
+  HAUT_PARLEUR
+  VIBREUR
+  BOUTON
+  OUTILLAGE
+  ACCESSOIRE
+  AUTRE
+}
+
+model Product {
+  id                String    @id @default(cuid())
+  wpId              String?   @unique // ancien ID WooCommerce, pour traçabilité migration
+  title             String
+  slug              String    @unique
+  shortDescription  String?   @db.Text // résumé affiché sous le bouton "Ajouter au panier"
+  description       String?   @db.Text // description longue (HTML), affichée pleine largeur sous la fiche produit
+  metaTitle         String? // balise <title> SEO (si vide, on retombe sur le titre produit)
+  metaDescription   String?   @db.Text // meta description SEO
+  price             Decimal   @db.Decimal(10, 2)
+  regularPrice      Decimal?  @db.Decimal(10, 2)
+  pieceType         PieceType @default(AUTRE)
+  condition         String? // "Neuf", "Occasion"...
+  quality           String? // "Origine", "Compatible"...
+  inStock           Boolean   @default(true)
+  stockQty          Int?
+  imageUrl          String? // image principale (compat / affichage carte produit)
+  images            String[] @default([]) // galerie complète
+
+  modelId String
+  model   Model  @relation(fields: [modelId], references: [id])
+
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([modelId])
+  @@index([pieceType])
+  @@map("products")
+}
+
+// ---------- Commandes / e-commerce ----------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  userId         String? // uuid Supabase Auth (auth.users.id) si le client était connecté au moment de la commande
+  customerName   String
+  customerEmail  String
+  customerPhone  String?
+  shippingLine1  String
+  shippingCity   String
+  shippingZip    String
+  status         OrderStatus @default(PENDING)
+  subtotal       Decimal     @db.Decimal(10, 2)
+  shippingCost   Decimal     @default(0) @db.Decimal(10, 2)
+  total          Decimal     @db.Decimal(10, 2)
+  stripeSessionId String?    @unique
+  stripePaymentIntentId String?
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+
+  @@map("order_items")
+}
+
+// ---------- Prise de RDV réparation ----------
+
+enum AppointmentType {
+  ATELIER
+  DOMICILE
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  DONE
+  CANCELLED
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  userId          String? // uuid Supabase Auth (auth.users.id) si le client était connecté au moment de la demande
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  deviceBrand     String
+  deviceModel     String
+  issueDescription String           @db.Text
+  type            AppointmentType   @default(ATELIER)
+  city            String // pour calcul du supplément zone
+  extraFee        Decimal           @default(0) @db.Decimal(10, 2)
+  preferredDate   DateTime
+  status          AppointmentStatus @default(REQUESTED)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("appointments")
+}
+
+// ---------- Zones de livraison / déplacement à supplément ----------
+// Sainte-Maxime = zone de base (gratuit)
+// Saint-Tropez, Grimaud, Cogolin, La Croix-Valmer, Gassin, Plan-de-la-Tour, Les Issambres = +30€
+
+model ServiceZone {
+  id        String  @id @default(cuid())
+  cityName  String  @unique
+  extraFee  Decimal @default(0) @db.Decimal(10, 2)
+
+  @@map("service_zones")
+}
+
+// ---------- Formulaire de contact ----------
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String   @db.Text
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("newsletter_subscribers")
+}
+
+// ---------- Avis clients (gérés manuellement en admin, faute d'intégration API live) ----------
+
+enum ReviewSource {
+  GOOGLE
+  FACEBOOK
+}
+
+model Review {
+  id         String       @id @default(cuid())
+  source     ReviewSource
+  authorName String
+  rating     Int? // 1-5, optionnel (Facebook n'a que "recommande" sans note chiffrée)
+  text       String       @db.Text
+  order      Int          @default(0)
+  createdAt  DateTime     @default(now())
+
+  @@map("reviews")
+}
+
+// ---------- Partenaires & liens de référencement (page d'accueil, gérés en admin) ----------
+
+model Partner {
+  id       String  @id @default(cuid())
+  name     String
+  logoUrl  String?
+  linkUrl  String
+  order    Int     @default(0)
+
+  @@map("partners")
+}
+
+model ReferralLink {
+  id       String @id @default(cuid())
+  label    String
+  url      String
+  order    Int    @default(0)
+
+  @@map("referral_links")
+}
+
+// ---------- Pages de contenu éditables (À propos, Mentions légales, CGV...) ----------
+
+model Page {
+  id          String   @id @default(cuid())
+  slug        String   @unique // ex: "a-propos", "mentions-legales", "cgv"...
+  title       String
+  contentHtml String   @db.Text
+  updatedAt   DateTime @updatedAt
+
+  @@map("pages")
+}
