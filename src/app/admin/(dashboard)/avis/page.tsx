@@ -2,16 +2,35 @@ import { prisma } from '@/lib/prisma';
 import ReviewRow from './ReviewRow';
 import NewReviewForm from './NewReviewForm';
 import SyncGoogleButton from './SyncGoogleButton';
+import ReviewsSummaryForm from './ReviewsSummaryForm';
 
 export default async function AdminAvisPage() {
-  const reviews = await prisma.review.findMany({ orderBy: [{ source: 'asc' }, { order: 'asc' }] });
+  const [reviews, settings] = await Promise.all([
+    prisma.review.findMany({ orderBy: [{ source: 'asc' }, { order: 'asc' }] }),
+    prisma.siteSetting.findMany({
+      where: { key: { in: ['google_reviews_total', 'google_reviews_average', 'facebook_reviews_total', 'facebook_reviews_average'] } },
+    }),
+  ]);
+
+  const getSetting = (key: string) => settings.find((s) => s.key === key)?.value ?? '';
 
   return (
     <div className="max-w-3xl">
       <h1 className="text-2xl font-bold mb-1">Avis clients</h1>
       <p className="text-gray-500 mb-6">
-        Avis affichés en carrousel sur la page d&apos;accueil (Google + Facebook).
+        Avis affichés en carrousel automatique sur la page d&apos;accueil (Google + Facebook), avec un résumé
+        "Excellent ★★★★★ Basé sur X avis" façon Trustindex.
       </p>
+
+      <div className="bg-white border border-gray-100 rounded-xl p-5 mb-6 space-y-3">
+        <h2 className="font-semibold mb-1">Résumé affiché au-dessus des carrousels</h2>
+        <ReviewsSummaryForm source="google" label="Google" initialTotal={getSetting('google_reviews_total')} initialAverage={getSetting('google_reviews_average')} />
+        <ReviewsSummaryForm source="facebook" label="Facebook" initialTotal={getSetting('facebook_reviews_total')} initialAverage={getSetting('facebook_reviews_average')} />
+        <p className="text-xs text-gray-400">
+          La synchronisation Google (bouton ci-dessous) remplit automatiquement la ligne Google — modifie-la ici
+          seulement si besoin. La ligne Facebook reste manuelle (voir l&apos;encadré plus bas).
+        </p>
+      </div>
 
       <SyncGoogleButton />
 
@@ -19,8 +38,6 @@ export default async function AdminAvisPage() {
         <strong>Avis Facebook :</strong> Facebook ne propose plus d&apos;API fiable pour récupérer automatiquement
         les avis d&apos;une page (accès restreint depuis plusieurs années, même pour les pages dont tu es
         propriétaire). Le plus simple reste de les ajouter à la main ci-dessous — ça prend 30 secondes par avis.
-        Si tu veux une vraie synchronisation automatique Google + Facebook, un service comme Trustindex (que ton
-        ancien site utilisait déjà) peut le faire via un widget — dis-le-moi si tu veux qu'on l'intègre à la place.
       </div>
 
       <div className="bg-white border border-gray-100 rounded-xl divide-y divide-gray-100 mb-6">
@@ -30,7 +47,16 @@ export default async function AdminAvisPage() {
           reviews.map((r) => (
             <ReviewRow
               key={r.id}
-              review={{ id: r.id, source: r.source, authorName: r.authorName, rating: r.rating, text: r.text }}
+              review={{
+                id: r.id,
+                source: r.source,
+                authorName: r.authorName,
+                authorPhotoUrl: r.authorPhotoUrl,
+                rating: r.rating,
+                text: r.text,
+                reviewDate: r.reviewDate ? r.reviewDate.toISOString().slice(0, 10) : null,
+                verified: r.verified,
+              }}
             />
           ))
         )}

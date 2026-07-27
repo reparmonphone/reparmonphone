@@ -24,12 +24,13 @@ export default function PartnerRow({ partner }: { partner: Partner }) {
       const supabase = createSupabaseBrowserClient();
       const ext = file.name.split('.').pop();
       const path = `${partner.id}/logo-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('partners').upload(path, file, { upsert: true });
+      const { error } = await supabase.storage.from('partners').upload(path, file);
       if (error) throw error;
       const { data } = supabase.storage.from('partners').getPublicUrl(path);
       setLogoUrl(data.publicUrl);
-    } catch {
-      alert("Erreur lors de l'envoi du logo. Le bucket 'partners' existe-t-il côté Supabase ? (voir README)");
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      alert(`Erreur Supabase : "${detail}". Si le bucket 'partners' existe déjà, vérifie sa politique RLS d'INSERT (voir README section "Upload de fichiers").`);
     } finally {
       setUploading(false);
     }

@@ -22,6 +22,10 @@ export default async function ComptePage() {
           firstName: (user.user_metadata?.first_name as string | undefined) ?? '',
           lastName: (user.user_metadata?.last_name as string | undefined) ?? '',
           avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
+          phone: (user.user_metadata?.phone as string | undefined) ?? '',
+          addressLine1: (user.user_metadata?.address_line1 as string | undefined) ?? '',
+          addressCity: (user.user_metadata?.address_city as string | undefined) ?? '',
+          addressZip: (user.user_metadata?.address_zip as string | undefined) ?? '',
         }}
       />
 

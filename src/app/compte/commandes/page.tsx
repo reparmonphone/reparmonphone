@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
@@ -40,14 +41,21 @@ export default async function MesCommandesPage() {
       ) : (
         <div className="space-y-3">
           {orders.map((o) => (
-            <div key={o.id} className="bg-white border border-gray-100 rounded-xl p-5">
+            <Link
+              key={o.id}
+              href={`/compte/commandes/${o.id}`}
+              className="block bg-white border border-gray-100 rounded-xl p-5 hover:shadow-md hover:border-brand transition"
+            >
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold">Commande #{o.id.slice(-8)}</span>
                 <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full">{STATUS_LABELS[o.status]}</span>
               </div>
               <p className="text-sm text-gray-500 mb-2">{new Date(o.createdAt).toLocaleDateString('fr-FR')} — {o.items.length} article(s)</p>
-              <p className="font-bold">{formatPrice(Number(o.total))}</p>
-            </div>
+              <div className="flex items-center justify-between">
+                <p className="font-bold">{formatPrice(Number(o.total))}</p>
+                <span className="text-brand text-sm font-medium">Voir le détail →</span>
+              </div>
+            </Link>
           ))}
         </div>
       )}

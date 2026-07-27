@@ -1,95 +1,108 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 export default function InscriptionPage() {
+  return (
+    <Suspense fallback={null}>
+      <InscriptionForm />
+    </Suspense>
+  );
+}
+
+function InscriptionForm() {
   const router = useRouter();
-  const [name, setName] = useState('');
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/compte';
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [addressLine1, setAddressLine1] = useState('');
+  const [addressCity, setAddressCity] = useState('');
+  const [addressZip, setAddressZip] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name } },
-    });
+    try {
+      const res = await fetch('/api/auth/inscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName, lastName, email, password, phone, addressLine1, addressCity, addressZip }),
+      });
+      const result = await res.json();
 
-    if (error) {
-      setError(error.message.includes('already registered') ? 'Un compte existe déjà avec cet email.' : "Erreur lors de l'inscription.");
-      setLoading(false);
-      return;
-    }
+      if (!res.ok) {
+        setError(result.error ?? "Erreur lors de l'inscription.");
+        setLoading(false);
+        return;
+      }
 
-    setLoading(false);
+      // Le compte est créé côté serveur (admin API) — on établit maintenant la session côté client.
+      const supabase = createSupabaseBrowserClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setError('Compte créé, mais la connexion automatique a échoué. Connecte-toi manuellement.');
+        setLoading(false);
+        return;
+      }
 
-    // Si la confirmation email est désactivée dans Supabase, une session est déjà active.
-    if (data.session) {
-      router.push('/compte');
+      router.push(redirectTo);
       router.refresh();
-    } else {
-      setDone(true);
+    } catch {
+      setError('Une erreur est survenue.');
+      setLoading(false);
     }
-  }
-
-  if (done) {
-    return (
-      <div className="max-w-sm mx-auto px-4 py-16 text-center">
-        <div className="text-5xl mb-4">📧</div>
-        <h1 className="text-xl font-bold mb-2">Vérifie ta boîte mail</h1>
-        <p className="text-gray-600 text-sm">
-          Un email de confirmation vient de t&apos;être envoyé. Clique sur le lien pour activer ton compte.
-        </p>
-      </div>
-    );
   }
 
   return (
-    <div className="max-w-sm mx-auto px-4 py-16">
+    <div className="max-w-md mx-auto px-4 py-16">
       <h1 className="text-2xl font-bold mb-1">Créer un compte</h1>
       <p className="text-gray-500 mb-6">Pour suivre tes commandes et rendez-vous.</p>
 
       <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Nom complet</label>
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Prénom</label>
+            <input required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Nom</label>
+            <input required value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+          </div>
         </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">Email</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2"
-          />
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2" />
         </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">Mot de passe</label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2"
-          />
+          <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Téléphone</label>
+          <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="06 12 34 56 78" className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Adresse</label>
+          <input required value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} placeholder="Numéro et nom de rue" className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-2" />
+          <div className="grid grid-cols-2 gap-2">
+            <input required value={addressZip} onChange={(e) => setAddressZip(e.target.value)} placeholder="Code postal" className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+            <input required value={addressCity} onChange={(e) => setAddressCity(e.target.value)} placeholder="Ville" className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+          </div>
         </div>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -105,7 +118,7 @@ export default function InscriptionPage() {
 
       <p className="text-sm text-gray-500 mt-4 text-center">
         Déjà un compte ?{' '}
-        <Link href="/compte/connexion" className="text-brand font-medium hover:underline">
+        <Link href={`/compte/connexion${redirectTo !== '/compte' ? `?redirect=${redirectTo}` : ''}`} className="text-brand font-medium hover:underline">
           Se connecter
         </Link>
       </p>

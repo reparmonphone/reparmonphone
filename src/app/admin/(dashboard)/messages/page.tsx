@@ -19,7 +19,14 @@ export default async function AdminMessagesPage() {
             <div key={m.id} className={`bg-white border rounded-xl p-5 ${m.handled ? 'border-gray-100' : 'border-brand'}`}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-gray-800">{m.subject}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-800">{m.subject}</p>
+                    {m.requestType && (
+                      <span className="text-[10px] bg-brand-light text-brand-dark px-2 py-0.5 rounded-full font-medium">
+                        {m.requestType}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500">
                     {m.name} — <a href={`mailto:${m.email}`} className="text-brand hover:underline">{m.email}</a>
                   </p>

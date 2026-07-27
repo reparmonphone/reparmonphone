@@ -4,10 +4,21 @@ import { prisma } from '@/lib/prisma';
 import ProductEditForm from './ProductEditForm';
 
 export default async function AdminProductEditPage({ params }: { params: { id: string } }) {
-  const product = await prisma.product.findUnique({
-    where: { id: params.id },
-    include: { model: { include: { productLine: { include: { brand: true } } } } },
-  });
+  const [product, brands] = await Promise.all([
+    prisma.product.findUnique({
+      where: { id: params.id },
+      include: { model: { include: { productLine: { include: { brand: true } } } } },
+    }),
+    prisma.brand.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        lines: {
+          orderBy: { name: 'asc' },
+          include: { models: { orderBy: { name: 'asc' } } },
+        },
+      },
+    }),
+  ]);
 
   if (!product) notFound();
 
@@ -23,6 +34,7 @@ export default async function AdminProductEditPage({ params }: { params: { id: s
       </p>
 
       <ProductEditForm
+        brands={brands}
         product={{
           id: product.id,
           title: product.title,
@@ -34,6 +46,11 @@ export default async function AdminProductEditPage({ params }: { params: { id: s
           metaTitle: product.metaTitle ?? '',
           metaDescription: product.metaDescription ?? '',
           images: product.images,
+          modelId: product.modelId,
+          brandId: product.model.productLine.brandId,
+          productLineId: product.model.productLineId,
+          condition: product.condition,
+          quality: product.quality,
         }}
       />
     </div>

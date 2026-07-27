@@ -11,6 +11,8 @@ function toCarouselProduct(p: {
   price: unknown;
   regularPrice: unknown;
   imageUrl: string | null;
+  avgRating: number | null;
+  reviewCount: number;
   model: { productLine: { brand: { name: string } } };
 }): CarouselProduct {
   return {
@@ -20,6 +22,8 @@ function toCarouselProduct(p: {
     price: Number(p.price),
     regularPrice: p.regularPrice ? Number(p.regularPrice) : null,
     imageUrl: p.imageUrl,
+    avgRating: p.avgRating,
+    reviewCount: p.reviewCount,
     brandName: p.model.productLine.brand.name,
   };
 }
@@ -47,10 +51,10 @@ async function getRandomProducts(where: Prisma.ProductWhereInput, take: number) 
 
 export default async function TopProduitsSection() {
   const [nouveautes, vedette, promos] = await Promise.all([
-    getRandomProducts({ inStock: true }, 20),
-    getRandomProducts({ inStock: true }, 20),
+    getRandomProducts({ inStock: true, showInBoutique: true }, 20),
+    getRandomProducts({ inStock: true, showInBoutique: true }, 20),
     prisma.product.findMany({
-      where: { inStock: true, regularPrice: { not: null } },
+      where: { inStock: true, showInBoutique: true, regularPrice: { not: null } },
       take: 40,
       include,
     }),

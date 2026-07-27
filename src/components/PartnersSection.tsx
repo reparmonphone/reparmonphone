@@ -21,14 +21,14 @@ export default async function PartnersSection() {
                 href={p.linkUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 w-44 h-28 bg-white border border-gray-100 rounded-xl p-4 flex items-center justify-center hover:shadow-md transition"
+                className="shrink-0 w-[300px] h-[300px] bg-white border border-gray-100 rounded-xl p-8 flex items-center justify-center hover:shadow-md transition"
               >
                 {p.logoUrl ? (
                   <div className="relative w-full h-full">
-                    <Image src={p.logoUrl} alt={p.name} fill className="object-contain" sizes="180px" />
+                    <Image src={p.logoUrl} alt={p.name} fill className="object-contain" sizes="300px" />
                   </div>
                 ) : (
-                  <span className="font-extrabold text-gray-800">{p.name}</span>
+                  <span className="font-extrabold text-gray-800 text-lg">{p.name}</span>
                 )}
               </a>
             ))}

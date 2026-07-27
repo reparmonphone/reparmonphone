@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatPrice } from '@/lib/format';
+import ProductStars from './ProductStars';
 
 export type ProductCardData = {
   id: string;
@@ -11,6 +12,8 @@ export type ProductCardData = {
   inStock: boolean;
   brandName: string;
   modelName: string;
+  avgRating?: number | null;
+  reviewCount?: number;
 };
 
 export default function ProductCard({ product }: { product: ProductCardData }) {
@@ -40,6 +43,7 @@ export default function ProductCard({ product }: { product: ProductCardData }) {
       <div className="p-3 flex flex-col gap-1 flex-1">
         <span className="text-xs text-gray-400">{product.brandName} · {product.modelName}</span>
         <h3 className="text-sm font-medium text-gray-800 line-clamp-2 flex-1">{product.title}</h3>
+        <ProductStars rating={product.avgRating ?? null} count={product.reviewCount ?? 0} size="text-xs" />
         <span className="text-brand-dark font-bold">{formatPrice(product.price)}</span>
       </div>
     </Link>

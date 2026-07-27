@@ -1,10 +1,15 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { updateProduct } from '../actions';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { generateMetaDescription } from '@/lib/seoDescription';
+
+type ModelOpt = { id: string; name: string };
+type LineOpt = { id: string; name: string; models: ModelOpt[] };
+type BrandOpt = { id: string; name: string; lines: LineOpt[] };
 
 type Product = {
   id: string;
@@ -17,9 +22,14 @@ type Product = {
   metaTitle: string;
   metaDescription: string;
   images: string[];
+  modelId: string;
+  brandId: string;
+  productLineId: string;
+  condition: string | null;
+  quality: string | null;
 };
 
-export default function ProductEditForm({ product }: { product: Product }) {
+export default function ProductEditForm({ product, brands }: { product: Product; brands: BrandOpt[] }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -34,9 +44,32 @@ export default function ProductEditForm({ product }: { product: Product }) {
   const [images, setImages] = useState(product.images);
   const [uploading, setUploading] = useState(false);
 
+  const [brandId, setBrandId] = useState(product.brandId);
+  const [productLineId, setProductLineId] = useState(product.productLineId);
+  const [modelId, setModelId] = useState(product.modelId);
+
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedBrand = brands.find((b) => b.id === brandId);
+  const availableLines = selectedBrand?.lines ?? [];
+  const selectedLine = availableLines.find((l) => l.id === productLineId);
+  const availableModels = useMemo(() => selectedLine?.models ?? [], [selectedLine]);
+
+  function handleBrandChange(newBrandId: string) {
+    setBrandId(newBrandId);
+    const brand = brands.find((b) => b.id === newBrandId);
+    const firstLine = brand?.lines[0];
+    setProductLineId(firstLine?.id ?? '');
+    setModelId(firstLine?.models[0]?.id ?? '');
+  }
+
+  function handleLineChange(newLineId: string) {
+    setProductLineId(newLineId);
+    const line = availableLines.find((l) => l.id === newLineId);
+    setModelId(line?.models[0]?.id ?? '');
+  }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -79,6 +112,10 @@ export default function ProductEditForm({ product }: { product: Product }) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!modelId) {
+      setError('Sélectionne une marque, une gamme et un modèle.');
+      return;
+    }
     startTransition(async () => {
       await updateProduct(product.id, {
         title,
@@ -90,6 +127,7 @@ export default function ProductEditForm({ product }: { product: Product }) {
         metaTitle,
         metaDescription,
         images,
+        modelId,
       });
       setSaved(true);
       router.refresh();
@@ -99,6 +137,40 @@ export default function ProductEditForm({ product }: { product: Product }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Affectation catalogue */}
+      <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
+        <h2 className="font-semibold">Affectation catalogue</h2>
+        <p className="text-sm text-gray-500 -mt-2">
+          Corrige ici la marque, la gamme et le modèle si ce produit est mal classé.
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Marque</label>
+            <select value={brandId} onChange={(e) => handleBrandChange(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Gamme</label>
+            <select value={productLineId} onChange={(e) => handleLineChange(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              {availableLines.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Modèle</label>
+            <select value={modelId} onChange={(e) => setModelId(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              {availableModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Photos */}
       <div className="bg-white border border-gray-100 rounded-xl p-6">
         <h2 className="font-semibold mb-3">Photos</h2>
@@ -175,8 +247,30 @@ export default function ProductEditForm({ product }: { product: Product }) {
           <input value={metaTitle} onChange={(e) => setMetaTitle(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder={title} />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Meta description</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium">Meta description</label>
+            <button
+              type="button"
+              onClick={() => {
+                const modelName = availableModels.find((m) => m.id === modelId)?.name ?? '';
+                setMetaDescription(
+                  generateMetaDescription({
+                    title,
+                    brandName: selectedBrand?.name ?? '',
+                    modelName,
+                    condition: product.condition,
+                    quality: product.quality,
+                    price,
+                  })
+                );
+              }}
+              className="text-xs text-brand hover:underline"
+            >
+              ✨ Générer automatiquement
+            </button>
+          </div>
           <textarea value={metaDescription} onChange={(e) => setMetaDescription(e.target.value)} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <p className="text-xs text-gray-400 mt-1">{metaDescription.length}/160 caractères</p>
         </div>
       </div>
 

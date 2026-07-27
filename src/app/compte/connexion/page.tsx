@@ -1,12 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 export default function ConnexionPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConnexionForm />
+    </Suspense>
+  );
+}
+
+function ConnexionForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/compte';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +36,7 @@ export default function ConnexionPage() {
       return;
     }
 
-    router.push('/compte');
+    router.push(redirectTo);
     router.refresh();
   }
 
@@ -70,7 +80,7 @@ export default function ConnexionPage() {
 
       <p className="text-sm text-gray-500 mt-4 text-center">
         Pas encore de compte ?{' '}
-        <Link href="/compte/inscription" className="text-brand font-medium hover:underline">
+        <Link href={`/compte/inscription${redirectTo !== '/compte' ? `?redirect=${redirectTo}` : ''}`} className="text-brand font-medium hover:underline">
           Créer un compte
         </Link>
       </p>

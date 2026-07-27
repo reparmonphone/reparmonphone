@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
+import { LINE_CONTENT_KEY } from '@/lib/categoryContent';
 
-const BRAND_ORDER = ['Apple', 'Samsung', 'Huawei', 'Xiaomi'];
+const BRAND_ORDER = ['apple', 'samsung', 'huawei', 'xiaomi'];
 
 const ASSETS: Record<string, { logo: string; phones: string }> = {
   apple: { logo: '/categories/logo-apple.png', phones: '/categories/phones-apple.png' },
@@ -13,7 +14,9 @@ const ASSETS: Record<string, { logo: string; phones: string }> = {
 
 export default async function CategoriesEnVedette() {
   const brandsRaw = await prisma.brand.findMany({
-    where: { name: { notIn: ['Autre', 'Autres'] } },
+    // On n'affiche que les 4 marques téléphone reconnues (par slug, stable même si le nom est renommé) —
+    // la marque "Outils" (ou toute autre marque annexe) n'apparaît jamais ici.
+    where: { slug: { in: BRAND_ORDER } },
     include: {
       lines: {
         orderBy: { name: 'asc' },
@@ -22,55 +25,79 @@ export default async function CategoriesEnVedette() {
     },
   });
 
-  const brands = [...brandsRaw].sort((a, b) => {
-    const ia = BRAND_ORDER.indexOf(a.name);
-    const ib = BRAND_ORDER.indexOf(b.name);
-    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-  });
+  const brands = [...brandsRaw].sort((a, b) => BRAND_ORDER.indexOf(a.slug) - BRAND_ORDER.indexOf(b.slug));
 
   if (brands.length === 0) return null;
 
   return (
-    <section className="max-w-6xl mx-auto px-4 py-12">
-      <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900">Catégories En Vedette</h2>
-      <p className="text-gray-500 mt-1 mb-8">Retrouvez les catégories les plus consultées sur ReparMonPhone</p>
+    <section className="w-full bg-white py-12">
+      <div className="mx-auto w-full max-w-7xl px-4">
+        <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900">Catégories En Vedette</h2>
+        <p className="text-gray-500 mt-1 mb-8">Retrouvez les catégories les plus consultées sur ReparMonPhone</p>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {brands.map((brand) => {
-          const assets = ASSETS[brand.slug];
-          return (
-            <div key={brand.id} className="border border-gray-200 rounded-xl p-5 flex flex-col items-center text-center bg-white">
-              <Link href={`/boutique?marque=${brand.slug}`} className="mb-4 block">
-                {assets?.logo ? (
-                  <div className="relative w-full h-16">
-                    <Image src={assets.logo} alt={brand.name} fill unoptimized className="object-contain" sizes="150px" />
-                  </div>
-                ) : (
-                  <span className="font-extrabold text-xl text-gray-900 hover:text-brand">{brand.name}</span>
-                )}
-              </Link>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {brands.map((brand) => {
+            const assets = ASSETS[brand.slug];
+            return (
+              <div
+                key={brand.id}
+                className="flex min-h-[610px] flex-col items-center border border-gray-200 bg-white px-5 py-6 text-center"
+              >
+                {/* Logo de la marque */}
+                <Link href={`/marque/${brand.slug}`} className="flex h-[110px] w-full items-center justify-center">
+                  {assets?.logo ? (
+                    <Image
+                      src={assets.logo}
+                      alt={`Logo ${brand.name}`}
+                      width={210}
+                      height={95}
+                      unoptimized
+                      className="max-h-[95px] max-w-[210px] w-auto h-auto object-contain"
+                    />
+                  ) : (
+                    <span className="font-extrabold text-xl text-gray-900">{brand.name}</span>
+                  )}
+                </Link>
 
-              <ul className="space-y-1.5 mb-4">
-                {brand.lines.map((line) => (
-                  <li key={line.id}>
-                    <Link
-                      href={`/boutique?marque=${brand.slug}&gamme=${line.slug}`}
-                      className="text-sm text-brand hover:underline hover:text-brand-dark"
-                    >
-                      {line.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-
-              {assets?.phones && (
-                <div className="relative w-full h-32 mt-auto">
-                  <Image src={assets.phones} alt={`Pièces ${brand.name}`} fill unoptimized className="object-contain" sizes="200px" />
+                {/* Liste des gammes — vrais liens vers la boutique filtrée */}
+                <div className="mt-6 flex flex-col items-center gap-4">
+                  {brand.lines.map((line) => {
+                    const contentKey = LINE_CONTENT_KEY[`${brand.slug}/${line.slug}`];
+                    const lineHref = contentKey
+                      ? `/marque/${brand.slug}/${contentKey}`
+                      : `/boutique?marque=${brand.slug}&gamme=${line.slug}`;
+                    return (
+                      <Link
+                        key={line.id}
+                        href={lineHref}
+                        className="text-[17px] font-medium text-cyan-500 transition-colors hover:text-cyan-700"
+                      >
+                        {line.name}
+                      </Link>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {/* Image des téléphones en bas */}
+                {assets?.phones && (
+                  <Link
+                    href={`/marque/${brand.slug}`}
+                    className="mt-auto flex h-[250px] w-full items-end justify-center pt-8"
+                  >
+                    <Image
+                      src={assets.phones}
+                      alt={`Pièces détachées ${brand.name}`}
+                      width={280}
+                      height={240}
+                      unoptimized
+                      className="max-h-[240px] max-w-full w-auto h-auto object-contain"
+                    />
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

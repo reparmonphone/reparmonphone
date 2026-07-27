@@ -81,11 +81,18 @@ model Product {
   stockQty          Int?
   imageUrl          String? // image principale (compat / affichage carte produit)
   images            String[] @default([]) // galerie complète
+  showInBoutique    Boolean   @default(true) // décoche pour un produit qui n'a rien à faire dans "Pièces détachées"
+  // (ex: téléphone reconditionné entier) — reste visible via sa fiche directe et ses collections
 
   modelId String
   model   Model  @relation(fields: [modelId], references: [id])
 
   orderItems OrderItem[]
+  reviews    ProductReview[]
+
+  // Champs mis en cache pour affichage rapide (étiquettes produit, listes) sans recalculer à chaque fois
+  avgRating   Float? // ex: 4.8
+  reviewCount Int    @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -93,6 +100,23 @@ model Product {
   @@index([modelId])
   @@index([pieceType])
   @@map("products")
+}
+
+// ---------- Avis produits (différents des avis Google/Facebook de l'entreprise) ----------
+
+model ProductReview {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId     String? // uuid Supabase Auth si laissé par un client connecté
+  authorName String
+  rating     Int // 1 à 5
+  text       String?  @db.Text
+  verified   Boolean  @default(false) // true = achat confirmé (via l'historique de commandes)
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+  @@map("product_reviews")
 }
 
 // ---------- Commandes / e-commerce ----------
@@ -107,21 +131,63 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum PaymentProvider {
+  STRIPE
+  SUMUP
+  PAYPAL
+}
+
+enum ShippingCarrier {
+  CHRONOPOST
+  COLISSIMO
+  MONDIAL_RELAY
+  RELAIS_COLIS
+  AUTRE
+}
+
 model Order {
   id             String      @id @default(cuid())
+  invoiceNumber  Int         @unique @default(autoincrement())
   userId         String? // uuid Supabase Auth (auth.users.id) si le client était connecté au moment de la commande
   customerName   String
   customerEmail  String
   customerPhone  String?
+  companyName    String? // facultatif, saisi sur l'adresse de facturation
   shippingLine1  String
   shippingCity   String
   shippingZip    String
+
+  // Adresse de facturation (peut différer de la livraison — choix géré nativement par Stripe Checkout)
+  billingName    String?
+  billingLine1   String?
+  billingCity    String?
+  billingZip     String?
+
   status         OrderStatus @default(PENDING)
   subtotal       Decimal     @db.Decimal(10, 2)
+  promoCode      String?
+  discountAmount Decimal     @default(0) @db.Decimal(10, 2)
   shippingCost   Decimal     @default(0) @db.Decimal(10, 2)
   total          Decimal     @db.Decimal(10, 2)
+
+  paymentProvider PaymentProvider @default(STRIPE)
   stripeSessionId String?    @unique
   stripePaymentIntentId String?
+  sumupCheckoutId String?    @unique
+  paypalOrderId  String?     @unique
+
+  // Mode de paiement (renseigné automatiquement par le webhook après paiement)
+  paymentBrand   String? // ex: "visa", "mastercard"...
+  paymentLast4   String?
+
+  // Suivi de livraison
+  carrier         ShippingCarrier?
+  trackingNumber  String?
+  trackingUrlOverride String?
+
+  reminderSentAt DateTime? // dernière relance email envoyée pour une commande restée "En attente"
+  deliveredAt    DateTime? // date à laquelle la commande est passée au statut "Livrée"
+  reviewReminderSentAt DateTime? // relance "laisse un avis" déjà envoyée pour cette commande
 
   items OrderItem[]
 
@@ -194,13 +260,14 @@ model ServiceZone {
 // ---------- Formulaire de contact ----------
 
 model ContactMessage {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  subject   String
-  message   String   @db.Text
-  handled   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  requestType String? // "Aide" / "Bug" / "Erreur" / "Demande directe" (widget flottant "Besoin d'aide ?")
+  subject     String
+  message     String   @db.Text
+  handled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   @@map("contact_messages")
 }
@@ -221,13 +288,16 @@ enum ReviewSource {
 }
 
 model Review {
-  id         String       @id @default(cuid())
-  source     ReviewSource
-  authorName String
-  rating     Int? // 1-5, optionnel (Facebook n'a que "recommande" sans note chiffrée)
-  text       String       @db.Text
-  order      Int          @default(0)
-  createdAt  DateTime     @default(now())
+  id             String       @id @default(cuid())
+  source         ReviewSource
+  authorName     String
+  authorPhotoUrl String? // photo de l'auteur (facultatif, sinon initiales générées)
+  rating         Int? // 1-5, optionnel (Facebook n'a que "recommande" sans note chiffrée)
+  text           String       @db.Text
+  reviewDate     DateTime? // date réelle de l'avis, pour afficher "il y a X jours"
+  verified       Boolean      @default(true)
+  order          Int          @default(0)
+  createdAt      DateTime     @default(now())
 
   @@map("reviews")
 }
@@ -253,6 +323,78 @@ model ReferralLink {
   @@map("referral_links")
 }
 
+// ---------- Frais de port / options de livraison (configurables en admin) ----------
+
+model ShippingOption {
+  id          String   @id @default(cuid())
+  label       String
+  description String? // ex: "Livraison en 24h"
+  price       Decimal  @db.Decimal(10, 2)
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("shipping_options")
+}
+
+// ---------- Réglages divers (clé/valeur), pour des petites infos éditables sans créer une table dédiée ----------
+
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+// ---------- Redirections 301 (crucial après une migration de site, pour ne pas perdre le référencement accumulé) ----------
+
+model Redirect {
+  id         String   @id @default(cuid())
+  fromPath   String   @unique // ex: "/ancienne-url-woocommerce" (commence toujours par /)
+  toPath     String // ex: "/produit/nouvelle-url"
+  statusCode Int      @default(301)
+  hits       Int      @default(0) // nombre de fois où la redirection a été utilisée
+  createdAt  DateTime @default(now())
+
+  @@map("redirects")
+}
+
+// ---------- Statistiques de visite (compteur page d'accueil + tableau de bord admin) ----------
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([path])
+  @@map("page_views")
+}
+
+// ---------- Codes promo ----------
+
+enum PromoType {
+  PERCENT
+  FIXED
+}
+
+model PromoCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  type      PromoType
+  value     Decimal   @db.Decimal(10, 2) // ex: 10 (%) si PERCENT, ou 5.00 (€) si FIXED
+  active    Boolean   @default(true)
+  expiresAt DateTime?
+  maxUses   Int? // null = illimité
+  usedCount Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("promo_codes")
+}
+
 // ---------- Pages de contenu éditables (À propos, Mentions légales, CGV...) ----------
 
 model Page {
@@ -263,4 +405,36 @@ model Page {
   updatedAt   DateTime @updatedAt
 
   @@map("pages")
+}
+
+// ---------- Liens de menu personnalisés (header) ----------
+// Les marques (Apple/Samsung/...) sont toujours générées automatiquement depuis le catalogue.
+// Ces entrées viennent s'ajouter après, dans l'ordre choisi (ex: "Prendre RDV", "Blog", "Promos"...).
+
+model HeaderMenuItem {
+  id          String   @id @default(cuid())
+  label       String
+  href        String
+  order       Int      @default(0)
+  openInNewTab Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("header_menu_items")
+}
+
+// ---------- Collections manuelles (ex: "Apple Reconditionnés") ----------
+// Regroupe des MODÈLES choisis à la main, indépendamment de leur marque/gamme d'origine.
+// Utile pour des pages transversales du style "Reconditionnés", "Promo été", etc.
+// Se lie ensuite à une entrée du menu header via son URL /collection/[slug].
+
+model Collection {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  productIds String[] @default([])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("collections")
 }

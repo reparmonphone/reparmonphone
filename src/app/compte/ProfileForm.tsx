@@ -10,6 +10,10 @@ type UserData = {
   firstName: string;
   lastName: string;
   avatarUrl: string | null;
+  phone: string;
+  addressLine1: string;
+  addressCity: string;
+  addressZip: string;
 };
 
 export default function ProfileForm({ user }: { user: UserData }) {
@@ -18,6 +22,10 @@ export default function ProfileForm({ user }: { user: UserData }) {
 
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
+  const [phone, setPhone] = useState(user.phone);
+  const [addressLine1, setAddressLine1] = useState(user.addressLine1);
+  const [addressCity, setAddressCity] = useState(user.addressCity);
+  const [addressZip, setAddressZip] = useState(user.addressZip);
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [savingInfo, setSavingInfo] = useState(false);
@@ -78,7 +86,15 @@ export default function ProfileForm({ user }: { user: UserData }) {
 
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.auth.updateUser({
-      data: { first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`.trim() },
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+        full_name: `${firstName} ${lastName}`.trim(),
+        phone,
+        address_line1: addressLine1,
+        address_city: addressCity,
+        address_zip: addressZip,
+      },
     });
 
     setSavingInfo(false);
@@ -179,6 +195,41 @@ export default function ProfileForm({ user }: { user: UserData }) {
           <label className="block text-sm font-medium mb-1">Email</label>
           <input value={user.email} disabled className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-500" />
           <p className="text-xs text-gray-400 mt-1">L&apos;email ne peut pas être modifié ici.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Téléphone</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="06 12 34 56 78"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Adresse</label>
+          <input
+            value={addressLine1}
+            onChange={(e) => setAddressLine1(e.target.value)}
+            placeholder="Numéro et nom de rue"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-2"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={addressZip}
+              onChange={(e) => setAddressZip(e.target.value)}
+              placeholder="Code postal"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2"
+            />
+            <input
+              value={addressCity}
+              onChange={(e) => setAddressCity(e.target.value)}
+              placeholder="Ville"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2"
+            />
+          </div>
         </div>
 
         {infoError && <p className="text-red-600 text-sm">{infoError}</p>}

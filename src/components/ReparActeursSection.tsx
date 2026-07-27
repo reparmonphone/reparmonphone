@@ -36,7 +36,7 @@ export default function ReparActeursSection() {
 
         {/* Colonne droite : GIF animé + légende marques */}
         <div className="flex flex-col">
-          <div className="relative w-full flex-1 min-h-[320px] rounded-xl overflow-hidden bg-gray-50">
+          <div className="relative w-full flex-1 min-h-[320px] rounded-xl overflow-hidden bg-white">
             <Image
               src="/partners/reparmonphone-animation.gif"
               alt="ReparMonPhone — réparation et pièces détachées"

@@ -40,3 +40,30 @@ export async function deleteReferralLink(id: string) {
   revalidatePath('/admin/partenaires');
   revalidatePath('/');
 }
+
+export async function updateInstagramFollowers(value: string) {
+  await requireAdminUser();
+  await prisma.siteSetting.upsert({
+    where: { key: 'instagram_followers' },
+    update: { value: value.trim() },
+    create: { key: 'instagram_followers', value: value.trim() },
+  });
+  revalidatePath('/admin/partenaires');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+// Comptes exacts (nombres entiers) utilisés par le compteur à volets façon Smiirl sur la page d'accueil —
+// distincts des libellés abrégés ("1,9K") affichés ailleurs.
+export async function updateSocialFollowersCount(platform: 'facebook' | 'instagram', value: string) {
+  await requireAdminUser();
+  const key = `${platform}_followers_count`;
+  await prisma.siteSetting.upsert({
+    where: { key },
+    update: { value: value.trim() },
+    create: { key, value: value.trim() },
+  });
+  revalidatePath('/admin/partenaires');
+  revalidatePath('/');
+  return { ok: true };
+}

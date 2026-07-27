@@ -1,77 +1,69 @@
-'use client';
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import PanierClient from './PanierClient';
 
-import Image from 'next/image';
-import { useState } from 'react';
-import { useCart } from '@/store/cart';
-import { formatPrice } from '@/lib/format';
+export default async function PanierPage() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function PanierPage() {
-  const { items, removeItem, setQuantity, totalPrice } = useCart();
-  const [loading, setLoading] = useState(false);
+  const shippingOptions = await prisma.shippingOption.findMany({
+    where: { active: true },
+    orderBy: { order: 'asc' },
+  });
 
-  async function checkout() {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
-      });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } finally {
-      setLoading(false);
-    }
-  }
+  const paymentSettings = await prisma.siteSetting.findMany({
+    where: { key: { in: ['payment_stripe_enabled', 'payment_sumup_enabled', 'payment_paypal_enabled'] } },
+  });
+  const isEnabled = (key: string) => paymentSettings.find((s) => s.key === key)?.value !== 'false';
 
-  if (items.length === 0) {
+  // Un compte est obligatoire pour commander — on récupère ensuite ses infos pour pré-remplir le paiement.
+  if (!user) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <p className="text-gray-500 text-lg">Votre panier est vide.</p>
+      <div className="max-w-md mx-auto px-4 py-20 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h1 className="text-2xl font-bold mb-2">Un compte est nécessaire pour commander</h1>
+        <p className="text-gray-500 mb-8">
+          Crée un compte (ou connecte-toi) pour passer commande — ça te permet aussi de suivre tes commandes et
+          d&apos;être recontacté plus facilement en cas de besoin.
+        </p>
+        <div className="flex flex-col gap-3 max-w-xs mx-auto">
+          <Link href="/compte/inscription?redirect=/panier" className="bg-brand text-white py-3 rounded-lg font-semibold hover:bg-brand-dark transition">
+            Créer un compte
+          </Link>
+          <Link href="/compte/connexion?redirect=/panier" className="border border-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 transition">
+            J&apos;ai déjà un compte
+          </Link>
+        </div>
       </div>
     );
   }
 
+  const meta = user.user_metadata ?? {};
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold mb-6">Votre panier</h1>
-
-      <div className="space-y-4">
-        {items.map((item) => (
-          <div key={item.productId} className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4">
-            <div className="relative w-16 h-16 shrink-0 bg-gray-50 rounded">
-              {item.imageUrl && <Image src={item.imageUrl} alt={item.title} fill className="object-contain p-1" />}
-            </div>
-            <div className="flex-1">
-              <p className="font-medium text-sm">{item.title}</p>
-              <p className="text-brand-dark font-semibold">{formatPrice(item.price)}</p>
-            </div>
-            <input
-              type="number"
-              min={1}
-              value={item.quantity}
-              onChange={(e) => setQuantity(item.productId, Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-center"
-            />
-            <button onClick={() => removeItem(item.productId)} className="text-gray-400 hover:text-red-500 text-sm">
-              Retirer
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
-        <span className="text-lg font-bold">Total</span>
-        <span className="text-2xl font-extrabold text-brand-dark">{formatPrice(totalPrice())}</span>
-      </div>
-
-      <button
-        onClick={checkout}
-        disabled={loading}
-        className="mt-6 w-full bg-brand text-white py-3 rounded-lg font-semibold hover:bg-brand-dark transition disabled:opacity-60"
-      >
-        {loading ? 'Redirection...' : 'Passer au paiement'}
-      </button>
-    </div>
+    <PanierClient
+      shippingOptions={shippingOptions.map((o) => ({
+        id: o.id,
+        label: o.label,
+        description: o.description,
+        price: Number(o.price),
+      }))}
+      paymentMethods={{
+        stripe: isEnabled('payment_stripe_enabled'),
+        sumup: isEnabled('payment_sumup_enabled'),
+        paypal: isEnabled('payment_paypal_enabled'),
+      }}
+      initialCustomer={{
+        name: [meta.first_name, meta.last_name].filter(Boolean).join(' ') || '',
+        email: user.email ?? '',
+        phone: meta.phone ?? '',
+        addressLine1: meta.address_line1 ?? '',
+        addressZip: meta.address_zip ?? '',
+        addressCity: meta.address_city ?? '',
+      }}
+    />
   );
 }

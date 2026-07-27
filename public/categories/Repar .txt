@@ -1,0 +1,50 @@
+<div className="max-w-6xl mx-auto px-4 pt-4">
+  <HeroSlider />
+</div>
+
+
+npm run db:push
+npm run db:seed
+npm run dev
+
+
+
+
+git add .
+git push origin main
+
+
+# 1. Installer les nouvelles dépendances (react-pdf, resend, etc. ajoutées au fil des sessions)
+npm install
+
+# 2. Régénérer le client Prisma (types à jour avec le schéma)
+npx prisma generate
+
+# 3. Appliquer les changements de schéma sur Supabase
+npm run db:push
+
+# 4. (Une seule fois, si pas déjà fait) remplir les meta descriptions manquantes
+npm run backfill-seo
+
+# 5. Tester en local AVANT de déployer
+npm run dev
+
+
+
+
+# 6. Commit — il te manquait cette étape entre add et push
+git add .
+git commit -m "Mise à jour du site"
+git push origin main
+
+
+******************************************************
+
+
+Ajouter sur chaque fiche produit, les produits connexes c'est a dire les produits du meme modele, soit 4 produits en etiquette sur 1 ligne en carrousels auto
+
+un mode maintenance pour ne plus afficher le site en ligne le temsp du'une maintnenace accessible uniquement en mode admin avec une belel image dillustration pour les visiteur
+
+configruer stripe , paypal jai sumup comment configurer
+
+Aligné au mieu le sous titre  Reparation en Ateleir jusqua Saint Tropez. sur la meme ligne 

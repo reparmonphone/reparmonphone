@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import NouveautesCarousel, { type NouveauteProduct } from './NouveautesCarousel';
 
 export default async function TopNouveautesSection() {
-  const total = await prisma.product.count({ where: { inStock: true } });
+  const total = await prisma.product.count({ where: { inStock: true, showInBoutique: true } });
   if (total === 0) return null;
 
   // Fenêtre aléatoire dans tout le catalogue, puis mélange — change à chaque chargement de page
@@ -11,7 +11,7 @@ export default async function TopNouveautesSection() {
   const skip = Math.floor(Math.random() * (maxSkip + 1));
 
   const pool = await prisma.product.findMany({
-    where: { inStock: true },
+    where: { inStock: true, showInBoutique: true },
     orderBy: { id: 'asc' },
     skip,
     take: windowSize,
@@ -27,6 +27,8 @@ export default async function TopNouveautesSection() {
     title: p.title,
     price: Number(p.price),
     imageUrl: p.imageUrl,
+    avgRating: p.avgRating,
+    reviewCount: p.reviewCount,
   }));
 
   return (

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatPrice } from '@/lib/format';
+import ProductStars from './ProductStars';
 
 export type CarouselProduct = {
   id: string;
@@ -12,6 +13,8 @@ export type CarouselProduct = {
   price: number;
   regularPrice: number | null;
   imageUrl: string | null;
+  avgRating: number | null;
+  reviewCount: number;
   brandName: string;
 };
 
@@ -104,6 +107,7 @@ export default function TopProduitsCarousel({
                 </div>
                 <p className="text-xs text-gray-400">{p.brandName}</p>
                 <p className="text-sm text-gray-800 line-clamp-2 mb-1 min-h-[2.5em]">{p.title}</p>
+                <ProductStars rating={p.avgRating} count={p.reviewCount} size="text-xs" />
                 <div className="flex items-center gap-2">
                   <span className="text-brand-dark font-bold">{formatPrice(p.price)}</span>
                   {p.regularPrice && p.regularPrice > p.price && (

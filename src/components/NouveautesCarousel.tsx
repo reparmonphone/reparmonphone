@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatPrice } from '@/lib/format';
+import ProductStars from './ProductStars';
 
 export type NouveauteProduct = {
   id: string;
@@ -11,6 +12,8 @@ export type NouveauteProduct = {
   title: string;
   price: number;
   imageUrl: string | null;
+  avgRating: number | null;
+  reviewCount: number;
 };
 
 export default function NouveautesCarousel({ products }: { products: NouveauteProduct[] }) {
@@ -57,6 +60,7 @@ export default function NouveautesCarousel({ products }: { products: NouveautePr
             )}
           </div>
           <p className="text-xs text-gray-700 line-clamp-2 flex-1">{p.title}</p>
+          <ProductStars rating={p.avgRating} count={p.reviewCount} size="text-xs" />
           <p className="text-brand-dark font-bold text-sm mt-1">{formatPrice(p.price)}</p>
         </Link>
       ))}

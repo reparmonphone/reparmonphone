@@ -8,7 +8,7 @@ export const metadata = { title: 'Boutique — Pièces détachées | ReparMonPho
 export default async function BoutiquePage({
   searchParams,
 }: {
-  searchParams: { marque?: string; gamme?: string; modele?: string; type?: string };
+  searchParams: { marque?: string; gamme?: string; modele?: string; type?: string; q?: string };
 }) {
   const [brands, lines, models] = await Promise.all([
     prisma.brand.findMany({ orderBy: { name: 'asc' } }),
@@ -16,7 +16,7 @@ export default async function BoutiquePage({
     prisma.model.findMany({ orderBy: { name: 'asc' } }),
   ]);
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { showInBoutique: true };
   const modelFilter: Record<string, unknown> = {};
 
   if (searchParams.modele) {
@@ -37,6 +37,12 @@ export default async function BoutiquePage({
   if (searchParams.type) {
     where.pieceType = searchParams.type as PieceType;
   }
+  if (searchParams.q) {
+    where.OR = [
+      { title: { contains: searchParams.q, mode: 'insensitive' } },
+      { model: { name: { contains: searchParams.q, mode: 'insensitive' } } },
+    ];
+  }
 
   const products = await prisma.product.findMany({
     where,
@@ -47,7 +53,9 @@ export default async function BoutiquePage({
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold mb-6">Boutique — Pièces détachées</h1>
+      <h1 className="text-2xl font-bold mb-6">
+        {searchParams.q ? `Résultats pour "${searchParams.q}"` : 'Boutique — Pièces détachées'}
+      </h1>
       <Filters brands={brands} lines={lines} models={models} />
 
       {products.length === 0 ? (
@@ -66,6 +74,8 @@ export default async function BoutiquePage({
                 inStock: p.inStock,
                 brandName: p.model.productLine.brand.name,
                 modelName: p.model.name,
+                avgRating: p.avgRating,
+                reviewCount: p.reviewCount,
               }}
             />
           ))}

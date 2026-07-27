@@ -220,6 +220,39 @@ async function main() {
     console.log(`  ${entries.length} pages de contenu créées (modifiables dans /admin/pages).`);
   }
 
+  // 10. Réglage Instagram par défaut — éditable ensuite dans /admin/partenaires
+  await prisma.siteSetting.upsert({
+    where: { key: 'instagram_followers' },
+    update: {},
+    create: { key: 'instagram_followers', value: '1,9K' },
+  });
+
+  // 11. Liens de menu header par défaut — éditables ensuite dans /admin/menu
+  const menuItemsCount = await prisma.headerMenuItem.count();
+  if (menuItemsCount === 0) {
+    await prisma.headerMenuItem.create({ data: { label: 'Prendre RDV', href: '/rdv', order: 1 } });
+    console.log('  1 lien de menu header créé (modifiable dans /admin/menu).');
+  }
+
+  // 11. Options de livraison par défaut — éditables ensuite dans /admin/livraison
+  const shippingCount = await prisma.shippingOption.count();
+  if (shippingCount === 0) {
+    await prisma.shippingOption.createMany({
+      data: [
+        { label: 'Chronopost 24h', description: 'Livraison le lendemain avant 13h', price: 8.9, order: 1 },
+        { label: 'Chrono Relais', description: 'Livraison en 1 jour, en point relais', price: 6.45, order: 2 },
+        { label: 'Lettre Suivie - La Poste', description: 'Livraison en 2 à 5 jours', price: 4.5, order: 3 },
+        {
+          label: 'Réparation en Atelier ou à Domicile',
+          description: 'À Sainte-Maxime, tout compris (main d\u2019œuvre incluse)',
+          price: 50,
+          order: 4,
+        },
+      ],
+    });
+    console.log('  4 options de livraison créées (modifiables dans /admin/livraison).');
+  }
+
   console.log('Seed terminé ✅');
 }
 
