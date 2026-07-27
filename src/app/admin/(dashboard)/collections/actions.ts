@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -63,5 +63,33 @@ export async function setProductsShowInBoutique(productIds: string[], show: bool
   revalidatePath('/admin/collections');
   revalidatePath('/boutique');
   revalidatePath('/');
+  return { ok: true };
+}
+
+export async function setCollectionModels(id: string, modelIds: string[]) {
+  await requireAdminUser();
+
+  const products = await prisma.product.findMany({
+    where: {
+      modelId: {
+        in: modelIds,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const productIds = products.map((product) => product.id);
+
+  await prisma.collection.update({
+    where: { id },
+    data: { productIds },
+  });
+
+  revalidatePath('/admin/collections');
+  revalidatePath(`/admin/collections/${id}`);
+  revalidatePath('/collection');
+
   return { ok: true };
 }

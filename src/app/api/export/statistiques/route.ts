@@ -9,7 +9,7 @@ export async function GET() {
 
   const now = new Date();
   const orders = await prisma.order.findMany({
-    where: { status: { in: REVENUE_STATUSES }, createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 23, 1) } },
+    where: { status: { in: [...REVENUE_STATUSES] }, createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 23, 1) } },
     select: { createdAt: true, total: true },
   });
 

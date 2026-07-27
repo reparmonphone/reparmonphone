@@ -37,7 +37,7 @@ export default async function AdminStatistiquesPage() {
   const monthStart = startOfMonth(now);
   const yearStart = startOfYear(now);
 
-  const revenueWhere = { status: { in: REVENUE_STATUSES } };
+  const revenueWhere = { status: { in: [...REVENUE_STATUSES] } };
 
   const [
     totalRevenueAgg,
@@ -74,10 +74,10 @@ export default async function AdminStatistiquesPage() {
     }),
   ]);
 
-  const totalRevenue = Number(totalRevenueAgg._sum.total ?? 0);
-  const todayRevenue = Number(todayRevenueAgg._sum.total ?? 0);
-  const monthRevenue = Number(monthRevenueAgg._sum.total ?? 0);
-  const yearRevenue = Number(yearRevenueAgg._sum.total ?? 0);
+  const totalRevenue = Number(totalRevenueAgg._sum?.total ?? 0);
+  const todayRevenue = Number(todayRevenueAgg._sum?.total ?? 0);
+  const monthRevenue = Number(monthRevenueAgg._sum?.total ?? 0);
+  const yearRevenue = Number(yearRevenueAgg._sum?.total ?? 0);
   const avgOrderValue = totalOrdersCount > 0 ? totalRevenue / totalOrdersCount : 0;
 
   // Chiffre d'affaires par mois, 12 derniers mois
