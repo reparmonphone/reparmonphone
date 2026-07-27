@@ -8,6 +8,7 @@ import ProductStars from '@/components/ProductStars';
 import ProductReviewsSection from './ProductReviewsSection';
 import ReviewsAccordion from '@/components/ReviewsAccordion';
 import JsonLd from '@/components/JsonLd';
+import ShareButton from '@/components/ShareButton';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
@@ -110,16 +111,21 @@ export default async function ProductPage({ params }: { params: { slug: string }
             </span>
           </div>
 
-          <AddToCartButton
-            product={{
-              productId: product.id,
-              slug: product.slug,
-              title: product.title,
-              price: Number(product.price),
-              imageUrl: product.imageUrl,
-            }}
-            disabled={!product.inStock}
-          />
+          <div className="flex items-stretch gap-2">
+            <div className="flex-1">
+              <AddToCartButton
+                product={{
+                  productId: product.id,
+                  slug: product.slug,
+                  title: product.title,
+                  price: Number(product.price),
+                  imageUrl: product.imageUrl,
+                }}
+                disabled={!product.inStock}
+              />
+            </div>
+            <ShareButton title={product.title} url={`${SITE_URL}/produit/${product.slug}`} />
+          </div>
 
           <div className="mt-3">
             <ProductStars rating={product.avgRating} count={product.reviewCount} />

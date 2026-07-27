@@ -47,7 +47,12 @@ export default async function AdminUtilisateursPage({
     <div>
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold">Utilisateurs inscrits</h1>
-        <span className="text-sm text-gray-500">{data.total ?? users.length} au total</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">{data.total ?? users.length} au total</span>
+          <a href="/api/export/clients" className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">
+            ⬇️ Exporter CSV
+          </a>
+        </div>
       </div>
       <p className="text-gray-500 mb-6 text-sm">
         Comptes clients (hors admin), avec leurs coordonnées renseignées à l&apos;inscription.

@@ -13,31 +13,34 @@ export default async function FacebookPageWidget() {
 
   return (
     <div className="bg-white border-b border-gray-100 py-3">
-      <div className="max-w-6xl mx-auto px-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Compteurs à volets façon Smiirl — nombre d'abonnés géré dans /admin/partenaires */}
-          <FlipCounter platform="facebook" count={getCount('facebook_followers_count')} />
-          <FlipCounter platform="instagram" count={getCount('instagram_followers_count')} />
-        </div>
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="grid grid-cols-2 gap-3 max-w-md mx-auto sm:max-w-none sm:flex sm:items-start sm:justify-center sm:gap-8">
+          {/* Colonne Facebook : compteur + bouton juste en dessous, alignés */}
+          <div className="flex flex-col items-center gap-2">
+            <FlipCounter platform="facebook" count={getCount('facebook_followers_count')} />
+            <a
+              href={FB_PAGE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 bg-[#1877F2] text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-lg hover:bg-[#0f5fcc] transition w-full sm:w-auto"
+            >
+              👍 Suivre la page
+            </a>
+          </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <a
-            href={FB_PAGE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-[#1877F2] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#0f5fcc] transition"
-          >
-            👍 Suivre la page
-          </a>
-          <a
-            href={INSTAGRAM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90"
-            style={{ background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' }}
-          >
-            📷 Follow me Instagram
-          </a>
+          {/* Colonne Instagram : compteur + bouton juste en dessous, alignés */}
+          <div className="flex flex-col items-center gap-2">
+            <FlipCounter platform="instagram" count={getCount('instagram_followers_count')} />
+            <a
+              href={INSTAGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-lg transition hover:opacity-90 w-full sm:w-auto"
+              style={{ background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' }}
+            >
+              📷 Follow me Instagram
+            </a>
+          </div>
         </div>
       </div>
     </div>

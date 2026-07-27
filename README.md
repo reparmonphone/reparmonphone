@@ -138,6 +138,18 @@ npm run reset-invoice-number -- 11555
 
 Pour **Stripe** spécifiquement : comme Stripe interdit les lignes à montant négatif, la réduction passe par un vrai coupon Stripe généré à la volée (`stripe.coupons.create`) et appliqué via `discounts` sur la session de paiement — le client voit la réduction directement sur la page Stripe.
 
+## Cookies RGPD & Smartlook
+
+Bandeau de consentement affiché sur tout le site tant que le visiteur n'a pas fait de choix (stocké en `localStorage`, clé `rmp_cookie_consent`). Deux catégories : "Essentiels" (toujours actifs, panier/connexion) et "Statistiques" (compteur de visite interne + Smartlook), désactivable.
+
+**Smartlook** (enregistrement vidéo de session, `src/components/SmartlookLoader.tsx`) : le script officiel fourni par Smartlook n'est **jamais chargé automatiquement** — il ne se déclenche que si le visiteur a explicitement accepté la catégorie "Statistiques" dans le bandeau. C'est un choix volontaire de conformité RGPD : Smartlook enregistre la navigation en vidéo, ce qui est plus intrusif qu'un simple compteur, donc pas question de le charger sans consentement explicite.
+
+Clé Smartlook actuelle : `cb329294a1ce4fe4605c27fc64badd20bc75af30` (région EU). Pour la changer, modifie `SMARTLOOK_KEY` dans `src/components/SmartlookLoader.tsx`.
+
+**Recommandation complémentaire** (à faire côté dashboard Smartlook, pas dans le code) : active le masquage automatique des champs sensibles (numéros de carte, mots de passe) dans les réglages Smartlook — le SDK le fait par défaut sur les champs `type="password"`, mais vérifie que les champs d'adresse/téléphone du tunnel de commande sont bien exclus si tu veux être extra prudent.
+
+Pour changer/retirer son consentement à tout moment, le visiteur clique sur "Gérer les cookies" en bas de page (footer).
+
 ## SEO & GEO (référencement Google + optimisation pour les moteurs IA)
 
 Chantier complet construit après analyse de tes concurrents directs (Sosav, cPix, Brico-Phone, Phonexpert78, World-Itech) — tous misent sur la profondeur de contenu (guides, tutoriels), la confiance (avis, partenariats marques) et le local. Le site a maintenant tout ce qu'un site e-commerce sérieux doit avoir techniquement ; le contenu éditorial (guides, articles) reste un travail humain que je ne peux pas faire à ta place.

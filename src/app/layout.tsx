@@ -6,6 +6,9 @@ import TopUtilityBar from '@/components/TopUtilityBar';
 import VerifiedReviewsFloatingBadge from '@/components/VerifiedReviewsFloatingBadge';
 import HelpWidget from '@/components/HelpWidget';
 import TrackVisit from '@/components/TrackVisit';
+import CookieConsentBanner from '@/components/CookieConsentBanner';
+import ManageCookiesLink from '@/components/ManageCookiesLink';
+import SmartlookLoader from '@/components/SmartlookLoader';
 import JsonLd from '@/components/JsonLd';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
@@ -147,6 +150,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <li><Link href="/cgv" className="hover:text-white">Conditions Générales de Vente</Link></li>
                   <li><Link href="/livraison-retours" className="hover:text-white">Livraison &amp; Retours</Link></li>
                   <li><Link href="/confidentialite" className="hover:text-white">Politique de confidentialité</Link></li>
+                  <li><ManageCookiesLink /></li>
                   <li><Link href="/a-propos" className="hover:text-white">À propos de nous</Link></li>
                   <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
                   <li><Link href="/rdv" className="hover:text-white">Prendre RDV</Link></li>
@@ -199,6 +203,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <VerifiedReviewsFloatingBadge />
         <HelpWidget />
         <TrackVisit />
+        <CookieConsentBanner />
+        <SmartlookLoader />
       </body>
     </html>
   );

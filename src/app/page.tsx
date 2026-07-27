@@ -43,9 +43,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <div className="max-w-6xl mx-auto px-4 pt-4">
-  <HeroSlider />
-</div>
+      <HeroSlider />
       <CategoriesEnVedette />
       <SeoIntro />
       <TopNouveautesSection />

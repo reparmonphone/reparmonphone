@@ -59,7 +59,12 @@ export default async function AdminCommandesPage({
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Commandes</h1>
-        <span className="text-sm text-gray-500">{orders.length} commande(s)</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">{orders.length} commande(s)</span>
+          <a href="/api/export/commandes" className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">
+            ⬇️ Exporter CSV
+          </a>
+        </div>
       </div>
 
       <form className="flex flex-wrap gap-3 mb-6" action="/admin/commandes" method="get">

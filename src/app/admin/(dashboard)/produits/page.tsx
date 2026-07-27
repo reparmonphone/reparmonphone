@@ -53,6 +53,9 @@ export default async function AdminProduitsPage({
         <h1 className="text-2xl font-bold">Produits & stock</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">{total} produits</span>
+          <a href="/api/export/produits" className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">
+            ⬇️ Exporter CSV
+          </a>
           <Link href="/admin/produits/nouveau" className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition">
             + Nouveau produit
           </Link>

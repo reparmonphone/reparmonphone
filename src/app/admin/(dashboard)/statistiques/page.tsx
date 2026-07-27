@@ -1,4 +1,3 @@
-import { Prisma, OrderStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
 
@@ -6,12 +5,7 @@ const VISIT_COUNTER_OFFSET = 21120;
 
 // Statuts considérés comme du vrai chiffre d'affaires encaissé (une commande "En attente" n'est pas payée,
 // une commande "Annulée"/"Remboursée" ne compte pas comme CA réalisé)
-const revenueStatuses: OrderStatus[] = [
-  OrderStatus.PAID,
-  OrderStatus.PROCESSING,
-  OrderStatus.SHIPPED,
-  OrderStatus.DELIVERED,
-];
+const REVENUE_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'En attente',
@@ -43,11 +37,7 @@ export default async function AdminStatistiquesPage() {
   const monthStart = startOfMonth(now);
   const yearStart = startOfYear(now);
 
-  const revenueWhere: Prisma.OrderWhereInput = {
-  status: {
-    in: revenueStatuses,
-  },
-};
+  const revenueWhere = { status: { in: REVENUE_STATUSES } };
 
   const [
     totalRevenueAgg,
@@ -157,7 +147,12 @@ export default async function AdminStatistiquesPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-bold mb-1">Statistiques</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold">Statistiques</h1>
+        <a href="/api/export/statistiques" className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">
+          ⬇️ Exporter CSV
+        </a>
+      </div>
       <p className="text-gray-500 mb-6">
         Chiffre d&apos;affaires calculé sur les commandes payées, en préparation, expédiées ou livrées — les
         commandes en attente de paiement, annulées ou remboursées ne sont pas comptées comme du CA encaissé.
