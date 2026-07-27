@@ -9,8 +9,6 @@ import ProductReviewsSection from './ProductReviewsSection';
 import ReviewsAccordion from '@/components/ReviewsAccordion';
 import JsonLd from '@/components/JsonLd';
 import ShareButton from '@/components/ShareButton';
-import FavoriteButton from '@/components/FavoriteButton';
-import { getFavoriteProductIds } from '@/app/compte/favoris/actions';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
@@ -29,13 +27,10 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function ProductPage({ params }: { params: { slug: string } }) {
-  const [product, favoriteIds] = await Promise.all([
-    prisma.product.findUnique({
-      where: { slug: params.slug },
-      include: { model: { include: { productLine: { include: { brand: true } } } } },
-    }),
-    getFavoriteProductIds(),
-  ]);
+  const product = await prisma.product.findUnique({
+    where: { slug: params.slug },
+    include: { model: { include: { productLine: { include: { brand: true } } } } },
+  });
 
   if (!product) notFound();
 
@@ -96,12 +91,9 @@ export default async function ProductPage({ params }: { params: { slug: string }
         <ProductGallery images={images} title={product.title} />
 
         <div>
-          <div className="flex items-start justify-between gap-3">
-            <span className="text-sm text-gray-400">
-              {product.model.productLine.brand.name} / {product.model.productLine.name} / {product.model.name}
-            </span>
-            <FavoriteButton productId={product.id} initialFavorited={favoriteIds.includes(product.id)} />
-          </div>
+          <span className="text-sm text-gray-400">
+            {product.model.productLine.brand.name} / {product.model.productLine.name} / {product.model.name}
+          </span>
           <h1 className="text-2xl font-bold mt-1 mb-4">{product.title}</h1>
 
           <div className="flex items-center gap-3 mb-4">

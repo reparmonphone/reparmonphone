@@ -1,4 +1,4 @@
-// Schéma Prisma — ReparMonPhone Next.js
+// SchÃ©ma Prisma â€” ReparMonPhone Next.js
 // Base : PostgreSQL (Supabase)
 
 generator client {
@@ -65,11 +65,11 @@ enum PieceType {
 
 model Product {
   id                String    @id @default(cuid())
-  wpId              String?   @unique // ancien ID WooCommerce, pour traçabilité migration
+  wpId              String?   @unique // ancien ID WooCommerce, pour traÃ§abilitÃ© migration
   title             String
   slug              String    @unique
-  shortDescription  String?   @db.Text // résumé affiché sous le bouton "Ajouter au panier"
-  description       String?   @db.Text // description longue (HTML), affichée pleine largeur sous la fiche produit
+  shortDescription  String?   @db.Text // rÃ©sumÃ© affichÃ© sous le bouton "Ajouter au panier"
+  description       String?   @db.Text // description longue (HTML), affichÃ©e pleine largeur sous la fiche produit
   metaTitle         String? // balise <title> SEO (si vide, on retombe sur le titre produit)
   metaDescription   String?   @db.Text // meta description SEO
   price             Decimal   @db.Decimal(10, 2)
@@ -80,17 +80,18 @@ model Product {
   inStock           Boolean   @default(true)
   stockQty          Int?
   imageUrl          String? // image principale (compat / affichage carte produit)
-  images            String[] @default([]) // galerie complète
-  showInBoutique    Boolean   @default(true) // décoche pour un produit qui n'a rien à faire dans "Pièces détachées"
-  // (ex: téléphone reconditionné entier) — reste visible via sa fiche directe et ses collections
+  images            String[] @default([]) // galerie complÃ¨te
+  showInBoutique    Boolean   @default(true) // dÃ©coche pour un produit qui n'a rien Ã  faire dans "PiÃ¨ces dÃ©tachÃ©es"
+  // (ex: tÃ©lÃ©phone reconditionnÃ© entier) â€” reste visible via sa fiche directe et ses collections
 
   modelId String
   model   Model  @relation(fields: [modelId], references: [id])
 
   orderItems OrderItem[]
   reviews    ProductReview[]
+  favorites  Favorite[]
 
-  // Champs mis en cache pour affichage rapide (étiquettes produit, listes) sans recalculer à chaque fois
+  // Champs mis en cache pour affichage rapide (Ã©tiquettes produit, listes) sans recalculer Ã  chaque fois
   avgRating   Float? // ex: 4.8
   reviewCount Int    @default(0)
 
@@ -102,17 +103,17 @@ model Product {
   @@map("products")
 }
 
-// ---------- Avis produits (différents des avis Google/Facebook de l'entreprise) ----------
+// ---------- Avis produits (diffÃ©rents des avis Google/Facebook de l'entreprise) ----------
 
 model ProductReview {
   id         String   @id @default(cuid())
   productId  String
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  userId     String? // uuid Supabase Auth si laissé par un client connecté
+  userId     String? // uuid Supabase Auth si laissÃ© par un client connectÃ©
   authorName String
-  rating     Int // 1 à 5
+  rating     Int // 1 Ã  5
   text       String?  @db.Text
-  verified   Boolean  @default(false) // true = achat confirmé (via l'historique de commandes)
+  verified   Boolean  @default(false) // true = achat confirmÃ© (via l'historique de commandes)
   createdAt  DateTime @default(now())
 
   @@index([productId])
@@ -148,7 +149,7 @@ enum ShippingCarrier {
 model Order {
   id             String      @id @default(cuid())
   invoiceNumber  Int         @unique @default(autoincrement())
-  userId         String? // uuid Supabase Auth (auth.users.id) si le client était connecté au moment de la commande
+  userId         String? // uuid Supabase Auth (auth.users.id) si le client Ã©tait connectÃ© au moment de la commande
   customerName   String
   customerEmail  String
   customerPhone  String?
@@ -157,7 +158,7 @@ model Order {
   shippingCity   String
   shippingZip    String
 
-  // Adresse de facturation (peut différer de la livraison — choix géré nativement par Stripe Checkout)
+  // Adresse de facturation (peut diffÃ©rer de la livraison â€” choix gÃ©rÃ© nativement par Stripe Checkout)
   billingName    String?
   billingLine1   String?
   billingCity    String?
@@ -176,7 +177,7 @@ model Order {
   sumupCheckoutId String?    @unique
   paypalOrderId  String?     @unique
 
-  // Mode de paiement (renseigné automatiquement par le webhook après paiement)
+  // Mode de paiement (renseignÃ© automatiquement par le webhook aprÃ¨s paiement)
   paymentBrand   String? // ex: "visa", "mastercard"...
   paymentLast4   String?
 
@@ -185,9 +186,9 @@ model Order {
   trackingNumber  String?
   trackingUrlOverride String?
 
-  reminderSentAt DateTime? // dernière relance email envoyée pour une commande restée "En attente"
-  deliveredAt    DateTime? // date à laquelle la commande est passée au statut "Livrée"
-  reviewReminderSentAt DateTime? // relance "laisse un avis" déjà envoyée pour cette commande
+  reminderSentAt DateTime? // derniÃ¨re relance email envoyÃ©e pour une commande restÃ©e "En attente"
+  deliveredAt    DateTime? // date Ã  laquelle la commande est passÃ©e au statut "LivrÃ©e"
+  reviewReminderSentAt DateTime? // relance "laisse un avis" dÃ©jÃ  envoyÃ©e pour cette commande
 
   items OrderItem[]
 
@@ -210,7 +211,7 @@ model OrderItem {
   @@map("order_items")
 }
 
-// ---------- Prise de RDV réparation ----------
+// ---------- Prise de RDV rÃ©paration ----------
 
 enum AppointmentType {
   ATELIER
@@ -226,7 +227,7 @@ enum AppointmentStatus {
 
 model Appointment {
   id              String            @id @default(cuid())
-  userId          String? // uuid Supabase Auth (auth.users.id) si le client était connecté au moment de la demande
+  userId          String? // uuid Supabase Auth (auth.users.id) si le client Ã©tait connectÃ© au moment de la demande
   customerName    String
   customerEmail   String
   customerPhone   String
@@ -234,7 +235,7 @@ model Appointment {
   deviceModel     String
   issueDescription String           @db.Text
   type            AppointmentType   @default(ATELIER)
-  city            String // pour calcul du supplément zone
+  city            String // pour calcul du supplÃ©ment zone
   extraFee        Decimal           @default(0) @db.Decimal(10, 2)
   preferredDate   DateTime
   status          AppointmentStatus @default(REQUESTED)
@@ -245,9 +246,9 @@ model Appointment {
   @@map("appointments")
 }
 
-// ---------- Zones de livraison / déplacement à supplément ----------
+// ---------- Zones de livraison / dÃ©placement Ã  supplÃ©ment ----------
 // Sainte-Maxime = zone de base (gratuit)
-// Saint-Tropez, Grimaud, Cogolin, La Croix-Valmer, Gassin, Plan-de-la-Tour, Les Issambres = +30€
+// Saint-Tropez, Grimaud, Cogolin, La Croix-Valmer, Gassin, Plan-de-la-Tour, Les Issambres = +30â‚¬
 
 model ServiceZone {
   id        String  @id @default(cuid())
@@ -280,7 +281,7 @@ model NewsletterSubscriber {
   @@map("newsletter_subscribers")
 }
 
-// ---------- Avis clients (gérés manuellement en admin, faute d'intégration API live) ----------
+// ---------- Avis clients (gÃ©rÃ©s manuellement en admin, faute d'intÃ©gration API live) ----------
 
 enum ReviewSource {
   GOOGLE
@@ -291,10 +292,10 @@ model Review {
   id             String       @id @default(cuid())
   source         ReviewSource
   authorName     String
-  authorPhotoUrl String? // photo de l'auteur (facultatif, sinon initiales générées)
-  rating         Int? // 1-5, optionnel (Facebook n'a que "recommande" sans note chiffrée)
+  authorPhotoUrl String? // photo de l'auteur (facultatif, sinon initiales gÃ©nÃ©rÃ©es)
+  rating         Int? // 1-5, optionnel (Facebook n'a que "recommande" sans note chiffrÃ©e)
   text           String       @db.Text
-  reviewDate     DateTime? // date réelle de l'avis, pour afficher "il y a X jours"
+  reviewDate     DateTime? // date rÃ©elle de l'avis, pour afficher "il y a X jours"
   verified       Boolean      @default(true)
   order          Int          @default(0)
   createdAt      DateTime     @default(now())
@@ -302,7 +303,7 @@ model Review {
   @@map("reviews")
 }
 
-// ---------- Partenaires & liens de référencement (page d'accueil, gérés en admin) ----------
+// ---------- Partenaires & liens de rÃ©fÃ©rencement (page d'accueil, gÃ©rÃ©s en admin) ----------
 
 model Partner {
   id       String  @id @default(cuid())
@@ -338,7 +339,7 @@ model ShippingOption {
   @@map("shipping_options")
 }
 
-// ---------- Réglages divers (clé/valeur), pour des petites infos éditables sans créer une table dédiée ----------
+// ---------- RÃ©glages divers (clÃ©/valeur), pour des petites infos Ã©ditables sans crÃ©er une table dÃ©diÃ©e ----------
 
 model SiteSetting {
   key       String   @id
@@ -348,14 +349,14 @@ model SiteSetting {
   @@map("site_settings")
 }
 
-// ---------- Redirections 301 (crucial après une migration de site, pour ne pas perdre le référencement accumulé) ----------
+// ---------- Redirections 301 (crucial aprÃ¨s une migration de site, pour ne pas perdre le rÃ©fÃ©rencement accumulÃ©) ----------
 
 model Redirect {
   id         String   @id @default(cuid())
   fromPath   String   @unique // ex: "/ancienne-url-woocommerce" (commence toujours par /)
   toPath     String // ex: "/produit/nouvelle-url"
   statusCode Int      @default(301)
-  hits       Int      @default(0) // nombre de fois où la redirection a été utilisée
+  hits       Int      @default(0) // nombre de fois oÃ¹ la redirection a Ã©tÃ© utilisÃ©e
   createdAt  DateTime @default(now())
 
   @@map("redirects")
@@ -384,10 +385,10 @@ model PromoCode {
   id        String    @id @default(cuid())
   code      String    @unique
   type      PromoType
-  value     Decimal   @db.Decimal(10, 2) // ex: 10 (%) si PERCENT, ou 5.00 (€) si FIXED
+  value     Decimal   @db.Decimal(10, 2) // ex: 10 (%) si PERCENT, ou 5.00 (â‚¬) si FIXED
   active    Boolean   @default(true)
   expiresAt DateTime?
-  maxUses   Int? // null = illimité
+  maxUses   Int? // null = illimitÃ©
   usedCount Int       @default(0)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -395,7 +396,7 @@ model PromoCode {
   @@map("promo_codes")
 }
 
-// ---------- Pages de contenu éditables (À propos, Mentions légales, CGV...) ----------
+// ---------- Pages de contenu Ã©ditables (Ã€ propos, Mentions lÃ©gales, CGV...) ----------
 
 model Page {
   id          String   @id @default(cuid())
@@ -407,9 +408,9 @@ model Page {
   @@map("pages")
 }
 
-// ---------- Liens de menu personnalisés (header) ----------
-// Les marques (Apple/Samsung/...) sont toujours générées automatiquement depuis le catalogue.
-// Ces entrées viennent s'ajouter après, dans l'ordre choisi (ex: "Prendre RDV", "Blog", "Promos"...).
+// ---------- Liens de menu personnalisÃ©s (header) ----------
+// Les marques (Apple/Samsung/...) sont toujours gÃ©nÃ©rÃ©es automatiquement depuis le catalogue.
+// Ces entrÃ©es viennent s'ajouter aprÃ¨s, dans l'ordre choisi (ex: "Prendre RDV", "Blog", "Promos"...).
 
 model HeaderMenuItem {
   id          String   @id @default(cuid())
@@ -423,10 +424,10 @@ model HeaderMenuItem {
   @@map("header_menu_items")
 }
 
-// ---------- Collections manuelles (ex: "Apple Reconditionnés") ----------
-// Regroupe des MODÈLES choisis à la main, indépendamment de leur marque/gamme d'origine.
-// Utile pour des pages transversales du style "Reconditionnés", "Promo été", etc.
-// Se lie ensuite à une entrée du menu header via son URL /collection/[slug].
+// ---------- Collections manuelles (ex: "Apple ReconditionnÃ©s") ----------
+// Regroupe des MODÃˆLES choisis Ã  la main, indÃ©pendamment de leur marque/gamme d'origine.
+// Utile pour des pages transversales du style "ReconditionnÃ©s", "Promo Ã©tÃ©", etc.
+// Se lie ensuite Ã  une entrÃ©e du menu header via son URL /collection/[slug].
 
 model Collection {
   id         String   @id @default(cuid())
@@ -438,3 +439,20 @@ model Collection {
 
   @@map("collections")
 }
+// ---------- Favoris clients ----------
+// Un produit peut Ãªtre mis en favori par un client connectÃ© (userId = uuid Supabase Auth).
+// Contrainte unique (userId, productId) pour Ã©viter les doublons â€” le "toggle" gÃ¨re l'ajout/suppression.
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String // uuid Supabase Auth (auth.users.id)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("favorites")
+}
+

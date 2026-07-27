@@ -29,7 +29,7 @@ export default async function ComptePage() {
         }}
       />
 
-      <div className="grid grid-cols-3 gap-4 mt-8">
+      <div className="grid grid-cols-2 gap-4 mt-8">
         <Link href="/compte/commandes" className="bg-white border border-gray-100 rounded-xl p-6 hover:shadow-md transition text-center">
           <div className="text-2xl mb-2">🛒</div>
           <p className="font-semibold">Mes commandes</p>
@@ -37,10 +37,6 @@ export default async function ComptePage() {
         <Link href="/compte/rdv" className="bg-white border border-gray-100 rounded-xl p-6 hover:shadow-md transition text-center">
           <div className="text-2xl mb-2">📅</div>
           <p className="font-semibold">Mes rendez-vous</p>
-        </Link>
-        <Link href="/compte/favoris" className="bg-white border border-gray-100 rounded-xl p-6 hover:shadow-md transition text-center">
-          <div className="text-2xl mb-2">❤️</div>
-          <p className="font-semibold">Mes Favoris</p>
         </Link>
       </div>
     </div>

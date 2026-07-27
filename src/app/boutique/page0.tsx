@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma';
 import ProductCard from '@/components/ProductCard';
 import Filters from '@/components/Filters';
 import type { PieceType } from '@prisma/client';
-import { getFavoriteProductIds } from '@/app/compte/favoris/actions';
 
 export const metadata = { title: 'Boutique — Pièces détachées | ReparMonPhone' };
 
@@ -45,15 +44,12 @@ export default async function BoutiquePage({
     ];
   }
 
-  const [products, favoriteIds] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      include: { model: { include: { productLine: { include: { brand: true } } } } },
-      orderBy: { title: 'asc' },
-      take: 60,
-    }),
-    getFavoriteProductIds(),
-  ]);
+  const products = await prisma.product.findMany({
+    where,
+    include: { model: { include: { productLine: { include: { brand: true } } } } },
+    orderBy: { title: 'asc' },
+    take: 60,
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -69,7 +65,6 @@ export default async function BoutiquePage({
           {products.map((p) => (
             <ProductCard
               key={p.id}
-              favorited={favoriteIds.includes(p.id)}
               product={{
                 id: p.id,
                 slug: p.slug,
