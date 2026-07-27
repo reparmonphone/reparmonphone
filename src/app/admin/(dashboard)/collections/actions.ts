@@ -48,36 +48,6 @@ export async function deleteCollection(id: string) {
   redirect('/admin/collections');
 }
 
-export async function setCollectionModels(id: string, modelIds: string[]) {
-  await requireAdminUser();
-
-  const products = await prisma.product.findMany({
-    where: {
-      modelId: {
-        in: modelIds,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  const productIds = products.map((product) => product.id);
-
-  await prisma.collection.update({
-    where: { id },
-    data: { productIds },
-  });
-
-  revalidatePath('/admin/collections');
-  revalidatePath(`/admin/collections/${id}`);
-  revalidatePath('/collection');
-  revalidatePath('/boutique');
-  revalidatePath('/');
-
-  return { ok: true };
-}
-
 export async function setCollectionProducts(id: string, productIds: string[]) {
   await requireAdminUser();
   await prisma.collection.update({ where: { id }, data: { productIds } });

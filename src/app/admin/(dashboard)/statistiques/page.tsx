@@ -1,17 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
-import { OrderStatus, Prisma } from '@prisma/client';
+
+const VISIT_COUNTER_OFFSET = 21120;
 
 // Statuts considérés comme du vrai chiffre d'affaires encaissé (une commande "En attente" n'est pas payée,
 // une commande "Annulée"/"Remboursée" ne compte pas comme CA réalisé)
-const revenueStatuses: OrderStatus[] = [
-  OrderStatus.PAID,
-  OrderStatus.PROCESSING,
-  OrderStatus.SHIPPED,
-  OrderStatus.DELIVERED,
-];
-
-const VISIT_COUNTER_OFFSET = 21120;
+const REVENUE_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'En attente',
@@ -43,11 +37,7 @@ export default async function AdminStatistiquesPage() {
   const monthStart = startOfMonth(now);
   const yearStart = startOfYear(now);
 
-  const revenueWhere: Prisma.OrderWhereInput = {
-    status: {
-      in: revenueStatuses,
-    },
-  };
+  const revenueWhere = { status: { in: REVENUE_STATUSES } };
 
   const [
     totalRevenueAgg,

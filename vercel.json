@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/send-pending-reminders",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/send-review-reminders",

@@ -180,11 +180,13 @@ Toutes les fonctionnalités ci-dessous (sitemap, JSON-LD, IndexNow...) utilisent
 
 ### Relance automatique après 1h (Vercel Cron)
 
-Une commande restée "En attente" plus d'1h, jamais relancée, reçoit **automatiquement** un email de rappel — via une route cron (`/api/cron/send-pending-reminders`) appelée toutes les 15 min par **Vercel Cron** (configuré dans `vercel.json`, inclus dans le projet, actif automatiquement dès que le projet est déployé sur Vercel — aucune configuration manuelle côté Vercel nécessaire).
+Une commande restée "En attente" plus d'1h, jamais relancée, reçoit **automatiquement** un email de rappel — via une route cron (`/api/cron/send-pending-reminders`) appelée **une fois par jour à 9h** par **Vercel Cron** (configuré dans `vercel.json`, inclus dans le projet, actif automatiquement dès que le projet est déployé sur Vercel — aucune configuration manuelle côté Vercel nécessaire).
+
+⚠️ **Fréquence limitée par le plan Vercel Hobby (gratuit)** : Vercel bloque les crons plus fréquents qu'une fois par jour sur les projets gratuits (initialement prévu toutes les 15 min, refusé au déploiement). Concrètement, une commande abandonnée peut donc attendre jusqu'à 24h avant l'email automatique, au lieu d'~1h. En attendant, le bouton "✉️ Relancer" manuel dans `/admin/commandes` reste disponible à tout moment. Si tu passes un jour sur le plan Pro, on pourra repasser cette fréquence à toutes les 15 min.
 
 Protection : la route vérifie un `CRON_SECRET` — génère une longue chaîne aléatoire et mets-la à la fois dans `.env` (`CRON_SECRET=...`) et dans les variables d'environnement Vercel, sinon la route est appelable par n'importe qui.
 
-⚠️ **Si tu ne déploies pas sur Vercel** (OVH, VPS...), ce cron ne se déclenchera pas automatiquement — il faudra soit configurer un cron système équivalent qui appelle cette URL toutes les 15 min avec l'en-tête `Authorization: Bearer TON_CRON_SECRET`, soit se contenter du bouton "Relancer" manuel dans `/admin/commandes`.
+⚠️ **Si tu ne déploies pas sur Vercel** (OVH, VPS...), ce cron ne se déclenchera pas automatiquement — il faudra soit configurer un cron système équivalent qui appelle cette URL avec l'en-tête `Authorization: Bearer TON_CRON_SECRET`, soit se contenter du bouton "Relancer" manuel dans `/admin/commandes`.
 
 ## Activer/désactiver les moyens de paiement
 
@@ -406,5 +408,3 @@ Les descriptions longues contiennent du HTML brut tel qu'exporté de WordPress (
 - 618 produits Samsung, 532 Apple, 247 Xiaomi, 18 Huawei
 - 289 modèles distincts
 - Catégorisation auto par type de pièce : Écran (712), Nappe/Connecteur (296), Batterie (248), Caméra (72), Outillage (55), Vitre arrière (48), etc.
-#   r e p a r m o n p h o n e  
- 
