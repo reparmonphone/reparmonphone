@@ -406,3 +406,5 @@ Les descriptions longues contiennent du HTML brut tel qu'exporté de WordPress (
 - 618 produits Samsung, 532 Apple, 247 Xiaomi, 18 Huawei
 - 289 modèles distincts
 - Catégorisation auto par type de pièce : Écran (712), Nappe/Connecteur (296), Batterie (248), Caméra (72), Outillage (55), Vitre arrière (48), etc.
+#   r e p a r m o n p h o n e  
+ 
