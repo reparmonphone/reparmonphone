@@ -138,9 +138,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <div>
                 <h3 className="text-white font-semibold mb-3">Informations légales</h3>
                 <p className="font-medium text-gray-200">ReparMonPhone</p>
-                <p className="mt-1">SIRET : 518 898 549</p>
+                <p className="mt-1">SIREN : 518 898 549</p>
                 <p>Adresse : Les Saquèdes, 83120 Sainte-Maxime</p>
-                <p>Hébergeur : OVH — 2 rue Kellermann, 59100 Roubaix</p>
+                <p>Hébergeur : Vercel Inc. 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis</p>
               </div>
 
               <div>
