@@ -75,7 +75,7 @@ export default function Header({
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-brand-dark">
           <Image
-            src="https://bjfmbrexkkpgwufdqkoy.supabase.co/storage/v1/object/public/products/2025/03/logo-repar-mon-phone-3.png"
+            src="https://www.reparmonphone.fr/wp-content/uploads/2025/03/logo-repar-mon-phone-3.png"
             alt="ReparMonPhone"
             width={168}
             height={168}
