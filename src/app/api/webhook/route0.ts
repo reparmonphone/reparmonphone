@@ -3,7 +3,6 @@ import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { generateInvoicePdf } from '@/lib/invoicePdf';
 import { getResendClient } from '@/lib/resend';
-import { sendNewOrderAdminNotification } from '@/lib/orderEmails';
 import Stripe from 'stripe';
 
 export async function POST(req: NextRequest) {
@@ -44,13 +43,6 @@ export async function POST(req: NextRequest) {
         console.error('Impossible de récupérer les détails du moyen de paiement', e);
       }
     }
-
-    // On vérifie l'état AVANT mise à jour, pour ne notifier l'admin qu'une seule fois même si
-    // Stripe renvoie l'événement plusieurs fois (comportement normal des webhooks Stripe).
-    const existingOrder = orderId
-      ? await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } })
-      : await prisma.order.findFirst({ where: { stripeSessionId: session.id }, select: { status: true } });
-    const wasAlreadyPaid = existingOrder?.status === 'PAID';
 
     const data = {
       status: 'PAID' as const,
@@ -136,12 +128,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) {
         console.error("Impossible d'envoyer l'email de confirmation avec la facture", e);
-      }
-
-      // Notification admin, uniquement lors du premier passage réel en PAID (pas si Stripe
-      // renvoie le même événement plusieurs fois).
-      if (!wasAlreadyPaid) {
-        await sendNewOrderAdminNotification(updatedOrder.id);
       }
     }
   }

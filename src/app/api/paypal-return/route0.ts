@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { capturePaypalOrder } from '@/lib/paypal';
-import { sendOrderConfirmedEmails } from '@/lib/orderEmails';
 
 export async function GET(req: NextRequest) {
   const orderId = req.nextUrl.searchParams.get('order_id');
@@ -24,20 +23,10 @@ export async function GET(req: NextRequest) {
     const captureStatus = capture.purchase_units?.[0]?.payments?.captures?.[0]?.status;
 
     if (capture.status === 'COMPLETED' || captureStatus === 'COMPLETED') {
-      const wasAlreadyPaid = order.status === 'PAID';
-
       await prisma.order.update({
         where: { id: order.id },
         data: { status: 'PAID', paymentBrand: 'paypal' },
       });
-
-      // Notification (client + admin) uniquement lors du premier passage réel en PAID —
-      // évite un doublon si l'utilisateur revient sur cette URL de retour plusieurs fois
-      // (rechargement de page, double-clic, etc.).
-      if (!wasAlreadyPaid) {
-        await sendOrderConfirmedEmails(order.id);
-      }
-
       return NextResponse.redirect(`${origin}/checkout/success`);
     }
 

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSumupCheckout } from '@/lib/sumup';
-import { sendOrderConfirmedEmails } from '@/lib/orderEmails';
 
 export async function POST(req: NextRequest) {
   let body: { event_type?: string; id?: string };
@@ -22,12 +21,6 @@ export async function POST(req: NextRequest) {
     const checkout = await getSumupCheckout(checkoutId);
 
     if (checkout.status === 'PAID') {
-      // On récupère la commande AVANT mise à jour pour savoir si elle était déjà payée —
-      // évite d'envoyer deux fois l'email de confirmation si SumUp notifie plusieurs fois
-      // (ce qui peut arriver, SumUp ne garantissant pas l'unicité des notifications).
-      const existingOrder = await prisma.order.findFirst({ where: { sumupCheckoutId: checkoutId } });
-      const wasAlreadyPaid = existingOrder?.status === 'PAID';
-
       const paymentType = checkout.transactions?.[0]?.payment_type ?? null;
       await prisma.order.updateMany({
         where: { sumupCheckoutId: checkoutId },
@@ -36,10 +29,6 @@ export async function POST(req: NextRequest) {
           paymentBrand: paymentType,
         },
       });
-
-      if (existingOrder && !wasAlreadyPaid) {
-        await sendOrderConfirmedEmails(existingOrder.id);
-      }
     } else if (checkout.status === 'FAILED') {
       await prisma.order.updateMany({
         where: { sumupCheckoutId: checkoutId, status: 'PENDING' },

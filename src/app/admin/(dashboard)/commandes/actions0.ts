@@ -5,14 +5,11 @@ import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { sendPendingOrderReminder } from '@/lib/orderReminder';
 import { sendReviewReminder } from '@/lib/reviewReminder';
-import { sendOrderShippedEmail, sendTrackingNumberEmail } from '@/lib/orderEmails';
 import type { OrderStatus, ShippingCarrier } from '@prisma/client';
 
 export async function updateOrderStatus(orderId: string, status: OrderStatus) {
   await requireAdminUser();
   const order = await prisma.order.findUnique({ where: { id: orderId } });
-  const wasAlreadyShipped = order?.status === 'SHIPPED' || order?.status === 'DELIVERED';
-
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -21,13 +18,6 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
       deliveredAt: status === 'DELIVERED' && !order?.deliveredAt ? new Date() : undefined,
     },
   });
-
-  // Email "commande expédiée" uniquement lors du passage EN statut SHIPPED (pas si on re-sélectionne
-  // SHIPPED alors que c'était déjà le cas, ni si on modifie un autre champ plus tard).
-  if (status === 'SHIPPED' && !wasAlreadyShipped) {
-    await sendOrderShippedEmail(orderId);
-  }
-
   revalidatePath('/admin/commandes');
   revalidatePath(`/admin/commandes/${orderId}`);
 }
@@ -37,26 +27,14 @@ export async function updateOrderTracking(
   data: { carrier: ShippingCarrier | null; trackingNumber: string; trackingUrlOverride: string }
 ) {
   await requireAdminUser();
-
-  const existing = await prisma.order.findUnique({ where: { id: orderId } });
-  const newTrackingNumber = data.trackingNumber || null;
-  // On n'envoie l'email que si un numéro de suivi non vide vient d'être ajouté ou modifié
-  // (évite de spammer le client si l'admin ré-enregistre le même formulaire sans rien changer).
-  const shouldNotify = !!newTrackingNumber && newTrackingNumber !== existing?.trackingNumber;
-
   await prisma.order.update({
     where: { id: orderId },
     data: {
       carrier: data.carrier,
-      trackingNumber: newTrackingNumber,
+      trackingNumber: data.trackingNumber || null,
       trackingUrlOverride: data.trackingUrlOverride || null,
     },
   });
-
-  if (shouldNotify) {
-    await sendTrackingNumberEmail(orderId);
-  }
-
   revalidatePath('/admin/commandes');
   revalidatePath(`/admin/commandes/${orderId}`);
   revalidatePath('/compte/commandes');
