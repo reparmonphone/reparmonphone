@@ -12,13 +12,13 @@ import SmartlookLoader from '@/components/SmartlookLoader';
 import JsonLd from '@/components/JsonLd';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
-import { getSiteMeta } from '@/lib/siteMeta';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
+const SITE_TITLE = 'ReparMonPhone | Réparation & Pièces Détachées de Téléphone - Sainte-Maxime';
+const SITE_DESCRIPTION =
+  "Réparation de smartphones et vente de pièces détachées à Sainte-Maxime et dans tout le Golfe de Saint-Tropez. Écrans, batteries, connecteurs de charge. Livraison Chronopost 24h.";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { title: SITE_TITLE, description: SITE_DESCRIPTION } = await getSiteMeta();
-
   let googleVerification: string | undefined;
   let bingVerification: string | undefined;
   try {

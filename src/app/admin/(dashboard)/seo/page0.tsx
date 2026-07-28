@@ -1,17 +1,14 @@
 import { prisma } from '@/lib/prisma';
 import { INDEXNOW_KEY } from '@/lib/indexnow';
-import { getSiteMeta } from '@/lib/siteMeta';
 import SeoVerificationForm from './SeoVerificationForm';
-import SiteMetaForm from './SiteMetaForm';
 import RedirectsManager from './RedirectsManager';
 import IndexNowPanel from './IndexNowPanel';
 
 export default async function AdminSeoPage() {
-  const [settings, redirects, productsCount, siteMeta] = await Promise.all([
+  const [settings, redirects, productsCount] = await Promise.all([
     prisma.siteSetting.findMany({ where: { key: { in: ['seo_google_verification', 'seo_bing_verification'] } } }),
     prisma.redirect.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.product.count({ where: { showInBoutique: true } }),
-    getSiteMeta(),
   ]);
 
   const getSetting = (key: string) => settings.find((s) => s.key === key)?.value ?? '';
@@ -40,28 +37,12 @@ export default async function AdminSeoPage() {
         </ul>
       </div>
 
-      {/* Titre & description du site */}
-      <div>
-        <h2 className="text-lg font-bold mb-3">0. Titre & description du site (page d'accueil)</h2>
-        <p className="text-gray-500 text-sm mb-4">
-          Ce titre et cette description apparaissent dans les résultats Google/Bing pour ta page d'accueil,
-          et servent de modèle par défaut pour les pages qui n'ont pas de titre personnalisé. Respecte les longueurs
-          recommandées (indicateur vert) pour éviter qu'ils soient tronqués ou signalés comme "trop long"/"trop court"
-          par les outils Google/Bing.
-        </p>
-        <div className="bg-white border border-gray-100 rounded-xl p-5">
-          <SiteMetaForm initialTitle={siteMeta.title} initialDescription={siteMeta.description} />
-        </div>
-      </div>
-
       {/* Vérification Google/Bing */}
       <div>
         <h2 className="text-lg font-bold mb-3">1. Vérification Google Search Console & Bing Webmaster Tools</h2>
         <p className="text-gray-500 text-sm mb-4">
           Colle ici le code de vérification fourni par chaque outil (méthode "balise HTML") — pas besoin de
           toucher au code, le site l'ajoutera automatiquement dans le <code className="bg-gray-100 px-1 rounded">&lt;head&gt;</code>.
-          Si la propriété est déjà vérifiée depuis l'ancien site (via un autre compte/méthode), ce n'est pas
-          nécessaire de le refaire ici.
         </p>
         <div className="bg-white border border-gray-100 rounded-xl p-5">
           <SeoVerificationForm
