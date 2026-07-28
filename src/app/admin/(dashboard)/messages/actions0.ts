@@ -9,10 +9,3 @@ export async function toggleMessageHandled(messageId: string, handled: boolean) 
   await prisma.contactMessage.update({ where: { id: messageId }, data: { handled } });
   revalidatePath('/admin/messages');
 }
-
-export async function deleteMessage(messageId: string) {
-  await requireAdminUser();
-  await prisma.contactMessage.delete({ where: { id: messageId } });
-  revalidatePath('/admin/messages');
-  return { ok: true };
-}

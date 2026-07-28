@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma';
 import MessageHandledToggle from './MessageHandledToggle';
-import DeleteMessageButton from './DeleteMessageButton';
 
 export default async function AdminMessagesPage() {
   const messages = await prisma.contactMessage.findMany({
@@ -32,10 +31,7 @@ export default async function AdminMessagesPage() {
                     {m.name} — <a href={`mailto:${m.email}`} className="text-brand hover:underline">{m.email}</a>
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <MessageHandledToggle messageId={m.id} handled={m.handled} />
-                  <DeleteMessageButton messageId={m.id} />
-                </div>
+                <MessageHandledToggle messageId={m.id} handled={m.handled} />
               </div>
               <p className="text-sm text-gray-700 mt-3 whitespace-pre-wrap">{m.message}</p>
               <p className="text-xs text-gray-400 mt-3">{new Date(m.createdAt).toLocaleString('fr-FR')}</p>
