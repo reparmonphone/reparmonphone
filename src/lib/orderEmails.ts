@@ -14,6 +14,29 @@ const CARRIER_LABELS: Record<string, string> = {
   DHL: 'DHL',
 };
 
+// Génère automatiquement le lien de suivi public du transporteur à partir du numéro de suivi,
+// si aucune URL personnalisée (trackingUrlOverride) n'a été saisie manuellement dans l'admin.
+function getTrackingUrl(carrier: string | null, trackingNumber: string | null, override: string | null) {
+  if (override) return override;
+  if (!trackingNumber || !carrier) return null;
+
+  const encoded = encodeURIComponent(trackingNumber);
+  switch (carrier) {
+    case 'CHRONOPOST':
+      return `https://www.chronopost.fr/tracking-no-cms/suivi-colis?listeNumerosLT=${encoded}`;
+    case 'COLISSIMO':
+      return `https://www.laposte.fr/outils/suivre-vos-envois?code=${encoded}`;
+    case 'MONDIAL_RELAY':
+      return `https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition=${encoded}`;
+    case 'UPS':
+      return `https://www.ups.com/track?loc=fr_FR&tracknum=${encoded}`;
+    case 'DHL':
+      return `https://www.dhl.com/fr-fr/home/tracking/tracking-express.html?submit=1&tracking-id=${encoded}`;
+    default:
+      return null;
+  }
+}
+
 function emailWrapper(headerColor: string, headerTitle: string, headerSubtitle: string, bodyHtml: string) {
   return `
     <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto;">
@@ -165,13 +188,13 @@ export async function sendOrderShippedEmail(orderId: string) {
   if (!order) return;
 
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
-  const trackingUrl = order.trackingUrlOverride || null;
+  const trackingUrl = getTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
 
   try {
     await resend.emails.send({
       from: FROM,
       to: order.customerEmail,
-      subject: `Votre commande #${orderRef} a été expédiée 📦`,
+      subject: `ReparMonPhone.fr - Votre commande #${orderRef} a été expédiée 📦`,
       html: emailWrapper(
         '#2563eb',
         'Commande expédiée 📦',
@@ -213,13 +236,13 @@ export async function sendTrackingNumberEmail(orderId: string) {
   if (!order || !order.trackingNumber) return;
 
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
-  const trackingUrl = order.trackingUrlOverride || null;
+  const trackingUrl = getTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
 
   try {
     await resend.emails.send({
       from: FROM,
       to: order.customerEmail,
-      subject: `Numéro de suivi disponible pour votre commande #${orderRef}`,
+      subject: `ReparMonPhone.fr - Numéro de suivi disponible pour votre commande #${orderRef}`,
       html: emailWrapper(
         '#2563eb',
         'Numéro de suivi disponible 🔍',
