@@ -10,7 +10,7 @@ export default async function StaticPage({ slug }: { slug: string }) {
   if (!page) notFound();
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12">
+    <div className="max-w-5xl mx-auto px-4 py-12">
       <div
         className="prose prose-sm md:prose-base max-w-none text-gray-700
           [&_h1]:text-2xl [&_h1]:font-bold
