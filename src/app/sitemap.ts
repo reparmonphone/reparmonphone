@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next';
 import { prisma } from '@/lib/prisma';
+import { PREFECTURES } from '@/data/prefectures';
 
 // Slugs à ne jamais inclure dans le sitemap, même s'ils existaient un jour dans la table Page
 // (sécurité supplémentaire en plus du blocage dans robots.txt et du noindex sur la page elle-même).
@@ -23,6 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
     { url: `${base}/boutique`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${base}/reparation`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/livraison`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${base}/rdv`, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${base}/contact`, changeFrequency: 'yearly', priority: 0.5 },
     { url: `${base}/avis-verifies`, changeFrequency: 'monthly', priority: 0.4 },
@@ -64,6 +66,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
+  const villeRoutes: MetadataRoute.Sitemap = PREFECTURES.map((p) => ({
+    url: `${base}/livraison/${p.slug}`,
+    changeFrequency: 'monthly',
+    priority: 0.5,
+  }));
+
   return [
     ...staticRoutes,
     ...productRoutes,
@@ -71,5 +79,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...collectionRoutes,
     ...pageRoutes,
     ...repairGuideRoutes,
+    ...villeRoutes,
   ];
 }
