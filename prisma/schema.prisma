@@ -43,7 +43,7 @@ model Model {
   productLineId String
   productLine   ProductLine @relation(fields: [productLineId], references: [id])
   products      Product[]
-
+  repairGuides  RepairGuide[]   // ← ligne à ajouter
   @@unique([productLineId, slug])
   @@map("models")
 }
@@ -455,4 +455,57 @@ model Favorite {
   @@index([productId])
   @@map("favorites")
 }
+// ---------- Guides de réparation (blog type iFixit) ----------
+// Un guide est optionnellement lié à un Model existant du catalogue (même table que les produits) :
+// ça permet d'afficher automatiquement "Guides pour ce modèle" sur une fiche produit, sans avoir
+// à faire de liaison manuelle produit <-> guide.
 
+enum GuideDifficulty {
+  FACILE
+  MOYEN
+  DIFFICILE
+}
+
+model RepairGuide {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  title           String
+  excerpt         String?         @db.Text // résumé affiché sur les cartes/listes
+  coverImageUrl   String?
+
+  modelId         String? // lien vers le modèle concerné (ex: "iPhone 14") — active la correspondance auto avec les produits
+  model           Model?          @relation(fields: [modelId], references: [id])
+
+  difficulty      GuideDifficulty @default(MOYEN)
+  estimatedTime   String? // ex: "30-45 min"
+  toolsNeeded     String[]        @default([]) // ex: ["Tournevis Pentalobe P2", "Ventouse"]
+  partsNeeded     String[]        @default([]) // ex: ["Écran de remplacement iPhone 14"]
+
+  published       Boolean         @default(true)
+  viewCount       Int             @default(0)
+
+  metaTitle       String?
+  metaDescription String?         @db.Text
+
+  steps           GuideStep[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([modelId])
+  @@map("repair_guides")
+}
+
+model GuideStep {
+  id          String      @id @default(cuid())
+  guideId     String
+  guide       RepairGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  order       Int
+  title       String
+  contentHtml String      @db.Text
+  imageUrl    String?
+  warning     String?     @db.Text // avertissement optionnel affiché en encart rouge (ex: "Attention à la nappe")
+
+  @@index([guideId])
+  @@map("guide_steps")
+}

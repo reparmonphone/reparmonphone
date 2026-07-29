@@ -148,9 +148,6 @@ export default function Header({
               {item.label}
             </Link>
           ))}
-          <Link href="/reparation" className="px-3 py-2 rounded-lg hover:bg-brand-light hover:text-brand-dark transition">
-            🔧 Guides
-          </Link>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -236,7 +233,6 @@ export default function Header({
             {displayName(brand.name)}
           </Link>
         ))}
-        <Link href="/reparation" className="shrink-0 text-gray-600">🔧 Guides</Link>
         {menuItems.map((item) => (
           <Link
             key={item.id}

@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
 import AddToCartButton from './AddToCartButton';
@@ -39,12 +38,6 @@ export default async function ProductPage({ params }: { params: { slug: string }
   ]);
 
   if (!product) notFound();
-
-  const relatedGuides = await prisma.repairGuide.findMany({
-    where: { modelId: product.modelId, published: true },
-    orderBy: { viewCount: 'desc' },
-    take: 4,
-  });
 
   const images = product.images && product.images.length > 0
     ? product.images
@@ -163,27 +156,6 @@ export default async function ProductPage({ params }: { params: { slug: string }
             className="prose prose-sm md:prose-base max-w-none text-gray-700 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-2"
             dangerouslySetInnerHTML={{ __html: product.description }}
           />
-        </div>
-      )}
-
-      {relatedGuides.length > 0 && (
-        <div className="mt-10 bg-brand-light/40 border border-brand/20 rounded-xl p-5">
-          <h2 className="font-semibold text-gray-800 mb-3">🔧 Guides de réparation pour ce modèle</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {relatedGuides.map((guide) => (
-              <Link
-                key={guide.id}
-                href={`/reparation/guide/${guide.slug}`}
-                className="bg-white rounded-lg p-4 hover:shadow-md transition flex items-center gap-3"
-              >
-                <span className="text-2xl shrink-0">🔧</span>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">{guide.title}</p>
-                  {guide.estimatedTime && <p className="text-xs text-gray-400 mt-0.5">⏱ {guide.estimatedTime}</p>}
-                </div>
-              </Link>
-            ))}
-          </div>
         </div>
       )}
 

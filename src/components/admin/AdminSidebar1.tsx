@@ -7,7 +7,6 @@ type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'order
 const NAV: NavItem[] = [
   { href: '/admin', label: '📊 Tableau de bord', exact: true },
   { href: '/admin/produits', label: '📦 Produits & stock' },
-  { href: '/admin/guides', label: '🔧 Guides de réparation' },
   { href: '/admin/gammes', label: '🗂️ Marques, gammes & modèles' },
   { href: '/admin/menu', label: '📋 Menu du header' },
   { href: '/admin/collections', label: '⭐ Collections' },
