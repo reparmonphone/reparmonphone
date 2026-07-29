@@ -4,12 +4,42 @@ import Filters from '@/components/Filters';
 import type { PieceType } from '@prisma/client';
 import { getFavoriteProductIds } from '@/app/compte/favoris/actions';
 
-export const metadata = { title: 'Boutique — Pièces détachées | ReparMonPhone' };
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
+
+type BoutiqueSearchParams = { marque?: string; gamme?: string; modele?: string; type?: string; q?: string };
+
+export async function generateMetadata({ searchParams }: { searchParams: BoutiqueSearchParams }) {
+  const hasFilters = !!(searchParams.marque || searchParams.gamme || searchParams.modele || searchParams.type || searchParams.q);
+
+  let title = 'Boutique — Pièces détachées téléphone | ReparMonPhone';
+  let description =
+    'Toutes nos pièces détachées et accessoires pour smartphone : écrans, batteries, connecteurs de charge. Apple, Samsung, Huawei, Xiaomi. Livraison Chronopost 24h.';
+
+  if (hasFilters) {
+    const labelParts = [searchParams.marque, searchParams.gamme, searchParams.modele, searchParams.q].filter(Boolean);
+    if (labelParts.length > 0) {
+      const label = labelParts.join(' ');
+      title = `${label} — Pièces détachées | ReparMonPhone`;
+      description = `Découvrez nos pièces détachées et accessoires ${label} : écrans, batteries, connecteurs. Livraison Chronopost 24h partout en France.`;
+    }
+  }
+
+  return {
+    title,
+    description,
+    // Les combinaisons de filtres (marque/gamme/modèle/type/recherche) génèrent de nombreuses URLs
+    // différentes qui affichent des listes de produits très proches les unes des autres. Plutôt que
+    // de laisser Google indexer chaque variante comme une page à part (dilution du référencement,
+    // risque de contenu dupliqué), on désigne toujours /boutique (sans paramètres) comme version
+    // canonique. Les pages /marque/[...] restent les vraies pages de catégorie à indexer.
+    alternates: { canonical: `${SITE_URL}/boutique` },
+  };
+}
 
 export default async function BoutiquePage({
   searchParams,
 }: {
-  searchParams: { marque?: string; gamme?: string; modele?: string; type?: string; q?: string };
+  searchParams: BoutiqueSearchParams;
 }) {
   const [brands, lines, models] = await Promise.all([
     prisma.brand.findMany({ orderBy: { name: 'asc' } }),
