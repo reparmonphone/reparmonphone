@@ -1,4 +1,7 @@
-export const metadata = { title: 'Maintenance en cours | ReparMonPhone' };
+export const metadata = {
+  title: 'Maintenance en cours | ReparMonPhone',
+  robots: { index: false, follow: false },
+};
 
 export default function MaintenancePage() {
   return (
@@ -76,3 +79,4 @@ function MaintenanceIllustration() {
     </svg>
   );
 }
+
