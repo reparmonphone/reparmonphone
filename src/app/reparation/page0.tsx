@@ -31,27 +31,14 @@ export default async function ReparationPage({
     where.model = { productLine: { brand: { slug: searchParams.marque } } };
   }
 
-  const [guides, guidesWithBrand] = await Promise.all([
+  const [guides, brands] = await Promise.all([
     prisma.repairGuide.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: { model: { include: { productLine: { include: { brand: true } } } } },
     }),
-    // Ne propose dans le filtre que les marques qui ont réellement au moins un guide publié
-    // (évite d'afficher "Outils" ou une marque sans aucun guide, et se met à jour automatiquement
-    // au fur et à mesure que de nouveaux guides sont ajoutés pour d'autres marques).
-    prisma.repairGuide.findMany({
-      where: { published: true, modelId: { not: null } },
-      select: { model: { select: { productLine: { select: { brand: true } } } } },
-    }),
+    prisma.brand.findMany({ orderBy: { name: 'asc' } }),
   ]);
-
-  const brandsMap = new Map<string, { slug: string; name: string }>();
-  for (const g of guidesWithBrand) {
-    const brand = g.model?.productLine.brand;
-    if (brand) brandsMap.set(brand.slug, { slug: brand.slug, name: brand.name });
-  }
-  const availableBrands = [...brandsMap.values()].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div>
@@ -74,8 +61,8 @@ export default async function ReparationPage({
           />
           <select name="marque" defaultValue={searchParams.marque ?? ''} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
             <option value="">Toutes les marques</option>
-            {availableBrands.map((b) => (
-              <option key={b.slug} value={b.slug}>{b.name}</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.slug}>{b.name}</option>
             ))}
           </select>
           <select name="difficulte" defaultValue={searchParams.difficulte ?? ''} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
@@ -107,7 +94,7 @@ export default async function ReparationPage({
                         src={guide.coverImageUrl}
                         alt={guide.title}
                         fill
-                        className="object-contain p-4 group-hover:scale-105 transition"
+                        className="object-cover group-hover:scale-105 transition"
                         sizes="(max-width: 768px) 100vw, 33vw"
                         unoptimized
                       />

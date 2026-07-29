@@ -86,7 +86,7 @@ export default async function GuideDetailPage({ params }: { params: { slug: stri
 
       {guide.coverImageUrl && (
         <div className="relative aspect-video bg-gray-50 rounded-xl overflow-hidden mb-6">
-          <Image src={guide.coverImageUrl} alt={guide.title} fill className="object-contain p-4" unoptimized />
+          <Image src={guide.coverImageUrl} alt={guide.title} fill className="object-cover" unoptimized />
         </div>
       )}
 
@@ -142,7 +142,7 @@ export default async function GuideDetailPage({ params }: { params: { slug: stri
               <h3 className="font-semibold text-lg text-gray-900 mb-2">{step.title}</h3>
               {step.imageUrl && (
                 <div className="relative aspect-video bg-gray-50 rounded-xl overflow-hidden mb-3 max-w-md">
-                  <Image src={step.imageUrl} alt={step.title} fill className="object-contain p-3" unoptimized />
+                  <Image src={step.imageUrl} alt={step.title} fill className="object-cover" unoptimized />
                 </div>
               )}
               <p className="text-gray-700 leading-relaxed whitespace-pre-line">{step.contentHtml}</p>
