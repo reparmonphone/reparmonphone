@@ -8,44 +8,14 @@ import {
   isBranchCard,
 } from '@/lib/categoryContent';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
-
-function resolveContent(slug: string[]) {
-  const brandSlug = slug[0];
-  const currentSegment = slug[slug.length - 1];
-  // Premier niveau (ex: /marque/apple) : contenu identifié par la marque elle-même.
-  // Niveaux suivants (ex: /marque/apple/iphones) : contenu identifié par le dernier segment.
-  return slug.length === 1 ? getBrandContent(brandSlug) : getContentByKey(currentSegment);
-}
-
-export async function generateMetadata({ params }: { params: { slug: string[] } }) {
-  const content = resolveContent(params.slug);
-  if (!content) return {};
-
-  const plainDescription = content.description
-    ?.replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
-
-  const title = `${content.title} — Pièces détachées & Accessoires | ReparMonPhone`;
-  const description =
-    plainDescription ||
-    `Pièces détachées et accessoires ${content.title} : écrans, batteries, connecteurs de charge. Livraison Chronopost 24h partout en France.`;
-  const url = `${SITE_URL}/marque/${params.slug.join('/')}`;
-
-  return {
-    title,
-    description,
-    alternates: { canonical: url },
-    openGraph: { title, description, url, type: 'website' },
-    twitter: { card: 'summary_large_image', title, description },
-  };
-}
-
 export default function CategoryPage({ params }: { params: { slug: string[] } }) {
   const brandSlug = params.slug[0];
-  const content = resolveContent(params.slug);
+  const currentSegment = params.slug[params.slug.length - 1];
+
+  // Premier niveau (ex: /marque/apple) : contenu identifié par la marque elle-même.
+  // Niveaux suivants (ex: /marque/apple/iphones) : contenu identifié par le dernier segment.
+  const content =
+    params.slug.length === 1 ? getBrandContent(brandSlug) : getContentByKey(currentSegment);
 
   if (!content) notFound();
 

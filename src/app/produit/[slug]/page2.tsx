@@ -18,38 +18,14 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const product = await prisma.product.findUnique({ where: { slug: params.slug } });
   if (!product) return {};
-
   const fallbackDescription = product.shortDescription
     ?.replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 160);
-
-  const title = product.metaTitle || `${product.title} | ReparMonPhone`;
-  const description = product.metaDescription || fallbackDescription || undefined;
-  const url = `${SITE_URL}/produit/${product.slug}`;
-  const image = product.imageUrl || (product.images?.[0] ?? undefined);
-
   return {
-    title,
-    description,
-    alternates: { canonical: url },
-    // Sans ces surcharges, Open Graph/Twitter héritent des valeurs génériques du layout racine —
-    // ce qui fait qu'un partage de cette fiche produit sur les réseaux affiche le titre du site
-    // au lieu du produit. On les redéfinit explicitement ici pour chaque produit.
-    openGraph: {
-      title,
-      description,
-      url,
-      type: 'website',
-      images: image ? [{ url: image }] : undefined,
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: image ? [image] : undefined,
-    },
+    title: product.metaTitle || `${product.title} | ReparMonPhone`,
+    description: product.metaDescription || fallbackDescription || undefined,
   };
 }
 
