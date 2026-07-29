@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { formatPrice } from '@/lib/format';
 import { updateProductModel } from './actions';
 import StockToggle from './StockToggle';
-import PriceEditable from './PriceEditable';
 
 type ModelOpt = { id: string; name: string };
 type LineOpt = { id: string; name: string; models: ModelOpt[] };
@@ -106,9 +106,7 @@ export default function ProductRowInline({ product, brands }: { product: Product
         </select>
         {saved && <span className="ml-1 text-green-600 text-xs">✅</span>}
       </td>
-      <td className="px-4 py-3">
-        <PriceEditable productId={product.id} price={product.price} />
-      </td>
+      <td className="px-4 py-3">{formatPrice(product.price)}</td>
       <td className="px-4 py-3">
         <StockToggle productId={product.id} inStock={product.inStock} />
       </td>

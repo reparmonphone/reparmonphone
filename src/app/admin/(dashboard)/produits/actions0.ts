@@ -72,23 +72,14 @@ export async function updateProduct(
   }
 }
 
+
+
+
 export async function toggleStock(productId: string, inStock: boolean) {
   await requireAdminUser();
   await prisma.product.update({ where: { id: productId }, data: { inStock } });
   revalidatePath('/admin/produits');
   revalidatePath('/boutique');
-}
-
-// Modification rapide du prix depuis la liste (sans ouvrir la fiche complète)
-export async function updateProductPrice(productId: string, price: number) {
-  await requireAdminUser();
-  if (!Number.isFinite(price) || price < 0) {
-    return { error: 'Prix invalide.' };
-  }
-  await prisma.product.update({ where: { id: productId }, data: { price } });
-  revalidatePath('/admin/produits');
-  revalidatePath('/boutique');
-  return { ok: true };
 }
 
 // Réaffectation rapide depuis la liste (sans ouvrir la fiche complète)
