@@ -17,7 +17,7 @@ import { getSiteMeta } from '@/lib/siteMeta';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { title: SITE_TITLE, description: SITE_DESCRIPTION, ogImageUrl } = await getSiteMeta();
+  const { title: SITE_TITLE, description: SITE_DESCRIPTION } = await getSiteMeta();
 
   let googleVerification: string | undefined;
   let bingVerification: string | undefined;
@@ -42,13 +42,11 @@ export async function generateMetadata(): Promise<Metadata> {
       title: SITE_TITLE,
       description: SITE_DESCRIPTION,
       url: SITE_URL,
-      images: ogImageUrl ? [{ url: ogImageUrl, width: 1200, height: 630 }] : undefined,
     },
     twitter: {
       card: 'summary_large_image',
       title: SITE_TITLE,
       description: SITE_DESCRIPTION,
-      images: ogImageUrl ? [ogImageUrl] : undefined,
     },
     verification: {
       google: googleVerification,

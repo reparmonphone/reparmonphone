@@ -50,11 +50,7 @@ export default async function AdminSeoPage() {
           par les outils Google/Bing.
         </p>
         <div className="bg-white border border-gray-100 rounded-xl p-5">
-          <SiteMetaForm
-            initialTitle={siteMeta.title}
-            initialDescription={siteMeta.description}
-            initialOgImageUrl={siteMeta.ogImageUrl}
-          />
+          <SiteMetaForm initialTitle={siteMeta.title} initialDescription={siteMeta.description} />
         </div>
       </div>
 

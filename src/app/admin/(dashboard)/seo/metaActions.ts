@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 
-export async function saveSiteMeta(title: string, description: string) {
+export async function saveSiteMeta(title: string, description: string, ogImageUrl: string) {
   await requireAdminUser();
 
   await prisma.siteSetting.upsert({
@@ -19,7 +19,13 @@ export async function saveSiteMeta(title: string, description: string) {
     create: { key: 'seo_site_description', value: description },
   });
 
-  // Le titre/description touchent tout le site (balise <head> globale) — on revalide largement.
+  await prisma.siteSetting.upsert({
+    where: { key: 'seo_og_image_url' },
+    update: { value: ogImageUrl },
+    create: { key: 'seo_og_image_url', value: ogImageUrl },
+  });
+
+  // Le titre/description/image OG touchent tout le site (balise <head> globale) — on revalide largement.
   revalidatePath('/', 'layout');
   revalidatePath('/admin/seo');
 

@@ -21,12 +21,15 @@ function CounterHint({ length, min, max }: { length: number; min: number; max: n
 export default function SiteMetaForm({
   initialTitle,
   initialDescription,
+  initialOgImageUrl,
 }: {
   initialTitle: string;
   initialDescription: string;
+  initialOgImageUrl: string;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
+  const [ogImageUrl, setOgImageUrl] = useState(initialOgImageUrl);
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
 
@@ -34,7 +37,7 @@ export default function SiteMetaForm({
     e.preventDefault();
     setSaved(false);
     startTransition(async () => {
-      await saveSiteMeta(title.trim(), description.trim());
+      await saveSiteMeta(title.trim(), description.trim(), ogImageUrl.trim());
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     });
@@ -73,6 +76,37 @@ export default function SiteMetaForm({
         <p className="text-xs text-gray-400 mt-1">
           Le texte affiché sous le titre dans les résultats de recherche.
         </p>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-gray-700 block mb-1">
+          Image de partage (Open Graph — Facebook, WhatsApp, LinkedIn...)
+        </label>
+        <input
+          value={ogImageUrl}
+          onChange={(e) => setOgImageUrl(e.target.value)}
+          placeholder="https://.../og-image-reparmonphone.png"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          Colle ici l&apos;URL de l&apos;image (upload-la d&apos;abord dans Supabase Storage). Format
+          recommandé : 1200×630px, paysage. C&apos;est cette image qui s&apos;affiche quand quelqu&apos;un
+          partage ton site sur les réseaux sociaux — elle sert de modèle par défaut pour toutes les pages
+          qui n&apos;ont pas leur propre image (les fiches produits gardent leur propre photo).
+        </p>
+        {ogImageUrl && (
+          <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden max-w-md">
+            {/* Aperçu simple en <img> — pas besoin de next/image ici, c'est juste un aperçu admin */}
+            <img
+              src={ogImageUrl}
+              alt="Aperçu de l'image Open Graph"
+              className="w-full aspect-[1200/630] object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
