@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import AppointmentStatusSelect from './AppointmentStatusSelect';
 
@@ -24,6 +25,7 @@ export default async function AdminRdvPage() {
                 <th className="px-4 py-3">Date souhaitée</th>
                 <th className="px-4 py-3">Frais dépl.</th>
                 <th className="px-4 py-3">Statut</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -45,6 +47,11 @@ export default async function AdminRdvPage() {
                   <td className="px-4 py-3">{Number(a.extraFee) > 0 ? `${a.extraFee}€` : '—'}</td>
                   <td className="px-4 py-3">
                     <AppointmentStatusSelect appointmentId={a.id} currentStatus={a.status} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/admin/rdv/${a.id}`} className="text-brand hover:underline whitespace-nowrap">
+                      Voir / Répondre
+                    </Link>
                   </td>
                 </tr>
               ))}

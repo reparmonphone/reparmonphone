@@ -239,6 +239,8 @@ model Appointment {
   extraFee        Decimal           @default(0) @db.Decimal(10, 2)
   preferredDate   DateTime
   status          AppointmentStatus @default(REQUESTED)
+  adminReply    String?   @db.Text // dernière réponse envoyée au client depuis l'admin
+  repliedAt     DateTime? // date d'envoi de cette réponse
 
   createdAt DateTime @default(now())
 
@@ -509,3 +511,4 @@ model GuideStep {
   @@index([guideId])
   @@map("guide_steps")
 }
+
