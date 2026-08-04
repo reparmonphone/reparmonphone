@@ -35,7 +35,7 @@ export default async function AdminRdvDetailPage({ params }: { params: { id: str
               {appointment.type === 'DOMICILE' ? `🏠 Domicile (${appointment.city})` : '🔧 Atelier'}
             </p>
             {Number(appointment.extraFee) > 0 && (
-              <p className="text-sm text-orange-600">Frais de déplacement : {appointment.extraFee}€</p>
+              <p className="text-sm text-orange-600">Frais de déplacement : {Number(appointment.extraFee)}€</p>
             )}
           </div>
           <div>

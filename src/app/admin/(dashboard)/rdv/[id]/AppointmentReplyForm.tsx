@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { sendAppointmentReply } from './actions';
+import { sendAppointmentReply } from '../actions';
 
 export default function AppointmentReplyForm({
   appointmentId,
