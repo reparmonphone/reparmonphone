@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import 'leaflet/dist/leaflet.css';
+import LocationPicker from '@/components/LocationPicker';
 
 type Zone = { cityName: string; extraFee: number };
 
@@ -9,6 +11,7 @@ export default function RdvForm({ zones }: { zones: Zone[] }) {
   const [city, setCity] = useState(zones[0]?.cityName ?? '');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const extraFee = type === 'DOMICILE' ? zones.find((z) => z.cityName === city)?.extraFee ?? 0 : 0;
 
@@ -26,6 +29,7 @@ export default function RdvForm({ zones }: { zones: Zone[] }) {
       type,
       city,
       preferredDate: form.get('preferredDate'),
+      ...(type === 'DOMICILE' && coords ? { latitude: coords.lat, longitude: coords.lng } : {}),
     };
     try {
       const res = await fetch('/api/rdv', {
@@ -69,16 +73,20 @@ export default function RdvForm({ zones }: { zones: Zone[] }) {
       </div>
 
       {type === 'DOMICILE' && (
-        <div>
-          <label className="block text-sm font-medium mb-1">Ville</label>
-          <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2">
-            {zones.map((z) => (
-              <option key={z.cityName} value={z.cityName}>
-                {z.cityName}{z.extraFee > 0 ? ` (+${z.extraFee}€)` : ''}
-              </option>
-            ))}
-          </select>
-          {extraFee > 0 && <p className="text-sm text-orange-600 mt-1">Frais de déplacement : +{extraFee}€</p>}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Ville</label>
+            <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2">
+              {zones.map((z) => (
+                <option key={z.cityName} value={z.cityName}>
+                  {z.cityName}{z.extraFee > 0 ? ` (+${z.extraFee}€)` : ''}
+                </option>
+              ))}
+            </select>
+            {extraFee > 0 && <p className="text-sm text-orange-600 mt-1">Frais de déplacement : +{extraFee}€</p>}
+          </div>
+
+          <LocationPicker onChange={(lat, lng) => setCoords({ lat, lng })} />
         </div>
       )}
 

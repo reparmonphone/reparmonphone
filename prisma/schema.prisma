@@ -237,6 +237,8 @@ model Appointment {
   type            AppointmentType   @default(ATELIER)
   city            String // pour calcul du supplÃ©ment zone
   extraFee        Decimal           @default(0) @db.Decimal(10, 2)
+  latitude   Float?
+  longitude  Float?
   preferredDate   DateTime
   status          AppointmentStatus @default(REQUESTED)
   adminReply    String?   @db.Text // dernière réponse envoyée au client depuis l'admin

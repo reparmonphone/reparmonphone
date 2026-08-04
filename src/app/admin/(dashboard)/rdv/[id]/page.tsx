@@ -51,6 +51,31 @@ export default async function AdminRdvDetailPage({ params }: { params: { id: str
           </p>
         </div>
 
+        {appointment.latitude && appointment.longitude && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-gray-400">Emplacement exact indiqué par le client</p>
+              <a
+                href={`https://www.google.com/maps?q=${appointment.latitude},${appointment.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-brand font-medium hover:underline"
+              >
+                Ouvrir dans Google Maps →
+              </a>
+            </div>
+            <div className="rounded-lg overflow-hidden border border-gray-200">
+              <iframe
+                title="Emplacement du rendez-vous"
+                width="100%"
+                height="260"
+                style={{ border: 0 }}
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${appointment.longitude - 0.006}%2C${appointment.latitude - 0.004}%2C${appointment.longitude + 0.006}%2C${appointment.latitude + 0.004}&layer=mapnik&marker=${appointment.latitude}%2C${appointment.longitude}`}
+              />
+            </div>
+          </div>
+        )}
+
         <div>
           <p className="text-xs text-gray-400 mb-1">Statut</p>
           <AppointmentStatusSelect appointmentId={appointment.id} currentStatus={appointment.status} />

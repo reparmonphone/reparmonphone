@@ -14,6 +14,8 @@ const schema = z.object({
   type: z.enum(['ATELIER', 'DOMICILE']),
   city: z.string().min(2),
   preferredDate: z.string(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
@@ -75,6 +77,11 @@ export async function POST(req: NextRequest) {
                 <tr><td style="padding:4px 0; color:#6b7280; font-size:13px;">Type</td><td style="padding:4px 0; color:#111827; font-size:14px;">${typeLabel}${extraFee > 0 ? ` — +${extraFee}€` : ''}</td></tr>
                 <tr><td style="padding:4px 0; color:#6b7280; font-size:13px;">Date souhaitée</td><td style="padding:4px 0; color:#111827; font-size:14px; font-weight:600;">${dateLabel}</td></tr>
               </table>
+              ${
+                data.latitude && data.longitude
+                  ? `<p style="margin: 0 0 16px;"><a href="https://www.google.com/maps?q=${data.latitude},${data.longitude}" style="color:#1e3a8a; font-size:14px; font-weight:600;">📍 Voir l'emplacement exact sur la carte</a></p>`
+                  : ''
+              }
               <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
                 <p style="color:#6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px;">Description de la panne</p>
                 <p style="color:#374151; font-size: 14px; line-height: 1.6; white-space: pre-line; margin: 0;">${data.issueDescription}</p>
