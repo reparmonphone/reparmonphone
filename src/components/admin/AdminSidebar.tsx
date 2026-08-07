@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import LogoutButton from './LogoutButton';
 
-type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' };
+type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' | 'claims' };
 
 const NAV: NavItem[] = [
   { href: '/admin', label: '📊 Tableau de bord', exact: true },
@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { href: '/admin/collections', label: '⭐ Collections' },
   { href: '/admin/maintenance', label: '🚧 Mode maintenance' },
   { href: '/admin/commandes', label: '🛒 Commandes', badgeKey: 'orders' },
+  { href: '/admin/litiges', label: '⚠️ Litiges & réclamations', badgeKey: 'claims' },
   { href: '/admin/livraison', label: '🚚 Frais de port' },
   { href: '/admin/paiements', label: '💳 Moyens de paiement' },
   { href: '/admin/codes-promo', label: '🏷️ Codes promo' },
@@ -37,16 +38,18 @@ function Badge({ count }: { count: number }) {
 }
 
 export default async function AdminSidebar() {
-  const [pendingOrders, requestedAppointments, unhandledMessages] = await Promise.all([
+  const [pendingOrders, requestedAppointments, unhandledMessages, openClaims] = await Promise.all([
     prisma.order.count({ where: { status: 'PENDING' } }),
     prisma.appointment.count({ where: { status: 'REQUESTED' } }),
     prisma.contactMessage.count({ where: { handled: false } }),
+    prisma.claim.count({ where: { status: 'OPEN' } }),
   ]);
 
   const badgeCounts: Record<string, number> = {
     orders: pendingOrders,
     appointments: requestedAppointments,
     messages: unhandledMessages,
+    claims: openClaims,
   };
 
   return (

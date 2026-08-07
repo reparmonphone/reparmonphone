@@ -41,21 +41,27 @@ export default async function MesCommandesPage() {
       ) : (
         <div className="space-y-3">
           {orders.map((o) => (
-            <Link
-              key={o.id}
-              href={`/compte/commandes/${o.id}`}
-              className="block bg-white border border-gray-100 rounded-xl p-5 hover:shadow-md hover:border-brand transition"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold">Commande #{o.id.slice(-8)}</span>
-                <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full">{STATUS_LABELS[o.status]}</span>
-              </div>
-              <p className="text-sm text-gray-500 mb-2">{new Date(o.createdAt).toLocaleDateString('fr-FR')} — {o.items.length} article(s)</p>
-              <div className="flex items-center justify-between">
-                <p className="font-bold">{formatPrice(Number(o.total))}</p>
-                <span className="text-brand text-sm font-medium">Voir le détail →</span>
-              </div>
-            </Link>
+            <div key={o.id} className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-md hover:border-brand transition">
+              <Link href={`/compte/commandes/${o.id}`} className="block">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold">Commande #{o.id.slice(-8)}</span>
+                  <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full">{STATUS_LABELS[o.status]}</span>
+                </div>
+                <p className="text-sm text-gray-500 mb-2">{new Date(o.createdAt).toLocaleDateString('fr-FR')} — {o.items.length} article(s)</p>
+                <div className="flex items-center justify-between">
+                  <p className="font-bold">{formatPrice(Number(o.total))}</p>
+                  <span className="text-brand text-sm font-medium">Voir le détail →</span>
+                </div>
+              </Link>
+              {!['PENDING', 'CANCELLED'].includes(o.status) && (
+                <Link
+                  href={`/compte/commandes/${o.id}/litige`}
+                  className="mt-3 inline-block text-xs text-red-600 hover:underline"
+                >
+                  ⚠️ Signaler un problème avec cette commande
+                </Link>
+              )}
+            </div>
           ))}
         </div>
       )}
