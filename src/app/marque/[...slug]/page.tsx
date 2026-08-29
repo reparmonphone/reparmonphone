@@ -26,9 +26,27 @@ function cleanCardName(name: string) {
 
 // Même nettoyage que cleanCardName, mais aussi normalisé en minuscule pour servir de clé de
 // correspondance entre le nom d'une gamme en base (ex: "Mate") et le libellé d'une carte du
-// contenu scrappé (ex: "Gamme Mate").
+// contenu scrappé (ex: "Gamme Mate"). Sert de repli quand la correspondance par slug (plus fiable,
+// voir extractLineSlug) échoue — par exemple pour les marques qui n'ont jamais eu de gamme
+// consolidée depuis la base (Apple, Samsung, Xiaomi).
 function normalizeLineName(name: string) {
   return cleanCardName(name).toLowerCase();
+}
+
+// Les cartes "Huawei" générées par scripts/consolidate-huawei-categories.js et
+// scripts/add-missing-huawei-gammes.js pointent vers des URLs du type
+// ".../marque/huawei/huawei-line-{slug}/" ou ".../marque/huawei/huawei-{slug}/" — {slug} étant à
+// l'origine le slug Prisma de la ProductLine. Ce slug ne change JAMAIS quand on renomme une gamme
+// depuis /admin/gammes (seul son name change) : c'est donc la clé fiable pour retrouver la bonne
+// gamme même après un renommage, contrairement au nom qui, lui, devient obsolète dans ce fichier
+// figé dès qu'on renomme.
+function extractLineSlug(brandSlug: string, href: string): string {
+  const segment = lastPathSegment(href);
+  if (brandSlug === 'huawei') {
+    if (segment.startsWith('huawei-line-')) return segment.slice('huawei-line-'.length);
+    if (segment.startsWith('huawei-')) return segment.slice('huawei-'.length);
+  }
+  return segment;
 }
 
 export async function generateMetadata({ params }: { params: { slug: string[] } }) {
@@ -83,17 +101,25 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   );
   const countByCardHref = new Map(cardsNeedingSearch.map((card, i) => [card.href, liveCounts[i]]));
 
-  // Sur la page racine d'une marque (ex: /marque/huawei), une gamme peut avoir reçu une image
-  // à jour depuis /admin/gammes — cette image prime alors sur celle du contenu scrappé statique.
-  let imageOverrideByName = new Map<string, string>();
+  // Sur la page racine d'une marque (ex: /marque/huawei), une gamme peut avoir été renommée ou
+  // avoir reçu une nouvelle image depuis /admin/gammes — ces valeurs priment alors sur celles,
+  // figées, du contenu scrappé statique. On retrouve la bonne gamme d'abord par slug (fiable même
+  // après renommage), puis par nom nettoyé en repli pour les marques sans slug consolidé connu.
+  type DbLineOverride = { name: string; imageUrl: string | null };
+  let dbLineBySlug = new Map<string, DbLineOverride>();
+  let dbLineByNormalizedName = new Map<string, DbLineOverride>();
   if (params.slug.length === 1) {
     const dbLines = await prisma.productLine.findMany({
       where: { brand: { slug: brandSlug } },
-      select: { name: true, imageUrl: true },
+      select: { slug: true, name: true, imageUrl: true },
     });
-    imageOverrideByName = new Map(
-      dbLines.filter((l) => l.imageUrl).map((l) => [normalizeLineName(l.name), l.imageUrl as string])
-    );
+    dbLineBySlug = new Map(dbLines.map((l) => [l.slug, { name: l.name, imageUrl: l.imageUrl }]));
+    dbLineByNormalizedName = new Map(dbLines.map((l) => [normalizeLineName(l.name), { name: l.name, imageUrl: l.imageUrl }]));
+  }
+
+  function findDbLineOverride(card: { name: string; href: string }): DbLineOverride | undefined {
+    const slug = extractLineSlug(brandSlug, card.href);
+    return dbLineBySlug.get(slug) ?? dbLineByNormalizedName.get(normalizeLineName(card.name));
   }
 
   return (
@@ -124,7 +150,9 @@ export default async function CategoryPage({ params }: { params: { slug: string[
                 : `/boutique?marque=${brandSlug}&q=${encodeURIComponent(card.name)}`;
 
               const liveCount = card.liveCount ?? countByCardHref.get(card.href) ?? 0;
-              const imageUrl = imageOverrideByName.get(normalizeLineName(card.name)) ?? card.imageUrl;
+              const dbOverride = findDbLineOverride(card);
+              const displayName = dbOverride?.name ?? card.name;
+              const imageUrl = dbOverride?.imageUrl ?? card.imageUrl;
 
               return (
                 <Link key={card.href} href={href} className="group text-center block">
@@ -132,7 +160,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
                     {imageUrl ? (
                       <Image
                         src={imageUrl}
-                        alt={card.name}
+                        alt={displayName}
                         fill
                         className="object-contain group-hover:scale-105 transition"
                         sizes="200px"
@@ -144,7 +172,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
                       </div>
                     )}
                   </div>
-                  <p className="font-semibold text-gray-800 group-hover:text-brand transition">{card.name}</p>
+                  <p className="font-semibold text-gray-800 group-hover:text-brand transition">{displayName}</p>
                   {liveCount > 0 ? (
                     <p className="text-sm text-brand italic underline">
                       {liveCount} produit{liveCount > 1 ? 's' : ''}
