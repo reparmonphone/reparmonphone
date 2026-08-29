@@ -55,13 +55,14 @@ export default async function CategoryPage({ params }: { params: { slug: string[
 
   if (!content) notFound();
 
-  // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un
-  // "liveCount" précis pré-calculé (voir scripts/consolidate-huawei-categories.js) — ce
-  // liveCount, quand présent, vient d'un calcul exact par identifiant de gamme/modèle réel,
-  // plus fiable que la recherche floue par texte utilisée ici en repli pour les autres marques.
-  const cardsNeedingSearch = content.cards.filter((card) => card.liveCount == null);
+  // On calcule le nombre réel de produits en base pour CHAQUE carte (feuille ET branche),
+  // plutôt que d'afficher un chiffre figé depuis la migration WooCommerce (faux ou manquant dès
+  // qu'un produit est ajouté/retiré après coup, ou totalement absent pour les catégories créées
+  // après la migration). La recherche (titre OU nom du modèle contient le nom nettoyé de la carte,
+  // filtré sur la marque courante) reproduit celle utilisée par le lien de la carte, pour qu'un
+  // chiffre affiché corresponde toujours à ce qu'on voit réellement une fois sur /boutique.
   const liveCounts = await Promise.all(
-    cardsNeedingSearch.map((card) =>
+    content.cards.map((card) =>
       prisma.product.count({
         where: {
           showInBoutique: true,
@@ -74,7 +75,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
       })
     )
   );
-  const countByCardHref = new Map(cardsNeedingSearch.map((card, i) => [card.href, liveCounts[i]]));
+  const countByCardHref = new Map(content.cards.map((card, i) => [card.href, liveCounts[i]]));
 
   return (
     <div>
@@ -103,7 +104,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
                 ? `/marque/${[...params.slug, segment].join('/')}`
                 : `/boutique?marque=${brandSlug}&q=${encodeURIComponent(card.name)}`;
 
-              const liveCount = card.liveCount ?? countByCardHref.get(card.href) ?? 0;
+              const liveCount = countByCardHref.get(card.href) ?? 0;
 
               return (
                 <Link key={card.href} href={href} className="group text-center block">
