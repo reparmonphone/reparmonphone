@@ -49,6 +49,16 @@ function extractLineSlug(brandSlug: string, href: string): string {
   return segment;
 }
 
+// Une carte "générée depuis la base" (voir extractLineSlug) doit disparaître du site public dès
+// que la gamme correspondante est supprimée dans /admin/gammes — sinon elle continue de s'afficher
+// indéfiniment dans ce fichier figé, avec 0 produit, comme un fantôme. Les cartes qui ne suivent
+// pas ce format d'URL (autres marques, ou contenu jamais lié à une gamme réelle) ne sont jamais
+// masquées : on ne peut pas savoir si elles sont "supprimées" puisqu'elles n'ont jamais été liées.
+function isDbGeneratedCard(brandSlug: string, href: string): boolean {
+  const segment = lastPathSegment(href);
+  return brandSlug === 'huawei' && (segment.startsWith('huawei-line-') || segment.startsWith('huawei-'));
+}
+
 export async function generateMetadata({ params }: { params: { slug: string[] } }) {
   const content = resolveContent(params.slug);
   if (!content) return {};
@@ -80,31 +90,11 @@ export default async function CategoryPage({ params }: { params: { slug: string[
 
   if (!content) notFound();
 
-  // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un
-  // "liveCount" précis pré-calculé (voir scripts/consolidate-huawei-categories.js) — ce
-  // liveCount, quand présent, vient d'un calcul exact par identifiant de gamme/modèle réel,
-  // plus fiable que la recherche floue par texte utilisée ici en repli pour les autres marques.
-  const cardsNeedingSearch = content.cards.filter((card) => card.liveCount == null);
-  const liveCounts = await Promise.all(
-    cardsNeedingSearch.map((card) =>
-      prisma.product.count({
-        where: {
-          showInBoutique: true,
-          model: { productLine: { brand: { slug: brandSlug } } },
-          OR: [
-            { title: { contains: cleanCardName(card.name), mode: 'insensitive' } },
-            { model: { name: { contains: cleanCardName(card.name), mode: 'insensitive' } } },
-          ],
-        },
-      })
-    )
-  );
-  const countByCardHref = new Map(cardsNeedingSearch.map((card, i) => [card.href, liveCounts[i]]));
-
-  // Sur la page racine d'une marque (ex: /marque/huawei), une gamme peut avoir été renommée ou
-  // avoir reçu une nouvelle image depuis /admin/gammes — ces valeurs priment alors sur celles,
-  // figées, du contenu scrappé statique. On retrouve la bonne gamme d'abord par slug (fiable même
-  // après renommage), puis par nom nettoyé en repli pour les marques sans slug consolidé connu.
+  // Sur la page racine d'une marque (ex: /marque/huawei), une gamme peut avoir été renommée,
+  // supprimée, ou avoir reçu une nouvelle image depuis /admin/gammes — ces changements priment
+  // alors sur le contenu scrappé statique, figé depuis la migration. On retrouve la bonne gamme
+  // d'abord par slug (fiable même après renommage), puis par nom nettoyé en repli pour les
+  // marques sans slug consolidé connu.
   type DbLineOverride = { name: string; imageUrl: string | null };
   let dbLineBySlug = new Map<string, DbLineOverride>();
   let dbLineByNormalizedName = new Map<string, DbLineOverride>();
@@ -122,6 +112,37 @@ export default async function CategoryPage({ params }: { params: { slug: string[
     return dbLineBySlug.get(slug) ?? dbLineByNormalizedName.get(normalizeLineName(card.name));
   }
 
+  // Retire les cartes dont la gamme d'origine a été supprimée dans /admin/gammes (sans quoi elles
+  // continueraient de s'afficher indéfiniment, à 0 produit, depuis le fichier figé).
+  const visibleCards =
+    params.slug.length === 1
+      ? content.cards.filter((card) => {
+          if (!isDbGeneratedCard(brandSlug, card.href)) return true;
+          return dbLineBySlug.has(extractLineSlug(brandSlug, card.href));
+        })
+      : content.cards;
+
+  // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un
+  // "liveCount" précis pré-calculé (voir scripts/consolidate-huawei-categories.js) — ce
+  // liveCount, quand présent, vient d'un calcul exact par identifiant de gamme/modèle réel,
+  // plus fiable que la recherche floue par texte utilisée ici en repli pour les autres marques.
+  const cardsNeedingSearch = visibleCards.filter((card) => card.liveCount == null);
+  const liveCounts = await Promise.all(
+    cardsNeedingSearch.map((card) =>
+      prisma.product.count({
+        where: {
+          showInBoutique: true,
+          model: { productLine: { brand: { slug: brandSlug } } },
+          OR: [
+            { title: { contains: cleanCardName(card.name), mode: 'insensitive' } },
+            { model: { name: { contains: cleanCardName(card.name), mode: 'insensitive' } } },
+          ],
+        },
+      })
+    )
+  );
+  const countByCardHref = new Map(cardsNeedingSearch.map((card, i) => [card.href, liveCounts[i]]));
+
   return (
     <div>
       <div className="bg-gray-50 border-b border-gray-100 py-8 text-center">
@@ -138,11 +159,11 @@ export default async function CategoryPage({ params }: { params: { slug: string[
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-10">
-        {content.cards.length === 0 ? (
+        {visibleCards.length === 0 ? (
           <p className="text-gray-500">Aucune sous-catégorie à afficher pour le moment.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-6 gap-y-10">
-            {content.cards.map((card) => {
+            {visibleCards.map((card) => {
               const segment = lastPathSegment(card.href);
               const branch = isBranchCard(card);
               const href = branch
