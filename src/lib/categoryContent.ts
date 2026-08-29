@@ -5,6 +5,9 @@ export type CategoryCard = {
   imageUrl: string;
   href: string;
   count: number | null;
+  // Compteur précis calculé par identifiant réel (voir scripts/consolidate-huawei-categories.js),
+  // à préférer à la recherche floue par texte quand il est présent.
+  liveCount?: number;
 };
 
 export type CategoryContent = {
