@@ -25,9 +25,11 @@ model Brand {
 // Gamme au sein d'une marque, ex: Apple -> iPhone / iPad / Apple Watch / AirPods
 // Samsung -> Galaxy S / Galaxy A / Galaxy Note / Galaxy Z Flip...
 model ProductLine {
-  id      String  @id @default(cuid())
-  name    String // "iPhone", "Galaxy S", "Redmi Note"...
-  slug    String
+  id       String  @id @default(cuid())
+  name     String // "iPhone", "Galaxy S", "Redmi Note"...
+  slug     String
+  imageUrl String? // image de la carte catégorie affichée sur /marque/[marque] — remplace, quand définie,
+  // l'image scrappée statique de data/category_content.json (voir src/lib/categoryContent.ts)
   brandId String
   brand   Brand   @relation(fields: [brandId], references: [id])
   models  Model[]

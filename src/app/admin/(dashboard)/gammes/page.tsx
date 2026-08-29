@@ -64,6 +64,7 @@ export default async function AdminGammesPage() {
           lines: b.lines.map((l) => ({
             id: l.id,
             name: l.name,
+            imageUrl: l.imageUrl,
             models: l.models.map((m) => ({
               id: m.id,
               name: m.name,

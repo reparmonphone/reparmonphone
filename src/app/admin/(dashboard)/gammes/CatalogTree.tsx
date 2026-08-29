@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import {
   renameBrand,
   updateBrandSlug,
@@ -13,6 +13,7 @@ import {
   moveModel,
   deleteModel,
   mergeIntoModel,
+  updateLineImage,
 } from './actions';
 
 type ModelData = {
@@ -21,7 +22,7 @@ type ModelData = {
   productCount: number;
   mergeSuggestion: { targetId: string; targetLabel: string } | null;
 };
-type LineData = { id: string; name: string; models: ModelData[] };
+type LineData = { id: string; name: string; imageUrl: string | null; models: ModelData[] };
 type BrandData = { id: string; name: string; slug: string; lines: LineData[] };
 
 // Toutes les gammes de toutes les marques, pour le sélecteur "déplacer vers"
@@ -236,11 +237,55 @@ function LineRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(line.name);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const totalProducts = line.models.reduce((sum, m) => sum + m.productCount, 0);
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permet de re-choisir le même fichier ensuite
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/admin/upload-line-image', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        alert(data.error || "Échec de l'upload de l'image.");
+        return;
+      }
+      run(() => updateLineImage(line.id, data.url));
+    } catch {
+      alert("Échec de l'upload de l'image.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
       <button onClick={onToggle} className="text-gray-400 text-xs w-4">{expanded ? '▾' : '▸'}</button>
+
+      <div className="w-8 h-8 rounded border border-gray-100 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center">
+        {line.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={line.imageUrl} alt={line.name} className="w-full h-full object-contain" />
+        ) : (
+          <span className="text-gray-300 text-xs">📷</span>
+        )}
+      </div>
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={pending || uploading}
+        className="text-xs text-gray-400 hover:text-brand shrink-0"
+        title="Changer l'image de cette gamme (affichée sur la page publique de la marque)"
+      >
+        {uploading ? '⏳' : '🖼️'} modifier image
+      </button>
+
       {editing ? (
         <>
           <input value={name} onChange={(e) => setName(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-sm flex-1" />

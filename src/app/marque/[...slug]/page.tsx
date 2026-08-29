@@ -24,6 +24,13 @@ function cleanCardName(name: string) {
   return name.replace(/^gamme\s+/i, '').trim();
 }
 
+// Même nettoyage que cleanCardName, mais aussi normalisé en minuscule pour servir de clé de
+// correspondance entre le nom d'une gamme en base (ex: "Mate") et le libellé d'une carte du
+// contenu scrappé (ex: "Gamme Mate").
+function normalizeLineName(name: string) {
+  return cleanCardName(name).toLowerCase();
+}
+
 export async function generateMetadata({ params }: { params: { slug: string[] } }) {
   const content = resolveContent(params.slug);
   if (!content) return {};
@@ -76,6 +83,19 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   );
   const countByCardHref = new Map(cardsNeedingSearch.map((card, i) => [card.href, liveCounts[i]]));
 
+  // Sur la page racine d'une marque (ex: /marque/huawei), une gamme peut avoir reçu une image
+  // à jour depuis /admin/gammes — cette image prime alors sur celle du contenu scrappé statique.
+  let imageOverrideByName = new Map<string, string>();
+  if (params.slug.length === 1) {
+    const dbLines = await prisma.productLine.findMany({
+      where: { brand: { slug: brandSlug } },
+      select: { name: true, imageUrl: true },
+    });
+    imageOverrideByName = new Map(
+      dbLines.filter((l) => l.imageUrl).map((l) => [normalizeLineName(l.name), l.imageUrl as string])
+    );
+  }
+
   return (
     <div>
       <div className="bg-gray-50 border-b border-gray-100 py-8 text-center">
@@ -104,13 +124,14 @@ export default async function CategoryPage({ params }: { params: { slug: string[
                 : `/boutique?marque=${brandSlug}&q=${encodeURIComponent(card.name)}`;
 
               const liveCount = card.liveCount ?? countByCardHref.get(card.href) ?? 0;
+              const imageUrl = imageOverrideByName.get(normalizeLineName(card.name)) ?? card.imageUrl;
 
               return (
                 <Link key={card.href} href={href} className="group text-center block">
                   <div className="relative aspect-square bg-white mb-3 mx-auto max-w-[200px]">
-                    {card.imageUrl ? (
+                    {imageUrl ? (
                       <Image
-                        src={card.imageUrl}
+                        src={imageUrl}
                         alt={card.name}
                         fill
                         className="object-contain group-hover:scale-105 transition"

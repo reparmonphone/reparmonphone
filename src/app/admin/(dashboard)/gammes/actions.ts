@@ -64,6 +64,17 @@ export async function renameLine(lineId: string, name: string) {
   return { ok: true };
 }
 
+// Met à jour l'image de carte d'une gamme (affichée sur /marque/[marque]). L'upload du fichier
+// se fait avant, côté client, via /api/admin/upload-line-image — cette action ne fait qu'enregistrer
+// l'URL publique Supabase obtenue.
+export async function updateLineImage(lineId: string, imageUrl: string) {
+  await requireAdminUser();
+  if (!imageUrl.trim()) return { error: 'URL d\'image invalide.' };
+  await prisma.productLine.update({ where: { id: lineId }, data: { imageUrl: imageUrl.trim() } });
+  revalidateAll();
+  return { ok: true };
+}
+
 export async function deleteLine(lineId: string) {
   await requireAdminUser();
   const count = await prisma.model.count({ where: { productLineId: lineId } });
