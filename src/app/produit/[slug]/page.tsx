@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { redirectOrNotFound } from '@/lib/pageRedirect';
 import { formatPrice } from '@/lib/format';
 import AddToCartButton from './AddToCartButton';
 import ProductGallery from './ProductGallery';
@@ -62,7 +63,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
     getFavoriteProductIds(),
   ]);
 
-  if (!product) notFound();
+  // Une fiche produit renommée/supprimée (fusion de doublons, réorganisation catalogue) 301 vers sa
+  // nouvelle adresse si une redirection a été enregistrée dans /admin/seo, plutôt qu'un 404 sec.
+  if (!product) {
+    await redirectOrNotFound(`/produit/${params.slug}`);
+    notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
+  }
 
   const relatedGuides = await prisma.repairGuide.findMany({
     where: { modelId: product.modelId, published: true },

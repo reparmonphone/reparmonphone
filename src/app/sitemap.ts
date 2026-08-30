@@ -2,6 +2,14 @@ import { MetadataRoute } from 'next';
 import { prisma } from '@/lib/prisma';
 import { PREFECTURES } from '@/data/prefectures';
 
+// Sans ça, ce fichier n'est généré QU'UNE SEULE FOIS, au moment du build — un produit ajouté, une
+// gamme réorganisée ou un modèle renommé depuis l'admin (donc SANS nouveau déploiement du code) ne
+// serait alors répercuté dans /sitemap.xml qu'au prochain déploiement, parfois des semaines plus
+// tard. Avec `revalidate`, Next.js régénère ce fichier au maximum une fois par heure, dès qu'une
+// requête arrive après ce délai (ex: le prochain passage du robot Google) — le catalogue affiché
+// dans le sitemap reste donc à jour en continu, sans solliciter la base à chaque visite.
+export const revalidate = 3600;
+
 // Slugs à ne jamais inclure dans le sitemap, même s'ils existaient un jour dans la table Page
 // (sécurité supplémentaire en plus du blocage dans robots.txt et du noindex sur la page elle-même).
 const EXCLUDED_PAGE_SLUGS = ['maintenance'];

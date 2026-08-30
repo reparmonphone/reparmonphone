@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
+import { redirectOrNotFound } from '@/lib/pageRedirect';
 import {
   getBrandContent,
   getContentByKey,
@@ -95,7 +96,13 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   // revanche, l'absence de contenu peut simplement signifier une gamme entièrement nouvelle, créée
   // depuis /admin/gammes après la migration (ex: "Galaxy Z", "Galaxy Tab") — on vérifie la base
   // avant de décider un 404, voir plus bas.
-  if (params.slug.length === 1 && !content) notFound();
+  // Une gamme renommée/supprimée/fusionnée (voir scripts de nettoyage catalogue) 301 vers sa nouvelle
+  // adresse si une redirection a été enregistrée dans /admin/seo, plutôt qu'un 404 sec — le middleware
+  // ne vérifie pas les URLs /marque lui-même (voir KNOWN_PREFIXES dans src/middleware.ts).
+  if (params.slug.length === 1 && !content) {
+    await redirectOrNotFound(`/marque/${params.slug.join('/')}`);
+    notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
+  }
 
   // On charge TOUTES les gammes de la marque avec leurs modèles (et de quoi calculer un compteur
   // produit exact par modèle) une seule fois : la correspondance avec le contenu scrappé statique
@@ -204,7 +211,10 @@ export default async function CategoryPage({ params }: { params: { slug: string[
       dbLines.find((l) => candidateSlugs.has(l.slug)) ??
       (content ? dbLines.find((l) => normalizeLineName(l.name) === normalizeLineName(content.title)) : undefined);
 
-    if (!content && !dbLine) notFound();
+    if (!content && !dbLine) {
+      await redirectOrNotFound(`/marque/${params.slug.join('/')}`);
+      notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
+    }
 
     const modelBySlug = new Map((dbLine?.models ?? []).map((m) => [m.slug, m]));
     const modelByNormalizedName = new Map((dbLine?.models ?? []).map((m) => [normalizeLineName(m.name), m]));
