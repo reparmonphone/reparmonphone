@@ -53,7 +53,9 @@ export default async function AdminGammesPage() {
       <p className="text-gray-500 mb-6">
         Ajoute des gammes, renomme-les, et déplace un modèle mal classé vers la bonne gamme (tous ses produits
         suivent automatiquement). Les modèles en <span className="text-amber-600 font-medium">doublon</span> avec
-        une autre gamme (souvent un reliquat de la migration) proposent une fusion en un clic.
+        une autre gamme (souvent un reliquat de la migration) proposent une fusion en un clic. Un modèle avec des
+        produits ne peut pas être supprimé directement (🗑 grisé) — utilise le bouton <span className="font-medium">🔀 fusionner</span> pour
+        le regrouper dans un autre modèle existant : ses produits sont déplacés puis il est supprimé automatiquement.
       </p>
 
       <CatalogTree

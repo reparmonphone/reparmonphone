@@ -33,10 +33,23 @@ function flattenLines(brands: BrandData[]) {
   return brands.flatMap((b) => b.lines.map((l) => ({ id: l.id, label: `${b.name} / ${l.name}` })));
 }
 
+// Tous les modèles de toutes les marques/gammes, pour le sélecteur manuel "fusionner vers..." —
+// contrairement aux doublons détectés automatiquement (mergeSuggestion, qui ne repère que les noms
+// strictement identiques dans deux gammes différentes), ceci permet de fusionner n'importe quel
+// modèle vers n'importe quel autre (ex: nettoyer un modèle au nom bancal issu d'un import CSV).
+function flattenModels(brands: BrandData[]) {
+  return brands.flatMap((b) =>
+    b.lines.flatMap((l) =>
+      l.models.map((m) => ({ id: m.id, label: `${b.name} / ${l.name} / ${m.name}`, productCount: m.productCount }))
+    )
+  );
+}
+
 export default function CatalogTree({ brands }: { brands: BrandData[] }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const allLines = flattenLines(brands);
+  const allModels = flattenModels(brands);
 
   function run(action: () => Promise<{ ok?: boolean; error?: string } | undefined>) {
     setError(null);
@@ -57,6 +70,14 @@ export default function CatalogTree({ brands }: { brands: BrandData[] }) {
 
   return (
     <div className="space-y-6">
+      {/* Datalist partagée par tous les champs "Fusionner vers..." de la page (un seul rendu, référencé
+          par chaque input via list="all-models-datalist") : tape quelques lettres pour filtrer. */}
+      <datalist id="all-models-datalist">
+        {allModels.map((m) => (
+          <option key={m.id} value={m.label} />
+        ))}
+      </datalist>
+
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>}
 
       {duplicates.length > 0 && (
@@ -87,7 +108,7 @@ export default function CatalogTree({ brands }: { brands: BrandData[] }) {
       )}
 
       {brands.map((brand) => (
-        <BrandCard key={brand.id} brand={brand} allBrands={brands} allLines={allLines} pending={pending} run={run} />
+        <BrandCard key={brand.id} brand={brand} allBrands={brands} allLines={allLines} allModels={allModels} pending={pending} run={run} />
       ))}
     </div>
   );
@@ -97,12 +118,14 @@ function BrandCard({
   brand,
   allBrands,
   allLines,
+  allModels,
   pending,
   run,
 }: {
   brand: BrandData;
   allBrands: BrandData[];
   allLines: { id: string; label: string }[];
+  allModels: { id: string; label: string; productCount: number }[];
   pending: boolean;
   run: (action: () => Promise<{ ok?: boolean; error?: string } | undefined>) => void;
 }) {
@@ -188,7 +211,7 @@ function BrandCard({
                   <p className="text-xs text-gray-400">Aucun modèle dans cette gamme.</p>
                 ) : (
                   line.models.map((model) => (
-                    <ModelRow key={model.id} model={model} allLines={allLines} currentLineId={line.id} pending={pending} run={run} />
+                    <ModelRow key={model.id} model={model} allLines={allLines} allModels={allModels} currentLineId={line.id} pending={pending} run={run} />
                   ))
                 )}
                 <NewModelForm lineId={line.id} pending={pending} run={run} />
@@ -374,12 +397,14 @@ function NewModelForm({
 function ModelRow({
   model,
   allLines,
+  allModels,
   currentLineId,
   pending,
   run,
 }: {
   model: ModelData;
   allLines: { id: string; label: string }[];
+  allModels: { id: string; label: string; productCount: number }[];
   currentLineId: string;
   pending: boolean;
   run: (action: () => Promise<{ ok?: boolean; error?: string } | undefined>) => void;
@@ -388,6 +413,31 @@ function ModelRow({
   const [name, setName] = useState(model.name);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeQuery, setMergeQuery] = useState('');
+
+  function handleMergeSubmit() {
+    const target = allModels.find((m) => m.label === mergeQuery && m.id !== model.id);
+    if (!target) {
+      alert('Tape le nom d\'un modèle puis choisis-le dans la liste proposée (marque / gamme / modèle).');
+      return;
+    }
+    if (
+      !confirm(
+        `Fusionner "${model.name}" (${model.productCount} produit(s)) vers "${target.label}" ?\n\nTous les produits seront déplacés, puis "${model.name}" sera définitivement supprimé.`
+      )
+    ) {
+      return;
+    }
+    run(async () => {
+      const r = await mergeIntoModel(model.id, target.id);
+      if (!r?.error) {
+        setMergeQuery('');
+        setShowMerge(false);
+      }
+      return r;
+    });
+  }
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -413,7 +463,8 @@ function ModelRow({
   }
 
   return (
-    <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2">
+    <div className="bg-white border border-gray-100 rounded-lg px-3 py-2">
+    <div className="flex items-center gap-2">
       <div className="w-7 h-7 rounded border border-gray-100 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center">
         {model.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -463,15 +514,46 @@ function ModelRow({
           </select>
           <button onClick={() => setEditing(true)} className="text-xs text-gray-400 hover:text-brand">✏️</button>
           <button
+            onClick={() => setShowMerge((v) => !v)}
+            disabled={pending}
+            className="text-xs text-gray-400 hover:text-brand"
+            title="Fusionner ce modèle vers un autre modèle (déplace tous ses produits puis le supprime) — utile même si ce n'est pas un doublon détecté automatiquement"
+          >
+            🔀
+          </button>
+          <button
             onClick={() => run(() => deleteModel(model.id))}
             disabled={pending || model.productCount > 0}
             className="text-xs text-red-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
-            title={model.productCount > 0 ? 'Réaffecte les produits avant' : 'Supprimer ce modèle'}
+            title={model.productCount > 0 ? 'Réaffecte ou fusionne les produits avant (bouton 🔀)' : 'Supprimer ce modèle'}
           >
             🗑
           </button>
         </>
       )}
+    </div>
+    {showMerge && (
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+        <span className="text-xs text-gray-400 shrink-0">Fusionner vers :</span>
+        <input
+          value={mergeQuery}
+          onChange={(e) => setMergeQuery(e.target.value)}
+          list="all-models-datalist"
+          placeholder="Tape le nom d'un modèle (marque / gamme / modèle)..."
+          className="border border-gray-200 rounded-lg px-2 py-1 text-xs flex-1"
+        />
+        <button
+          onClick={handleMergeSubmit}
+          disabled={pending || !mergeQuery.trim()}
+          className="bg-amber-500 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-amber-600 transition disabled:opacity-60 shrink-0"
+        >
+          Fusionner
+        </button>
+        <button onClick={() => { setShowMerge(false); setMergeQuery(''); }} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">
+          Annuler
+        </button>
+      </div>
+    )}
     </div>
   );
 }
