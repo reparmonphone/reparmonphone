@@ -3,9 +3,11 @@ import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
+import { resolveShippingPrice } from '@/lib/shippingZones';
+import { DOMTOM_STRIPE_COUNTRY_CODES } from '@/lib/shippingCountryCodes';
 
 export async function POST(req: NextRequest) {
-  const { items, shippingOptionId, promoCode } = await req.json();
+  const { items, shippingOptionId, promoCode, customer } = await req.json();
 
   if (!items || items.length === 0) {
     return NextResponse.json({ error: 'Panier vide' }, { status: 400 });
@@ -14,7 +16,25 @@ export async function POST(req: NextRequest) {
   const shippingOption = shippingOptionId
     ? await prisma.shippingOption.findUnique({ where: { id: shippingOptionId } })
     : null;
-  const shippingCost = shippingOption ? Number(shippingOption.price) : 0;
+  // Recalcul du tarif de livraison côté serveur selon le code postal réel (jamais celui affiché côté
+  // client) — voir src/lib/shippingZones.ts. Le code postal utilisé est celui de l'adresse de
+  // livraison si elle diffère de la facturation, sinon celui de facturation, exactement comme le fait
+  // déjà /api/checkout-sumup et /api/checkout-paypal.
+  const effectiveZip = customer?.shipDifferent ? customer?.shipAddressZip : customer?.addressZip;
+  let shippingCost = 0;
+  if (shippingOption) {
+    const [zones, rates] = await Promise.all([
+      prisma.shippingZone.findMany(),
+      prisma.shippingZoneRate.findMany({ where: { shippingOptionId: shippingOption.id } }),
+    ]);
+    const resolved = resolveShippingPrice(
+      { id: shippingOption.id, price: Number(shippingOption.price) },
+      zones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes })),
+      rates.map((r) => ({ shippingOptionId: r.shippingOptionId, zoneId: r.zoneId, price: Number(r.price) })),
+      effectiveZip
+    );
+    shippingCost = resolved.price;
+  }
 
   // Recalcul des prix côté serveur (ne jamais faire confiance au panier client)
   const productIds = items.map((i: { productId: string }) => i.productId);
@@ -119,7 +139,7 @@ export async function POST(req: NextRequest) {
     payment_method_types: ['card'],
     line_items: lineItems,
     discounts: stripeCouponId ? [{ coupon: stripeCouponId }] : undefined,
-    shipping_address_collection: { allowed_countries: ['FR'] },
+    shipping_address_collection: { allowed_countries: ['FR', ...DOMTOM_STRIPE_COUNTRY_CODES] },
     billing_address_collection: 'required',
     customer_email: user?.email ?? undefined,
     metadata: { orderId: order.id },

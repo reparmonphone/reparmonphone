@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { updateProduct } from '../actions';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { generateMetaDescription } from '@/lib/seoDescription';
+import ImageEraserModal from './ImageEraserModal';
 
 type ModelOpt = { id: string; name: string };
 type LineOpt = { id: string; name: string; models: ModelOpt[] };
@@ -43,6 +44,7 @@ export default function ProductEditForm({ product, brands }: { product: Product;
   const [metaDescription, setMetaDescription] = useState(product.metaDescription);
   const [images, setImages] = useState(product.images);
   const [uploading, setUploading] = useState(false);
+  const [eraserIndex, setEraserIndex] = useState<number | null>(null);
 
   const [brandId, setBrandId] = useState(product.brandId);
   const [productLineId, setProductLineId] = useState(product.productLineId);
@@ -98,6 +100,11 @@ export default function ProductEditForm({ product, brands }: { product: Product;
 
   function removeImage(url: string) {
     setImages((prev) => prev.filter((i) => i !== url));
+  }
+
+  function replaceImage(index: number, newUrl: string) {
+    setImages((prev) => prev.map((u, i) => (i === index ? newUrl : u)));
+    setEraserIndex(null);
   }
 
   function moveImage(index: number, dir: -1 | 1) {
@@ -183,6 +190,7 @@ export default function ProductEditForm({ product, brands }: { product: Product;
               )}
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
                 <button type="button" onClick={() => moveImage(i, -1)} className="text-white text-xs px-1" title="Déplacer à gauche">◀</button>
+                <button type="button" onClick={() => setEraserIndex(i)} className="text-white text-xs px-1" title="Retoucher (effacer un élément de la photo)">✏️</button>
                 <button type="button" onClick={() => removeImage(url)} className="text-white text-xs px-1" title="Supprimer">🗑</button>
                 <button type="button" onClick={() => moveImage(i, 1)} className="text-white text-xs px-1" title="Déplacer à droite">▶</button>
               </div>
@@ -199,7 +207,10 @@ export default function ProductEditForm({ product, brands }: { product: Product;
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
         </div>
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        <p className="text-xs text-gray-400">La première photo est utilisée comme image principale sur la boutique.</p>
+        <p className="text-xs text-gray-400">
+          La première photo est utilisée comme image principale sur la boutique. Survole une photo et clique sur
+          ✏️ pour effacer directement un élément dessus (ex: le logo du fournisseur), sans avoir à la télécharger.
+        </p>
       </div>
 
       {/* Infos de base */}
@@ -280,6 +291,15 @@ export default function ProductEditForm({ product, brands }: { product: Product;
         </button>
         {saved && <span className="text-green-600 text-sm">✅ Enregistré</span>}
       </div>
+
+      {eraserIndex !== null && (
+        <ImageEraserModal
+          imageUrl={images[eraserIndex]}
+          productId={product.id}
+          onClose={() => setEraserIndex(null)}
+          onSaved={(newUrl) => replaceImage(eraserIndex, newUrl)}
+        />
+      )}
     </form>
   );
 }

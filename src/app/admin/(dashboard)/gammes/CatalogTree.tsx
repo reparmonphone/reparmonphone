@@ -135,6 +135,7 @@ function BrandCard({
   const [slug, setSlug] = useState(brand.slug);
   const [newLineName, setNewLineName] = useState('');
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
+  const [modelFilter, setModelFilter] = useState('');
   const otherBrands = allBrands.filter((b) => b.id !== brand.id);
 
   return (
@@ -201,7 +202,7 @@ function BrandCard({
               line={line}
               otherBrands={otherBrands}
               expanded={expandedLine === line.id}
-              onToggle={() => setExpandedLine(expandedLine === line.id ? null : line.id)}
+              onToggle={() => { setExpandedLine(expandedLine === line.id ? null : line.id); setModelFilter(''); }}
               pending={pending}
               run={run}
             />
@@ -210,9 +211,27 @@ function BrandCard({
                 {line.models.length === 0 ? (
                   <p className="text-xs text-gray-400">Aucun modèle dans cette gamme.</p>
                 ) : (
-                  line.models.map((model) => (
-                    <ModelRow key={model.id} model={model} allLines={allLines} allModels={allModels} currentLineId={line.id} pending={pending} run={run} />
-                  ))
+                  <>
+                    {line.models.length > 8 && (
+                      <input
+                        value={modelFilter}
+                        onChange={(e) => setModelFilter(e.target.value)}
+                        placeholder={`Rechercher parmi les ${line.models.length} modèles...`}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs bg-white mb-1"
+                        autoFocus
+                      />
+                    )}
+                    {(() => {
+                      const q = modelFilter.trim().toLowerCase();
+                      const filtered = q ? line.models.filter((m) => m.name.toLowerCase().includes(q)) : line.models;
+                      if (filtered.length === 0) {
+                        return <p className="text-xs text-gray-400">Aucun modèle ne correspond à &laquo;&nbsp;{modelFilter}&nbsp;&raquo;.</p>;
+                      }
+                      return filtered.map((model) => (
+                        <ModelRow key={model.id} model={model} allLines={allLines} allModels={allModels} currentLineId={line.id} pending={pending} run={run} />
+                      ));
+                    })()}
+                  </>
                 )}
                 <NewModelForm lineId={line.id} pending={pending} run={run} />
               </div>

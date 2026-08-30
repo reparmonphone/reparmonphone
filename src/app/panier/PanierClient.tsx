@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useCart } from '@/store/cart';
 import { formatPrice } from '@/lib/format';
 import TrustBadges from '@/components/TrustBadges';
+import { resolveShippingPrice, type ShippingZoneData, type ShippingZoneRateData } from '@/lib/shippingZones';
 
 type ShippingOption = { id: string; label: string; description: string | null; price: number };
 type InitialCustomer = {
@@ -20,10 +21,14 @@ type PaymentMethods = { stripe: boolean; sumup: boolean; paypal: boolean };
 
 export default function PanierClient({
   shippingOptions,
+  shippingZones,
+  shippingZoneRates,
   paymentMethods,
   initialCustomer,
 }: {
   shippingOptions: ShippingOption[];
+  shippingZones: ShippingZoneData[];
+  shippingZoneRates: ShippingZoneRateData[];
   paymentMethods: PaymentMethods;
   initialCustomer: InitialCustomer;
 }) {
@@ -56,7 +61,14 @@ export default function PanierClient({
   const [checkingPromo, setCheckingPromo] = useState(false);
 
   const shipping = shippingOptions.find((s) => s.id === shippingId);
-  const shippingCost = shipping?.price ?? 0;
+  // Code postal qui déterminera la destination réelle du colis : celui de livraison si une adresse
+  // différente est cochée, sinon celui de facturation — recalculé à chaque frappe, donc le tarif
+  // affiché s'ajuste automatiquement dès que le client termine de saisir son code postal (ex: un 973
+  // pour la Guyane applique aussitôt le tarif Outre-mer s'il a été configuré dans /admin/livraison).
+  const effectiveZip = shipDifferent ? shipAddressZip : addressZip;
+  const { price: shippingCost, zone: shippingZone } = shipping
+    ? resolveShippingPrice(shipping, shippingZones, shippingZoneRates, effectiveZip)
+    : { price: 0, zone: null };
   const subtotal = totalPrice();
   const discount = appliedPromo?.discount ?? 0;
   const total = Math.max(0, subtotal + shippingCost - discount);
@@ -283,17 +295,25 @@ export default function PanierClient({
             <div className="mb-4 pb-4 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-700 mb-2">Expédition</p>
               <div className="space-y-2">
-                {shippingOptions.map((opt) => (
-                  <label key={opt.id} className="flex items-start gap-2 text-sm cursor-pointer">
-                    <input type="radio" name="shipping" checked={shippingId === opt.id} onChange={() => setShippingId(opt.id)} className="mt-0.5" />
-                    <span className="flex-1">
-                      {opt.label}
-                      {opt.description && <span className="block text-xs text-gray-400">{opt.description}</span>}
-                    </span>
-                    <span className="font-medium shrink-0">{formatPrice(opt.price)}</span>
-                  </label>
-                ))}
+                {shippingOptions.map((opt) => {
+                  const { price: optPrice } = resolveShippingPrice(opt, shippingZones, shippingZoneRates, effectiveZip);
+                  return (
+                    <label key={opt.id} className="flex items-start gap-2 text-sm cursor-pointer">
+                      <input type="radio" name="shipping" checked={shippingId === opt.id} onChange={() => setShippingId(opt.id)} className="mt-0.5" />
+                      <span className="flex-1">
+                        {opt.label}
+                        {opt.description && <span className="block text-xs text-gray-400">{opt.description}</span>}
+                      </span>
+                      <span className="font-medium shrink-0">{formatPrice(optPrice)}</span>
+                    </label>
+                  );
+                })}
               </div>
+              {shippingZone && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
+                  📍 Tarif {shippingZone.name} appliqué selon le code postal saisi.
+                </p>
+              )}
             </div>
           )}
 

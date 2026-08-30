@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { createPaypalOrder } from '@/lib/paypal';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
+import { resolveShippingPrice } from '@/lib/shippingZones';
 
 export async function POST(req: NextRequest) {
   const { items, shippingOptionId, customer, promoCode } = await req.json();
@@ -17,7 +18,22 @@ export async function POST(req: NextRequest) {
   const shippingOption = shippingOptionId
     ? await prisma.shippingOption.findUnique({ where: { id: shippingOptionId } })
     : null;
-  const shippingCost = shippingOption ? Number(shippingOption.price) : 0;
+  // Recalcul du tarif de livraison côté serveur selon le code postal réel — voir src/lib/shippingZones.ts.
+  const effectiveZipForShipping = customer.shipDifferent ? customer.shipAddressZip : customer.addressZip;
+  let shippingCost = 0;
+  if (shippingOption) {
+    const [zones, rates] = await Promise.all([
+      prisma.shippingZone.findMany(),
+      prisma.shippingZoneRate.findMany({ where: { shippingOptionId: shippingOption.id } }),
+    ]);
+    const resolved = resolveShippingPrice(
+      { id: shippingOption.id, price: Number(shippingOption.price) },
+      zones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes })),
+      rates.map((r) => ({ shippingOptionId: r.shippingOptionId, zoneId: r.zoneId, price: Number(r.price) })),
+      effectiveZipForShipping
+    );
+    shippingCost = resolved.price;
+  }
 
   const productIds = items.map((i: { productId: string }) => i.productId);
   const products = await prisma.product.findMany({ where: { id: { in: productIds } } });

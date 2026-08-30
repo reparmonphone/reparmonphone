@@ -377,13 +377,49 @@ model ShippingOption {
   id          String   @id @default(cuid())
   label       String
   description String? // ex: "Livraison en 24h"
-  price       Decimal  @db.Decimal(10, 2)
+  price       Decimal  @db.Decimal(10, 2) // tarif par défaut = France métropolitaine
   order       Int      @default(0)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  zoneRates ShippingZoneRate[]
+
   @@map("shipping_options")
+}
+
+// ---------- Zones de livraison à tarif différent (Outre-mer, etc.) ----------
+// Le tarif "de base" d'une ShippingOption (ci-dessus) s'applique à la France métropolitaine par
+// défaut. Une ShippingZone regroupe des destinations identifiées par leurs préfixes de code postal
+// (ex: "973" = Guyane) qui doivent avoir un tarif différent — un ShippingZoneRate donne alors le prix
+// spécifique pour une (option de livraison × zone) donnée. Si aucun ShippingZoneRate n'existe pour une
+// zone donnée, le prix de base de la ShippingOption s'applique (comportement inchangé, rétrocompatible).
+model ShippingZone {
+  id             String   @id @default(cuid())
+  name           String // ex: "Outre-mer (Guadeloupe, Martinique, Guyane, Réunion, Mayotte...)"
+  // Préfixes de code postal identifiant cette zone, ex: ["971","972","973","974","976"].
+  // Détection : on prend les 3 premiers chiffres du code postal saisi par le client et on cherche
+  // une zone dont un des préfixes correspond (voir src/lib/shippingZones.ts).
+  postalPrefixes String[] @default([])
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rates ShippingZoneRate[]
+
+  @@map("shipping_zones")
+}
+
+model ShippingZoneRate {
+  id               String         @id @default(cuid())
+  shippingOptionId String
+  shippingOption   ShippingOption @relation(fields: [shippingOptionId], references: [id], onDelete: Cascade)
+  zoneId           String
+  zone             ShippingZone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  price            Decimal        @db.Decimal(10, 2)
+
+  @@unique([shippingOptionId, zoneId])
+  @@map("shipping_zone_rates")
 }
 
 // ---------- Réglages divers (clé/valeur), pour des petites infos éditables sans créer une table dédiée ----------
