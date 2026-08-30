@@ -380,10 +380,16 @@ model ShippingOption {
   price       Decimal  @db.Decimal(10, 2) // tarif par défaut = France métropolitaine
   order       Int      @default(0)
   active      Boolean  @default(true)
+  // Disponibilité par destination : par défaut une option est proposée partout (France métropolitaine +
+  // toutes les zones existantes, voir ShippingOptionZone plus bas). Décoche "France métropolitaine" pour
+  // une option qui n'a de sens que pour l'Outre-mer (ex: un transporteur différent), et/ou décoche une
+  // zone précise depuis /admin/livraison si cette option ne doit pas y être proposée.
+  availableMetropole Boolean @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   zoneRates ShippingZoneRate[]
+  zoneLinks ShippingOptionZone[]
 
   @@map("shipping_options")
 }
@@ -405,7 +411,8 @@ model ShippingZone {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  rates ShippingZoneRate[]
+  rates       ShippingZoneRate[]
+  optionLinks ShippingOptionZone[]
 
   @@map("shipping_zones")
 }
@@ -420,6 +427,24 @@ model ShippingZoneRate {
 
   @@unique([shippingOptionId, zoneId])
   @@map("shipping_zone_rates")
+}
+
+// ---------- Disponibilité d'une option de livraison par zone ----------
+// Une ligne ici = "cette ShippingOption est proposée aux clients de cette ShippingZone". Une option
+// sans aucune ligne pour une zone donnée n'est simplement pas proposée aux clients de cette zone (elle
+// reste proposée à la France métropolitaine si availableMetropole = true, et inversement). Par défaut,
+// à la création d'une option ou d'une zone, on crée automatiquement toutes les lignes correspondantes
+// (comportement "disponible partout" par défaut) — Krys peut ensuite décocher au cas par cas depuis
+// /admin/livraison, par exemple pour un transporteur Outre-mer qui n'a pas de sens pour la France.
+model ShippingOptionZone {
+  id               String         @id @default(cuid())
+  shippingOptionId String
+  shippingOption   ShippingOption @relation(fields: [shippingOptionId], references: [id], onDelete: Cascade)
+  zoneId           String
+  zone             ShippingZone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([shippingOptionId, zoneId])
+  @@map("shipping_option_zones")
 }
 
 // ---------- Réglages divers (clé/valeur), pour des petites infos éditables sans créer une table dédiée ----------

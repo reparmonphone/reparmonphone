@@ -9,10 +9,11 @@ export default async function PanierPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [shippingOptions, shippingZones, shippingZoneRates] = await Promise.all([
+  const [shippingOptions, shippingZones, shippingZoneRates, shippingOptionZoneLinks] = await Promise.all([
     prisma.shippingOption.findMany({ where: { active: true }, orderBy: { order: 'asc' } }),
     prisma.shippingZone.findMany({ orderBy: { order: 'asc' } }),
     prisma.shippingZoneRate.findMany(),
+    prisma.shippingOptionZone.findMany(),
   ]);
 
   const paymentSettings = await prisma.siteSetting.findMany({
@@ -51,12 +52,17 @@ export default async function PanierPage() {
         label: o.label,
         description: o.description,
         price: Number(o.price),
+        availableMetropole: o.availableMetropole,
       }))}
       shippingZones={shippingZones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes }))}
       shippingZoneRates={shippingZoneRates.map((r) => ({
         shippingOptionId: r.shippingOptionId,
         zoneId: r.zoneId,
         price: Number(r.price),
+      }))}
+      shippingOptionZoneLinks={shippingOptionZoneLinks.map((l) => ({
+        shippingOptionId: l.shippingOptionId,
+        zoneId: l.zoneId,
       }))}
       paymentMethods={{
         stripe: isEnabled('payment_stripe_enabled'),

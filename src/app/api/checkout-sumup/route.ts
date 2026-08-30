@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { createSumupCheckout } from '@/lib/sumup';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
-import { resolveShippingPrice } from '@/lib/shippingZones';
+import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
 
 export async function POST(req: NextRequest) {
   const { items, shippingOptionId, customer, promoCode } = await req.json();
@@ -22,13 +22,24 @@ export async function POST(req: NextRequest) {
   const effectiveZipForShipping = customer.shipDifferent ? customer.shipAddressZip : customer.addressZip;
   let shippingCost = 0;
   if (shippingOption) {
-    const [zones, rates] = await Promise.all([
+    const [zones, rates, optionZoneLinks] = await Promise.all([
       prisma.shippingZone.findMany(),
       prisma.shippingZoneRate.findMany({ where: { shippingOptionId: shippingOption.id } }),
+      prisma.shippingOptionZone.findMany({ where: { shippingOptionId: shippingOption.id } }),
     ]);
+    const zoneList = zones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes }));
+    const zone = findShippingZone(zoneList, effectiveZipForShipping);
+    const eligible = isShippingOptionAvailable(
+      { id: shippingOption.id, availableMetropole: shippingOption.availableMetropole },
+      zone,
+      optionZoneLinks.map((l) => ({ shippingOptionId: l.shippingOptionId, zoneId: l.zoneId }))
+    );
+    if (!eligible) {
+      return NextResponse.json({ error: 'Cette option de livraison n’est pas disponible pour cette destination.' }, { status: 400 });
+    }
     const resolved = resolveShippingPrice(
       { id: shippingOption.id, price: Number(shippingOption.price) },
-      zones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes })),
+      zoneList,
       rates.map((r) => ({ shippingOptionId: r.shippingOptionId, zoneId: r.zoneId, price: Number(r.price) })),
       effectiveZipForShipping
     );

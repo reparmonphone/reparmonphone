@@ -2,13 +2,20 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCart } from '@/store/cart';
 import { formatPrice } from '@/lib/format';
 import TrustBadges from '@/components/TrustBadges';
-import { resolveShippingPrice, type ShippingZoneData, type ShippingZoneRateData } from '@/lib/shippingZones';
+import {
+  resolveShippingPrice,
+  findShippingZone,
+  isShippingOptionAvailable,
+  type ShippingZoneData,
+  type ShippingZoneRateData,
+  type ShippingOptionZoneLinkData,
+} from '@/lib/shippingZones';
 
-type ShippingOption = { id: string; label: string; description: string | null; price: number };
+type ShippingOption = { id: string; label: string; description: string | null; price: number; availableMetropole: boolean };
 type InitialCustomer = {
   name: string;
   email: string;
@@ -23,12 +30,14 @@ export default function PanierClient({
   shippingOptions,
   shippingZones,
   shippingZoneRates,
+  shippingOptionZoneLinks,
   paymentMethods,
   initialCustomer,
 }: {
   shippingOptions: ShippingOption[];
   shippingZones: ShippingZoneData[];
   shippingZoneRates: ShippingZoneRateData[];
+  shippingOptionZoneLinks: ShippingOptionZoneLinkData[];
   paymentMethods: PaymentMethods;
   initialCustomer: InitialCustomer;
 }) {
@@ -60,15 +69,34 @@ export default function PanierClient({
   const [promoError, setPromoError] = useState<string | null>(null);
   const [checkingPromo, setCheckingPromo] = useState(false);
 
-  const shipping = shippingOptions.find((s) => s.id === shippingId);
   // Code postal qui déterminera la destination réelle du colis : celui de livraison si une adresse
-  // différente est cochée, sinon celui de facturation — recalculé à chaque frappe, donc le tarif
-  // affiché s'ajuste automatiquement dès que le client termine de saisir son code postal (ex: un 973
-  // pour la Guyane applique aussitôt le tarif Outre-mer s'il a été configuré dans /admin/livraison).
+  // différente est cochée, sinon celui de facturation — recalculé à chaque frappe, donc le tarif et les
+  // options proposées s'ajustent automatiquement dès que le client termine de saisir son code postal
+  // (ex: un 973 pour la Guyane applique aussitôt la zone Outre-mer configurée dans /admin/livraison).
   const effectiveZip = shipDifferent ? shipAddressZip : addressZip;
-  const { price: shippingCost, zone: shippingZone } = shipping
+  const zone = findShippingZone(shippingZones, effectiveZip);
+  // Seules les options de livraison réellement proposées pour cette destination sont affichées — une
+  // option Outre-mer (ex: Chronopost Express Outre-mer) ne doit pas apparaître pour la France, et
+  // inversement, voir la case "Disponible" par destination dans /admin/livraison.
+  const availableShippingOptions = shippingOptions.filter((o) =>
+    isShippingOptionAvailable(o, zone, shippingOptionZoneLinks)
+  );
+  const shipping = availableShippingOptions.find((s) => s.id === shippingId) ?? availableShippingOptions[0];
+
+  // Si l'option sélectionnée n'est plus proposée pour la destination saisie (ex: le client tape un code
+  // postal Guyane alors qu'une option "France uniquement" était choisie), on bascule automatiquement sur
+  // la première option encore disponible.
+  useEffect(() => {
+    if (availableShippingOptions.length === 0) return;
+    if (!availableShippingOptions.some((o) => o.id === shippingId)) {
+      setShippingId(availableShippingOptions[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveZip, availableShippingOptions.map((o) => o.id).join(',')]);
+
+  const { price: shippingCost } = shipping
     ? resolveShippingPrice(shipping, shippingZones, shippingZoneRates, effectiveZip)
-    : { price: 0, zone: null };
+    : { price: 0 };
   const subtotal = totalPrice();
   const discount = appliedPromo?.discount ?? 0;
   const total = Math.max(0, subtotal + shippingCost - discount);
@@ -116,6 +144,10 @@ export default function PanierClient({
     }
     if (provider !== 'stripe' && (!billingValid() || !shippingValid())) {
       setError('Merci de remplir tes coordonnées et ton adresse avant de payer.');
+      return;
+    }
+    if (shippingOptions.length > 0 && availableShippingOptions.length === 0) {
+      setError('Aucune option de livraison n’est disponible pour cette destination — contacte-nous directement.');
       return;
     }
 
@@ -294,25 +326,33 @@ export default function PanierClient({
           {shippingOptions.length > 0 && (
             <div className="mb-4 pb-4 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-700 mb-2">Expédition</p>
-              <div className="space-y-2">
-                {shippingOptions.map((opt) => {
-                  const { price: optPrice } = resolveShippingPrice(opt, shippingZones, shippingZoneRates, effectiveZip);
-                  return (
-                    <label key={opt.id} className="flex items-start gap-2 text-sm cursor-pointer">
-                      <input type="radio" name="shipping" checked={shippingId === opt.id} onChange={() => setShippingId(opt.id)} className="mt-0.5" />
-                      <span className="flex-1">
-                        {opt.label}
-                        {opt.description && <span className="block text-xs text-gray-400">{opt.description}</span>}
-                      </span>
-                      <span className="font-medium shrink-0">{formatPrice(optPrice)}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              {shippingZone && (
-                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
-                  📍 Tarif {shippingZone.name} appliqué selon le code postal saisi.
+              {availableShippingOptions.length === 0 ? (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                  Aucune option de livraison n&apos;est disponible pour cette destination pour le moment — contacte-nous directement.
                 </p>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {availableShippingOptions.map((opt) => {
+                      const { price: optPrice } = resolveShippingPrice(opt, shippingZones, shippingZoneRates, effectiveZip);
+                      return (
+                        <label key={opt.id} className="flex items-start gap-2 text-sm cursor-pointer">
+                          <input type="radio" name="shipping" checked={shippingId === opt.id} onChange={() => setShippingId(opt.id)} className="mt-0.5" />
+                          <span className="flex-1">
+                            {opt.label}
+                            {opt.description && <span className="block text-xs text-gray-400">{opt.description}</span>}
+                          </span>
+                          <span className="font-medium shrink-0">{formatPrice(optPrice)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {zone && (
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
+                      📍 Tarif {zone.name} appliqué selon le code postal saisi.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}

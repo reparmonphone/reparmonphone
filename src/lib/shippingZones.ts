@@ -60,6 +60,24 @@ export function resolveShippingPrice(
   return { price: rate.price, zone };
 }
 
+export type ShippingOptionZoneLinkData = {
+  shippingOptionId: string;
+  zoneId: string;
+};
+
+// Une option de livraison est-elle proposée pour la zone résolue (ou pour la France métropolitaine si
+// zone === null, cas normal quand le code postal saisi ne correspond à aucune ShippingZone) ? Utilisé à
+// la fois côté client (masquer les options non pertinentes dans le panier) et côté serveur (rejeter une
+// tentative de payer avec une option qui n'est pas censée être proposée pour cette destination).
+export function isShippingOptionAvailable(
+  option: { id: string; availableMetropole: boolean },
+  zone: ShippingZoneData | null,
+  optionZoneLinks: ShippingOptionZoneLinkData[]
+): boolean {
+  if (!zone) return option.availableMetropole;
+  return optionZoneLinks.some((l) => l.shippingOptionId === option.id && l.zoneId === zone.id);
+}
+
 // Préfixes de code postal des départements et collectivités d'Outre-mer français — utilisés pour
 // pré-remplir la zone créée par scripts/seed-shipping-zone-domtom.js. Krys peut ensuite ajuster
 // cette liste (ou en créer d'autres, ex: Corse) directement depuis /admin/livraison.

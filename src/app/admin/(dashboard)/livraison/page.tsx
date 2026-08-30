@@ -3,10 +3,11 @@ import ShippingOptionsList from './ShippingOptionsList';
 import ShippingZonesManager from './ShippingZonesManager';
 
 export default async function AdminLivraisonPage() {
-  const [options, zones, rates] = await Promise.all([
+  const [options, zones, rates, optionZoneLinks] = await Promise.all([
     prisma.shippingOption.findMany({ orderBy: { order: 'asc' } }),
     prisma.shippingZone.findMany({ orderBy: { order: 'asc' } }),
     prisma.shippingZoneRate.findMany(),
+    prisma.shippingOptionZone.findMany(),
   ]);
 
   return (
@@ -30,9 +31,10 @@ export default async function AdminLivraisonPage() {
       </div>
 
       <ShippingZonesManager
-        options={options.map((o) => ({ id: o.id, label: o.label, price: Number(o.price) }))}
+        options={options.map((o) => ({ id: o.id, label: o.label, price: Number(o.price), availableMetropole: o.availableMetropole }))}
         zones={zones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes }))}
         rates={rates.map((r) => ({ shippingOptionId: r.shippingOptionId, zoneId: r.zoneId, price: Number(r.price) }))}
+        optionZoneLinks={optionZoneLinks.map((l) => ({ shippingOptionId: l.shippingOptionId, zoneId: l.zoneId }))}
       />
     </div>
   );

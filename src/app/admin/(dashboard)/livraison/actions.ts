@@ -14,7 +14,8 @@ export async function createShippingOption(data: { label: string; description: s
   if (!data.label.trim()) return { error: 'Le libellé est obligatoire.' };
 
   const max = await prisma.shippingOption.aggregate({ _max: { order: true } });
-  await prisma.shippingOption.create({
+  const zones = await prisma.shippingZone.findMany({ select: { id: true } });
+  const option = await prisma.shippingOption.create({
     data: {
       label: data.label.trim(),
       description: data.description.trim() || null,
@@ -22,6 +23,39 @@ export async function createShippingOption(data: { label: string; description: s
       order: (max._max.order ?? 0) + 1,
     },
   });
+  // Disponible partout par défaut (France métropolitaine + toutes les zones existantes) — voir
+  // schema.prisma. À restreindre ensuite au cas par cas dans le tableau "Tarifs par zone" ci-dessous.
+  if (zones.length > 0) {
+    await prisma.shippingOptionZone.createMany({
+      data: zones.map((z) => ({ shippingOptionId: option.id, zoneId: z.id })),
+      skipDuplicates: true,
+    });
+  }
+  revalidateAll();
+  return { ok: true };
+}
+
+// Active/désactive une option de livraison pour la France métropolitaine (utile pour une option qui
+// n'a de sens que pour l'Outre-mer, ex: un transporteur différent).
+export async function setShippingOptionMetropole(shippingOptionId: string, enabled: boolean) {
+  await requireAdminUser();
+  await prisma.shippingOption.update({ where: { id: shippingOptionId }, data: { availableMetropole: enabled } });
+  revalidateAll();
+  return { ok: true };
+}
+
+// Active/désactive une option de livraison pour une zone donnée (Outre-mer, Corse...).
+export async function setShippingOptionZoneAvailability(shippingOptionId: string, zoneId: string, enabled: boolean) {
+  await requireAdminUser();
+  if (enabled) {
+    await prisma.shippingOptionZone.upsert({
+      where: { shippingOptionId_zoneId: { shippingOptionId, zoneId } },
+      update: {},
+      create: { shippingOptionId, zoneId },
+    });
+  } else {
+    await prisma.shippingOptionZone.deleteMany({ where: { shippingOptionId, zoneId } });
+  }
   revalidateAll();
   return { ok: true };
 }
@@ -87,9 +121,17 @@ export async function createShippingZone(data: { name: string; postalPrefixes: s
   if (prefixes.length === 0) return { error: 'Indique au moins un préfixe de code postal (ex: 973).' };
 
   const max = await prisma.shippingZone.aggregate({ _max: { order: true } });
-  await prisma.shippingZone.create({
+  const options = await prisma.shippingOption.findMany({ select: { id: true } });
+  const zone = await prisma.shippingZone.create({
     data: { name: data.name.trim(), postalPrefixes: prefixes, order: (max._max.order ?? 0) + 1 },
   });
+  // Disponible pour toutes les options existantes par défaut — Krys peut ensuite décocher au cas par cas.
+  if (options.length > 0) {
+    await prisma.shippingOptionZone.createMany({
+      data: options.map((o) => ({ shippingOptionId: o.id, zoneId: zone.id })),
+      skipDuplicates: true,
+    });
+  }
   revalidateAll();
   return { ok: true };
 }

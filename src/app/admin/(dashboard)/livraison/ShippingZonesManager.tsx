@@ -1,21 +1,31 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { createShippingZone, updateShippingZone, deleteShippingZone, setShippingZoneRate } from './actions';
+import {
+  createShippingZone,
+  updateShippingZone,
+  deleteShippingZone,
+  setShippingZoneRate,
+  setShippingOptionMetropole,
+  setShippingOptionZoneAvailability,
+} from './actions';
 import { formatPrice } from '@/lib/format';
 
-type ShippingOpt = { id: string; label: string; price: number };
+type ShippingOpt = { id: string; label: string; price: number; availableMetropole: boolean };
 type Zone = { id: string; name: string; postalPrefixes: string[] };
 type Rate = { shippingOptionId: string; zoneId: string; price: number };
+type OptionZoneLink = { shippingOptionId: string; zoneId: string };
 
 export default function ShippingZonesManager({
   options,
   zones,
   rates,
+  optionZoneLinks,
 }: {
   options: ShippingOpt[];
   zones: Zone[];
   rates: Rate[];
+  optionZoneLinks: OptionZoneLink[];
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -32,15 +42,20 @@ export default function ShippingZonesManager({
     return rates.find((r) => r.shippingOptionId === optionId && r.zoneId === zoneId);
   }
 
+  function isLinked(optionId: string, zoneId: string) {
+    return optionZoneLinks.some((l) => l.shippingOptionId === optionId && l.zoneId === zoneId);
+  }
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-5">
       <div>
-        <h2 className="font-semibold">Tarifs par zone (Outre-mer, Corse...)</h2>
+        <h2 className="font-semibold">Tarifs et disponibilité par zone (Outre-mer, Corse...)</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Par défaut, le prix ci-dessus s&apos;applique à toute la France. Crée une zone (ex: Guadeloupe /
-          Martinique / Guyane / Réunion) pour lui donner un tarif différent — dès que le client saisit un
-          code postal correspondant sur le panier, le bon tarif s&apos;applique automatiquement, pour
-          chaque option de livraison.
+          Par défaut, une option de livraison est proposée partout (France métropolitaine + toutes les zones),
+          au tarif de base. Crée une zone (ex: Guadeloupe / Martinique / Guyane / Réunion) pour lui donner un
+          tarif différent, et décoche &laquo;&nbsp;Disponible&nbsp;&raquo; dans une colonne pour retirer une
+          option qui n&apos;a pas de sens pour cette destination — par exemple un transporteur Outre-mer
+          spécifique que tu ne veux pas proposer à la France métropolitaine, ou l&apos;inverse.
         </p>
       </div>
 
@@ -48,8 +63,6 @@ export default function ShippingZonesManager({
 
       {options.length === 0 ? (
         <p className="text-gray-400 text-sm">Ajoute d&apos;abord une option de livraison ci-dessus.</p>
-      ) : zones.length === 0 ? (
-        <p className="text-gray-400 text-sm">Aucune zone particulière pour le moment — tous les clients paient le tarif de base.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -65,8 +78,21 @@ export default function ShippingZonesManager({
             <tbody>
               {options.map((opt) => (
                 <tr key={opt.id} className="border-b border-gray-50">
-                  <td className="py-2 pr-3 font-medium">{opt.label}</td>
-                  <td className="py-2 px-3 text-right text-gray-500">{formatPrice(opt.price)}</td>
+                  <td className="py-2 pr-3 font-medium align-top">{opt.label}</td>
+                  <td className="py-2 px-3 text-right align-top">
+                    <div className="flex flex-col items-end gap-1">
+                      <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={opt.availableMetropole}
+                          onChange={(e) => run(() => setShippingOptionMetropole(opt.id, e.target.checked))}
+                          disabled={pending}
+                        />
+                        Disponible
+                      </label>
+                      <span className="text-gray-500">{formatPrice(opt.price)}</span>
+                    </div>
+                  </td>
                   {zones.map((z) => (
                     <ZoneRateCell
                       key={z.id}
@@ -74,6 +100,7 @@ export default function ShippingZonesManager({
                       zoneId={z.id}
                       basePrice={opt.price}
                       current={rateFor(opt.id, z.id)?.price ?? null}
+                      available={isLinked(opt.id, z.id)}
                       pending={pending}
                       run={run}
                     />
@@ -86,6 +113,9 @@ export default function ShippingZonesManager({
       )}
 
       <div className="border-t border-gray-100 pt-5 space-y-3">
+        {zones.length === 0 && (
+          <p className="text-gray-400 text-sm">Aucune zone particulière pour le moment — tous les clients paient le tarif de base.</p>
+        )}
         {zones.map((z) => (
           <ZoneRow key={z.id} zone={z} pending={pending} run={run} />
         ))}
@@ -100,6 +130,7 @@ function ZoneRateCell({
   zoneId,
   basePrice,
   current,
+  available,
   pending,
   run,
 }: {
@@ -107,6 +138,7 @@ function ZoneRateCell({
   zoneId: string;
   basePrice: number;
   current: number | null;
+  available: boolean;
   pending: boolean;
   run: (action: () => Promise<{ ok?: boolean; error?: string } | undefined>) => void;
 }) {
@@ -120,20 +152,33 @@ function ZoneRateCell({
   }
 
   return (
-    <td className="py-2 px-3 text-right">
-      <div className="flex items-center justify-end gap-1.5">
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={save}
-          placeholder={`${basePrice}`}
-          className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right"
-          disabled={pending}
-        />
-        <span className="text-gray-400">€</span>
+    <td className="py-2 px-3 text-right align-top">
+      <div className="flex flex-col items-end gap-1">
+        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={available}
+            onChange={(e) => run(() => setShippingOptionZoneAvailability(optionId, zoneId, e.target.checked))}
+            disabled={pending}
+          />
+          Disponible
+        </label>
+        {available && (
+          <div className="flex items-center justify-end gap-1.5">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onBlur={save}
+              placeholder={`${basePrice}`}
+              className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right"
+              disabled={pending}
+            />
+            <span className="text-gray-400">€</span>
+          </div>
+        )}
       </div>
     </td>
   );
