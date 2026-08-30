@@ -6,8 +6,10 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = 'products';
 
-// Upload de l'image d'une carte "gamme" (ex: Huawei -> Gamme Mate), utilisée sur /admin/gammes
-// et affichée ensuite sur /marque/[marque]. Même schéma que /api/upload-claim-photo.
+// Upload de l'image d'une carte "gamme" ou "modèle" (ex: Huawei -> Gamme Mate, ou Galaxy A -> A54),
+// utilisée sur /admin/gammes et affichée ensuite sur /marque/[marque]. Route générique, réutilisée
+// telle quelle pour les deux niveaux (le nom du fichier ne conditionne rien côté serveur). Même
+// schéma que /api/upload-claim-photo.
 export async function POST(req: NextRequest) {
   await requireAdminUser();
 

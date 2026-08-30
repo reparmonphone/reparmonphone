@@ -5,8 +5,10 @@ import { prisma } from '@/lib/prisma';
 import {
   getBrandContent,
   getContentByKey,
+  getOurSlugForContentKey,
   lastPathSegment,
   isBranchCard,
+  type CategoryCard,
 } from '@/lib/categoryContent';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
@@ -25,7 +27,7 @@ function cleanCardName(name: string) {
 }
 
 // Même nettoyage que cleanCardName, mais aussi normalisé en minuscule pour servir de clé de
-// correspondance entre le nom d'une gamme en base (ex: "Mate") et le libellé d'une carte du
+// correspondance entre le nom d'une gamme/modèle en base (ex: "Mate") et le libellé d'une carte du
 // contenu scrappé (ex: "Gamme Mate"). Sert de repli quand la correspondance par slug (plus fiable,
 // voir extractLineSlug) échoue — par exemple pour les marques qui n'ont jamais eu de gamme
 // consolidée depuis la base (Apple, Samsung, Xiaomi).
@@ -39,9 +41,9 @@ function normalizeLineName(name: string) {
 // l'origine le slug Prisma de la ProductLine. Ce slug ne change JAMAIS quand on renomme une gamme
 // depuis /admin/gammes (seul son name change) : c'est donc la clé fiable pour retrouver la bonne
 // gamme même après un renommage, contrairement au nom qui, lui, devient obsolète dans ce fichier
-// figé dès qu'on renomme.
-function extractLineSlug(brandSlug: string, href: string): string {
-  const segment = lastPathSegment(href);
+// figé dès qu'on renomme. Fonctionne aussi bien sur une URL complète que sur un simple segment.
+function extractLineSlug(brandSlug: string, hrefOrSegment: string): string {
+  const segment = lastPathSegment(hrefOrSegment);
   if (brandSlug === 'huawei') {
     if (segment.startsWith('huawei-line-')) return segment.slice('huawei-line-'.length);
     if (segment.startsWith('huawei-')) return segment.slice('huawei-'.length);
@@ -88,45 +90,167 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   const brandSlug = params.slug[0];
   const content = resolveContent(params.slug);
 
-  if (!content) notFound();
+  // Sur la page racine d'une marque, l'absence de contenu scrappé est fatale (aucune marque de ce
+  // catalogue n'a jamais existé que via ce fichier figé). Sur la page d'une gamme précise en
+  // revanche, l'absence de contenu peut simplement signifier une gamme entièrement nouvelle, créée
+  // depuis /admin/gammes après la migration (ex: "Galaxy Z", "Galaxy Tab") — on vérifie la base
+  // avant de décider un 404, voir plus bas.
+  if (params.slug.length === 1 && !content) notFound();
 
-  // Sur la page racine d'une marque (ex: /marque/huawei), une gamme peut avoir été renommée,
-  // supprimée, ou avoir reçu une nouvelle image depuis /admin/gammes — ces changements priment
-  // alors sur le contenu scrappé statique, figé depuis la migration. On retrouve la bonne gamme
-  // d'abord par slug (fiable même après renommage), puis par nom nettoyé en repli pour les
-  // marques sans slug consolidé connu.
-  type DbLineOverride = { name: string; imageUrl: string | null };
-  let dbLineBySlug = new Map<string, DbLineOverride>();
-  let dbLineByNormalizedName = new Map<string, DbLineOverride>();
+  // On charge TOUTES les gammes de la marque avec leurs modèles (et de quoi calculer un compteur
+  // produit exact par modèle) une seule fois : la correspondance avec le contenu scrappé statique
+  // se fait ensuite en mémoire, aussi bien pour la page racine d'une marque (liste des gammes) que
+  // pour la page d'une gamme précise (liste des modèles) — voir plus bas.
+  type DbModel = { id: string; name: string; slug: string; imageUrl: string | null; productCount: number; repImageUrl: string | null };
+  type DbLine = { id: string; name: string; slug: string; imageUrl: string | null; models: DbModel[] };
+  const dbLinesRaw = await prisma.productLine.findMany({
+    where: { brand: { slug: brandSlug } },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      imageUrl: true,
+      models: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          imageUrl: true,
+          products: { where: { showInBoutique: true }, select: { id: true, imageUrl: true } },
+        },
+      },
+    },
+  });
+  const dbLines: DbLine[] = dbLinesRaw.map((l) => ({
+    id: l.id,
+    name: l.name,
+    slug: l.slug,
+    imageUrl: l.imageUrl,
+    models: l.models.map((m) => ({
+      id: m.id,
+      name: m.name,
+      slug: m.slug,
+      imageUrl: m.imageUrl,
+      productCount: m.products.length,
+      repImageUrl: m.products.find((p) => p.imageUrl)?.imageUrl ?? null,
+    })),
+  }));
+
+  let pageTitle: string;
+  let pageDescription: string | null;
+  let resolvedCards: CategoryCard[];
+
   if (params.slug.length === 1) {
-    const dbLines = await prisma.productLine.findMany({
-      where: { brand: { slug: brandSlug } },
-      select: { slug: true, name: true, imageUrl: true },
+    // ---------- Page racine d'une marque (ex: /marque/samsung) ----------
+    // Une gamme peut avoir été renommée, supprimée, ou avoir reçu une nouvelle image depuis
+    // /admin/gammes — ces changements priment alors sur le contenu scrappé statique, figé depuis
+    // la migration. On retrouve la bonne gamme d'abord par slug (fiable même après renommage),
+    // puis par nom nettoyé en repli pour les marques sans slug consolidé connu.
+    const dbLineBySlug = new Map(dbLines.map((l) => [l.slug, l]));
+    const dbLineByNormalizedName = new Map(dbLines.map((l) => [normalizeLineName(l.name), l]));
+
+    function findDbLineOverride(card: CategoryCard): DbLine | undefined {
+      const slug = extractLineSlug(brandSlug, card.href);
+      return dbLineBySlug.get(slug) ?? dbLineByNormalizedName.get(normalizeLineName(card.name));
+    }
+
+    const matchedLineIds = new Set<string>();
+    const staticCards = content?.cards ?? [];
+
+    // Retire les cartes dont la gamme d'origine a été supprimée dans /admin/gammes (sans quoi elles
+    // continueraient de s'afficher indéfiniment, à 0 produit, depuis le fichier figé), et applique
+    // le nom/l'image à jour quand une correspondance existe.
+    const overriddenCards = staticCards
+      .filter((card) => {
+        if (!isDbGeneratedCard(brandSlug, card.href)) return true;
+        return dbLineBySlug.has(extractLineSlug(brandSlug, card.href));
+      })
+      .map((card) => {
+        const dbLine = findDbLineOverride(card);
+        if (!dbLine) return card;
+        matchedLineIds.add(dbLine.id);
+        return { ...card, name: dbLine.name, imageUrl: dbLine.imageUrl ?? card.imageUrl };
+      });
+
+    // Gammes créées depuis /admin/gammes qui n'ont encore AUCUNE carte dans le fichier figé (ex:
+    // une gamme entièrement nouvelle comme "Galaxy Z" ou "Galaxy Tab") : on les ajoute directement,
+    // en carte "branche" (menant à la liste de ses modèles, voir plus bas et le calcul de `branch`).
+    const newLineCards: CategoryCard[] = dbLines
+      .filter((l) => !matchedLineIds.has(l.id))
+      .map((l) => ({
+        name: l.name,
+        imageUrl: l.imageUrl ?? l.models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
+        href: `${SITE_URL}/marque/${brandSlug}/${l.slug}/`,
+        count: null,
+      }));
+
+    pageTitle = content?.title ?? brandSlug;
+    pageDescription = content?.description ?? null;
+    resolvedCards = [...overriddenCards, ...newLineCards];
+  } else {
+    // ---------- Page d'une gamme précise (ex: /marque/samsung/galaxy-a) ----------
+    // La clé du contenu scrappé statique ne correspond pas toujours à notre slug interne de gamme
+    // (ex: clé scrappée "iphones" pour notre gamme "iphone") — getOurSlugForContentKey couvre ces
+    // correspondances déjà répertoriées (voir LINE_CONTENT_KEY). On tente ensuite le format Huawei
+    // ("huawei-line-x"), puis le segment brut tel quel (cas d'une gamme créée depuis
+    // /admin/gammes : son slug EST le segment d'URL utilisé pour la carte générée au niveau racine
+    // ci-dessus), puis enfin le nom du contenu scrappé en dernier repli.
+    const segment = params.slug[params.slug.length - 1];
+    const mappedSlug = getOurSlugForContentKey(brandSlug, segment);
+    const strippedSlug = extractLineSlug(brandSlug, segment);
+    const candidateSlugs = new Set([mappedSlug, strippedSlug, segment].filter((s): s is string => !!s));
+
+    const dbLine =
+      dbLines.find((l) => candidateSlugs.has(l.slug)) ??
+      (content ? dbLines.find((l) => normalizeLineName(l.name) === normalizeLineName(content.title)) : undefined);
+
+    if (!content && !dbLine) notFound();
+
+    const modelBySlug = new Map((dbLine?.models ?? []).map((m) => [m.slug, m]));
+    const modelByNormalizedName = new Map((dbLine?.models ?? []).map((m) => [normalizeLineName(m.name), m]));
+
+    function findDbModelOverride(card: CategoryCard): DbModel | undefined {
+      const slug = lastPathSegment(card.href);
+      return modelBySlug.get(slug) ?? modelByNormalizedName.get(normalizeLineName(card.name));
+    }
+
+    const matchedModelIds = new Set<string>();
+    const staticCards = content?.cards ?? [];
+
+    const overriddenCards = staticCards.map((card) => {
+      const dbModel = findDbModelOverride(card);
+      if (!dbModel) return card;
+      matchedModelIds.add(dbModel.id);
+      return {
+        ...card,
+        name: dbModel.name,
+        imageUrl: dbModel.imageUrl ?? dbModel.repImageUrl ?? card.imageUrl,
+        liveCount: dbModel.productCount,
+      };
     });
-    dbLineBySlug = new Map(dbLines.map((l) => [l.slug, { name: l.name, imageUrl: l.imageUrl }]));
-    dbLineByNormalizedName = new Map(dbLines.map((l) => [normalizeLineName(l.name), { name: l.name, imageUrl: l.imageUrl }]));
-  }
 
-  function findDbLineOverride(card: { name: string; href: string }): DbLineOverride | undefined {
-    const slug = extractLineSlug(brandSlug, card.href);
-    return dbLineBySlug.get(slug) ?? dbLineByNormalizedName.get(normalizeLineName(card.name));
-  }
+    // Modèles ajoutés depuis /admin/gammes qui n'ont encore aucune carte dans le fichier figé
+    // (nouvelle gamme entière, ou nouveau modèle ajouté dans une gamme existante).
+    const newModelCards: CategoryCard[] = (dbLine?.models ?? [])
+      .filter((m) => !matchedModelIds.has(m.id))
+      .map((m) => ({
+        name: m.name,
+        imageUrl: m.imageUrl ?? m.repImageUrl ?? null,
+        href: `${SITE_URL}/marque/${params.slug.join('/')}/${m.slug}/`,
+        count: null,
+        liveCount: m.productCount,
+      }));
 
-  // Retire les cartes dont la gamme d'origine a été supprimée dans /admin/gammes (sans quoi elles
-  // continueraient de s'afficher indéfiniment, à 0 produit, depuis le fichier figé).
-  const visibleCards =
-    params.slug.length === 1
-      ? content.cards.filter((card) => {
-          if (!isDbGeneratedCard(brandSlug, card.href)) return true;
-          return dbLineBySlug.has(extractLineSlug(brandSlug, card.href));
-        })
-      : content.cards;
+    pageTitle = content?.title ?? dbLine?.name ?? segment.replace(/-/g, ' ');
+    pageDescription = content?.description ?? null;
+    resolvedCards = [...overriddenCards, ...newModelCards];
+  }
 
   // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un
-  // "liveCount" précis pré-calculé (voir scripts/consolidate-huawei-categories.js) — ce
-  // liveCount, quand présent, vient d'un calcul exact par identifiant de gamme/modèle réel,
-  // plus fiable que la recherche floue par texte utilisée ici en repli pour les autres marques.
-  const cardsNeedingSearch = visibleCards.filter((card) => card.liveCount == null);
+  // "liveCount" précis pré-calculé (soit par scripts/consolidate-huawei-categories.js, soit
+  // ci-dessus par correspondance directe avec une gamme/un modèle de la base) — cette recherche
+  // floue par texte ne sert donc plus que de repli pour les cartes jamais reliées à la base.
+  const cardsNeedingSearch = resolvedCards.filter((card) => card.liveCount == null);
   const liveCounts = await Promise.all(
     cardsNeedingSearch.map((card) =>
       prisma.product.count({
@@ -155,33 +279,34 @@ export default async function CategoryPage({ params }: { params: { slug: string[
             </>
           )}
         </p>
-        <h1 className="text-3xl font-light tracking-wide text-gray-800 uppercase">{content.title}</h1>
+        <h1 className="text-3xl font-light tracking-wide text-gray-800 uppercase">{pageTitle}</h1>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-10">
-        {visibleCards.length === 0 ? (
+        {resolvedCards.length === 0 ? (
           <p className="text-gray-500">Aucune sous-catégorie à afficher pour le moment.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-6 gap-y-10">
-            {visibleCards.map((card) => {
+            {resolvedCards.map((card) => {
               const segment = lastPathSegment(card.href);
-              const branch = isBranchCard(card);
+              // Une carte est une "branche" (menant à une sous-page) si le contenu scrappé statique
+              // la reconnaît comme telle, OU si son segment correspond à une gamme de la base sur la
+              // page racine d'une marque (cas d'une gamme créée depuis /admin/gammes, sans section
+              // scrappée statique associée).
+              const branch = isBranchCard(card) || (params.slug.length === 1 && dbLines.some((l) => l.slug === segment));
               const href = branch
                 ? `/marque/${[...params.slug, segment].join('/')}`
                 : `/boutique?marque=${brandSlug}&q=${encodeURIComponent(card.name)}`;
 
               const liveCount = card.liveCount ?? countByCardHref.get(card.href) ?? 0;
-              const dbOverride = findDbLineOverride(card);
-              const displayName = dbOverride?.name ?? card.name;
-              const imageUrl = dbOverride?.imageUrl ?? card.imageUrl;
 
               return (
                 <Link key={card.href} href={href} className="group text-center block">
                   <div className="relative aspect-square bg-white mb-3 mx-auto max-w-[200px]">
-                    {imageUrl ? (
+                    {card.imageUrl ? (
                       <Image
-                        src={imageUrl}
-                        alt={displayName}
+                        src={card.imageUrl}
+                        alt={card.name}
                         fill
                         className="object-contain group-hover:scale-105 transition"
                         sizes="200px"
@@ -193,7 +318,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
                       </div>
                     )}
                   </div>
-                  <p className="font-semibold text-gray-800 group-hover:text-brand transition">{displayName}</p>
+                  <p className="font-semibold text-gray-800 group-hover:text-brand transition">{card.name}</p>
                   {liveCount > 0 ? (
                     <p className="text-sm text-brand italic underline">
                       {liveCount} produit{liveCount > 1 ? 's' : ''}
@@ -207,10 +332,10 @@ export default async function CategoryPage({ params }: { params: { slug: string[
           </div>
         )}
 
-        {content.description && (
+        {pageDescription && (
           <div
             className="mt-12 pt-8 border-t border-gray-100 text-gray-600 leading-relaxed space-y-3 [&_strong]:text-gray-800"
-            dangerouslySetInnerHTML={{ __html: content.description }}
+            dangerouslySetInnerHTML={{ __html: pageDescription }}
           />
         )}
       </div>

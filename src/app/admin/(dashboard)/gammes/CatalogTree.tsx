@@ -9,16 +9,19 @@ import {
   deleteLine,
   moveLine,
   deleteBrand,
+  createModel,
   renameModel,
   moveModel,
   deleteModel,
   mergeIntoModel,
   updateLineImage,
+  updateModelImage,
 } from './actions';
 
 type ModelData = {
   id: string;
   name: string;
+  imageUrl: string | null;
   productCount: number;
   mergeSuggestion: { targetId: string; targetLabel: string } | null;
 };
@@ -188,6 +191,7 @@ function BrandCard({
                     <ModelRow key={model.id} model={model} allLines={allLines} currentLineId={line.id} pending={pending} run={run} />
                   ))
                 )}
+                <NewModelForm lineId={line.id} pending={pending} run={run} />
               </div>
             )}
           </div>
@@ -330,6 +334,43 @@ function LineRow({
   );
 }
 
+function NewModelForm({
+  lineId,
+  pending,
+  run,
+}: {
+  lineId: string;
+  pending: boolean;
+  run: (action: () => Promise<{ ok?: boolean; error?: string } | undefined>) => void;
+}) {
+  const [newModelName, setNewModelName] = useState('');
+
+  return (
+    <form
+      className="flex items-center gap-2 pt-1"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!newModelName.trim()) return;
+        run(async () => {
+          const r = await createModel(lineId, newModelName);
+          if (!r.error) setNewModelName('');
+          return r;
+        });
+      }}
+    >
+      <input
+        value={newModelName}
+        onChange={(e) => setNewModelName(e.target.value)}
+        placeholder="Nom du nouveau modèle (ex: Galaxy S26)"
+        className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs flex-1 bg-white"
+      />
+      <button type="submit" disabled={pending} className="bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand-dark transition disabled:opacity-60">
+        + Ajouter un modèle
+      </button>
+    </form>
+  );
+}
+
 function ModelRow({
   model,
   allLines,
@@ -345,9 +386,52 @@ function ModelRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(model.name);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/admin/upload-line-image', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        alert(data.error || "Échec de l'upload de l'image.");
+        return;
+      }
+      run(() => updateModelImage(model.id, data.url));
+    } catch {
+      alert("Échec de l'upload de l'image.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2">
+      <div className="w-7 h-7 rounded border border-gray-100 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center">
+        {model.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={model.imageUrl} alt={model.name} className="w-full h-full object-contain" />
+        ) : (
+          <span className="text-gray-300 text-xs">📷</span>
+        )}
+      </div>
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={pending || uploading}
+        className="text-xs text-gray-400 hover:text-brand shrink-0"
+        title="Changer l'image de ce modèle (affichée sur la page publique de la gamme)"
+      >
+        {uploading ? '⏳' : '🖼️'}
+      </button>
+
       {editing ? (
         <>
           <input value={name} onChange={(e) => setName(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-sm flex-1" />

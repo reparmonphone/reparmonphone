@@ -86,10 +86,32 @@ export async function deleteLine(lineId: string) {
   return { ok: true };
 }
 
+export async function createModel(lineId: string, name: string) {
+  await requireAdminUser();
+  if (!name.trim()) return { error: 'Le nom ne peut pas être vide.' };
+  const slug = slugify(name);
+  const existing = await prisma.model.findUnique({ where: { productLineId_slug: { productLineId: lineId, slug } } });
+  if (existing) return { error: 'Un modèle avec ce nom existe déjà dans cette gamme.' };
+  await prisma.model.create({ data: { name: name.trim(), slug, productLineId: lineId } });
+  revalidateAll();
+  return { ok: true };
+}
+
 export async function renameModel(modelId: string, name: string) {
   await requireAdminUser();
   if (!name.trim()) return { error: 'Le nom ne peut pas être vide.' };
   await prisma.model.update({ where: { id: modelId }, data: { name: name.trim() } });
+  revalidateAll();
+  return { ok: true };
+}
+
+// Met à jour l'image de carte d'un modèle (affichée sur /marque/[marque]/[gamme]). L'upload du
+// fichier se fait avant, côté client, via /api/admin/upload-line-image (route générique, pas
+// spécifique aux gammes malgré son nom) — cette action ne fait qu'enregistrer l'URL Supabase obtenue.
+export async function updateModelImage(modelId: string, imageUrl: string) {
+  await requireAdminUser();
+  if (!imageUrl.trim()) return { error: 'URL d\'image invalide.' };
+  await prisma.model.update({ where: { id: modelId }, data: { imageUrl: imageUrl.trim() } });
   revalidateAll();
   return { ok: true };
 }

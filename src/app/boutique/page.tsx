@@ -8,6 +8,29 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.
 
 type BoutiqueSearchParams = { marque?: string; gamme?: string; modele?: string; type?: string; q?: string };
 
+// Une recherche "A52" ne doit matcher que "A52" en tant que référence isolée (ex: dans le titre
+// "... Galaxy A52 4G (A525F) ...", ou le nom de modèle "A52"), pas n'importe quelle référence qui
+// contient "52" par pure coïncidence de sous-chaîne (ex: "A520F" pour le modèle "A5 2017", ou
+// "A730F" pour "A8+ 2018") — sinon la recherche mélange des modèles totalement différents. On exige
+// donc que le texte trouvé ne soit pas immédiatement collé à une lettre/chiffre avant ou après.
+function matchesWholeWord(text: string, query: string): boolean {
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
+}
+
+// "iPhone 16" est un début de mot parfaitement valide de "iPhone 16 Pro Max" -> matchesWholeWord
+// seul ne suffit pas à les séparer (contrairement à "A520F" où "A52" n'est PAS suivi d'une limite
+// de mot). Ici il faut une vraie priorité : si le texte tapé correspond EXACTEMENT (une fois
+// espaces/accents/casse ignorés) au nom d'un modèle existant, on ne montre QUE ce modèle précis,
+// sans les modèles voisins dont le nom est plus long ("16 Pro", "16 Pro Max", "16 Plus"...).
+function normalizeModelQuery(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
 export async function generateMetadata({ searchParams }: { searchParams: BoutiqueSearchParams }) {
   const hasFilters = !!(searchParams.marque || searchParams.gamme || searchParams.modele || searchParams.type || searchParams.q);
 
@@ -68,11 +91,34 @@ export default async function BoutiquePage({
   if (searchParams.type) {
     where.pieceType = searchParams.type as PieceType;
   }
-  if (searchParams.q) {
-    where.OR = [
-      { title: { contains: searchParams.q, mode: 'insensitive' } },
-      { model: { name: { contains: searchParams.q, mode: 'insensitive' } } },
-    ];
+  const q = searchParams.q?.trim();
+  if (q) {
+    const normQ = normalizeModelQuery(q);
+    const exactModelIds = normQ
+      ? models.filter((m) => normalizeModelQuery(m.name) === normQ).map((m) => m.id)
+      : [];
+
+    if (exactModelIds.length > 0) {
+      // Tier 1 : correspondance exacte à un modèle -> on ne montre que ce modèle, jamais ses
+      // voisins au nom plus long (ex: "iPhone 16" ne doit pas remonter "iPhone 16 Pro Max").
+      where.modelId = { in: exactModelIds };
+    } else {
+      // Tier 2 : repli sur une recherche texte en mot entier (voir matchesWholeWord ci-dessus).
+      const candidates = await prisma.product.findMany({
+        where: {
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { model: { name: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: { id: true, title: true, model: { select: { name: true } } },
+      });
+      where.id = {
+        in: candidates
+          .filter((p) => matchesWholeWord(p.title, q) || matchesWholeWord(p.model.name, q))
+          .map((p) => p.id),
+      };
+    }
   }
 
   const [products, favoriteIds] = await Promise.all([

@@ -42,6 +42,9 @@ model Model {
   id            String      @id @default(cuid())
   name          String // ex: "iPhone 16 Pro Max"
   slug          String
+  imageUrl      String? // photo de la carte modèle affichée sur /marque/[marque]/[gamme] — remplace,
+  // quand définie, l'image scrappée statique ou la photo produit utilisée par défaut
+  // (voir src/app/marque/[...slug]/page.tsx)
   productLineId String
   productLine   ProductLine @relation(fields: [productLineId], references: [id])
   products      Product[]

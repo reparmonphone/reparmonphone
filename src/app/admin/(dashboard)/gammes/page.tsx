@@ -68,6 +68,7 @@ export default async function AdminGammesPage() {
             models: l.models.map((m) => ({
               id: m.id,
               name: m.name,
+              imageUrl: m.imageUrl,
               productCount: m._count.products,
               mergeSuggestion: mergeSuggestions.get(m.id) ?? null,
             })),
