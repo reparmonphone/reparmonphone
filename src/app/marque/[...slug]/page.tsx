@@ -50,8 +50,14 @@ function modelVariantRank(name: string): number {
   return 5;
 }
 
-function sortModelCardsByRecency(cards: CategoryCard[]): CategoryCard[] {
+// Trie par ordre manuel (Model.sortOrder, réglable depuis /admin/gammes avec les flèches ▲▼) —
+// le tri automatique ci-dessus (génération/variante) ne sert plus que de repli pour les cartes
+// sans sortOrder connu (normalement aucune, une fois scripts/seed-model-sort-order.js exécuté).
+function sortModelCards(cards: CategoryCard[]): CategoryCard[] {
   return [...cards].sort((a, b) => {
+    const aOrder = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
     const genDiff = extractModelGeneration(b.name) - extractModelGeneration(a.name);
     if (genDiff !== 0) return genDiff;
     const rankDiff = modelVariantRank(a.name) - modelVariantRank(b.name);
@@ -144,7 +150,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   // produit exact par modèle) une seule fois : la correspondance avec le contenu scrappé statique
   // se fait ensuite en mémoire, aussi bien pour la page racine d'une marque (liste des gammes) que
   // pour la page d'une gamme précise (liste des modèles) — voir plus bas.
-  type DbModel = { id: string; name: string; slug: string; imageUrl: string | null; productCount: number; repImageUrl: string | null };
+  type DbModel = { id: string; name: string; slug: string; imageUrl: string | null; sortOrder: number; productCount: number; repImageUrl: string | null };
   type DbLine = { id: string; name: string; slug: string; imageUrl: string | null; models: DbModel[] };
   const dbLinesRaw = await prisma.productLine.findMany({
     where: { brand: { slug: brandSlug } },
@@ -159,6 +165,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
           name: true,
           slug: true,
           imageUrl: true,
+          sortOrder: true,
           products: { where: { showInBoutique: true }, select: { id: true, imageUrl: true } },
         },
       },
@@ -174,6 +181,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
       name: m.name,
       slug: m.slug,
       imageUrl: m.imageUrl,
+      sortOrder: m.sortOrder,
       productCount: m.products.length,
       repImageUrl: m.products.find((p) => p.imageUrl)?.imageUrl ?? null,
     })),
@@ -272,6 +280,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
         name: dbModel.name,
         imageUrl: dbModel.imageUrl ?? dbModel.repImageUrl ?? card.imageUrl,
         liveCount: dbModel.productCount,
+        sortOrder: dbModel.sortOrder,
       };
     });
 
@@ -285,12 +294,13 @@ export default async function CategoryPage({ params }: { params: { slug: string[
         href: `${SITE_URL}/marque/${params.slug.join('/')}/${m.slug}/`,
         count: null,
         liveCount: m.productCount,
+        sortOrder: m.sortOrder,
       }));
 
     pageTitle = content?.title ?? dbLine?.name ?? segment.replace(/-/g, ' ');
     pageDescription = content?.description ?? null;
-    // Liste de modèles (pas de gammes) : du plus récent au plus ancien, comme demandé.
-    resolvedCards = sortModelCardsByRecency([...overriddenCards, ...newModelCards]);
+    // Liste de modèles (pas de gammes) : ordre manuel réglé depuis /admin/gammes.
+    resolvedCards = sortModelCards([...overriddenCards, ...newModelCards]);
   }
 
   // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un

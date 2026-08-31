@@ -9,7 +9,7 @@ export default async function AdminGammesPage() {
         orderBy: { name: 'asc' },
         include: {
           models: {
-            orderBy: { name: 'asc' },
+            orderBy: { sortOrder: 'asc' },
             include: { _count: { select: { products: true } } },
           },
         },
@@ -52,7 +52,9 @@ export default async function AdminGammesPage() {
       <h1 className="text-2xl font-bold mb-1">Marques, gammes & modèles</h1>
       <p className="text-gray-500 mb-6">
         Ajoute des gammes, renomme-les, et déplace un modèle mal classé vers la bonne gamme (tous ses produits
-        suivent automatiquement). Les modèles en <span className="text-amber-600 font-medium">doublon</span> avec
+        suivent automatiquement). Utilise les flèches <span className="font-medium">▲▼</span> pour régler l'ordre
+        d'affichage des modèles sur la page publique de chaque gamme. Les modèles en{' '}
+        <span className="text-amber-600 font-medium">doublon</span> avec
         une autre gamme (souvent un reliquat de la migration) proposent une fusion en un clic. Un modèle avec des
         produits ne peut pas être supprimé directement (🗑 grisé) — utilise le bouton <span className="font-medium">🔀 fusionner</span> pour
         le regrouper dans un autre modèle existant : ses produits sont déplacés puis il est supprimé automatiquement.
@@ -73,6 +75,7 @@ export default async function AdminGammesPage() {
               imageUrl: m.imageUrl,
               productCount: m._count.products,
               mergeSuggestion: mergeSuggestions.get(m.id) ?? null,
+              sortOrder: m.sortOrder,
             })),
           })),
         }))}

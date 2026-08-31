@@ -45,6 +45,10 @@ model Model {
   imageUrl      String? // photo de la carte modèle affichée sur /marque/[marque]/[gamme] — remplace,
   // quand définie, l'image scrappée statique ou la photo produit utilisée par défaut
   // (voir src/app/marque/[...slug]/page.tsx)
+  sortOrder     Int         @default(0) // ordre d'affichage manuel des cartes modèle sur /marque/[marque]/[gamme]
+  // (du plus petit au plus grand) — modifiable depuis /admin/gammes avec les flèches ▲▼.
+  // Initialisé une fois par scripts/seed-model-sort-order.js (du plus récent au plus ancien),
+  // puis entièrement sous le contrôle de l'utilisateur ensuite.
   productLineId String
   productLine   ProductLine @relation(fields: [productLineId], references: [id])
   products      Product[]

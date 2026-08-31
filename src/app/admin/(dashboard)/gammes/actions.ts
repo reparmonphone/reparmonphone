@@ -86,13 +86,22 @@ export async function deleteLine(lineId: string) {
   return { ok: true };
 }
 
+// Place un modèle en dernière position (sortOrder le plus grand + 1) dans la gamme donnée —
+// utilisé à la création d'un modèle et quand on le déplace vers une autre gamme, pour ne jamais
+// entrer en collision avec l'ordre manuel déjà réglé par l'utilisateur (voir moveModelOrder).
+async function nextSortOrder(lineId: string): Promise<number> {
+  const last = await prisma.model.findFirst({ where: { productLineId: lineId }, orderBy: { sortOrder: 'desc' } });
+  return (last?.sortOrder ?? -1) + 1;
+}
+
 export async function createModel(lineId: string, name: string) {
   await requireAdminUser();
   if (!name.trim()) return { error: 'Le nom ne peut pas être vide.' };
   const slug = slugify(name);
   const existing = await prisma.model.findUnique({ where: { productLineId_slug: { productLineId: lineId, slug } } });
   if (existing) return { error: 'Un modèle avec ce nom existe déjà dans cette gamme.' };
-  await prisma.model.create({ data: { name: name.trim(), slug, productLineId: lineId } });
+  const sortOrder = await nextSortOrder(lineId);
+  await prisma.model.create({ data: { name: name.trim(), slug, productLineId: lineId, sortOrder } });
   revalidateAll();
   return { ok: true };
 }
@@ -117,9 +126,38 @@ export async function updateModelImage(modelId: string, imageUrl: string) {
 }
 
 // Déplace un modèle (et donc tous ses produits) vers une autre gamme, éventuellement d'une autre marque.
+// Placé en dernière position de la gamme d'arrivée (voir nextSortOrder) : son ancien sortOrder n'a
+// aucun sens dans la nouvelle gamme et pourrait entrer en collision avec un modèle qui y est déjà.
 export async function moveModel(modelId: string, newLineId: string) {
   await requireAdminUser();
-  await prisma.model.update({ where: { id: modelId }, data: { productLineId: newLineId } });
+  const sortOrder = await nextSortOrder(newLineId);
+  await prisma.model.update({ where: { id: modelId }, data: { productLineId: newLineId, sortOrder } });
+  revalidateAll();
+  return { ok: true };
+}
+
+// Déplace un modèle d'un cran vers le haut ou le bas dans l'ordre d'affichage de SA gamme (celle
+// affichée sur /marque/[marque]/[gamme]) — permute simplement son sortOrder avec celui du voisin
+// immédiat. Ne fait rien si le modèle est déjà en première/dernière position.
+export async function moveModelOrder(modelId: string, direction: 'up' | 'down') {
+  await requireAdminUser();
+  const model = await prisma.model.findUnique({ where: { id: modelId } });
+  if (!model) return { error: 'Modèle introuvable.' };
+
+  const siblings = await prisma.model.findMany({
+    where: { productLineId: model.productLineId },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, sortOrder: true },
+  });
+  const index = siblings.findIndex((m) => m.id === modelId);
+  const neighborIndex = direction === 'up' ? index - 1 : index + 1;
+  if (index === -1 || neighborIndex < 0 || neighborIndex >= siblings.length) return { ok: true }; // déjà en bout de liste
+
+  const neighbor = siblings[neighborIndex];
+  await prisma.$transaction([
+    prisma.model.update({ where: { id: model.id }, data: { sortOrder: neighbor.sortOrder } }),
+    prisma.model.update({ where: { id: neighbor.id }, data: { sortOrder: model.sortOrder } }),
+  ]);
   revalidateAll();
   return { ok: true };
 }

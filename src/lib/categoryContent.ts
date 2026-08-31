@@ -12,6 +12,10 @@ export type CategoryCard = {
   // ou directement depuis la base dans src/app/marque/[...slug]/page.tsx), à préférer à la
   // recherche floue par texte quand il est présent.
   liveCount?: number;
+  // Ordre d'affichage manuel (Model.sortOrder) sur une page de gamme — réglable depuis
+  // /admin/gammes avec les flèches ▲▼. Absent pour les cartes "gamme" (page racine d'une marque),
+  // qui gardent leur ordre d'origine.
+  sortOrder?: number;
 };
 
 export type CategoryContent = {

@@ -12,6 +12,7 @@ import {
   createModel,
   renameModel,
   moveModel,
+  moveModelOrder,
   deleteModel,
   mergeIntoModel,
   updateLineImage,
@@ -24,6 +25,7 @@ type ModelData = {
   imageUrl: string | null;
   productCount: number;
   mergeSuggestion: { targetId: string; targetLabel: string } | null;
+  sortOrder: number;
 };
 type LineData = { id: string; name: string; imageUrl: string | null; models: ModelData[] };
 type BrandData = { id: string; name: string; slug: string; lines: LineData[] };
@@ -227,9 +229,26 @@ function BrandCard({
                       if (filtered.length === 0) {
                         return <p className="text-xs text-gray-400">Aucun modèle ne correspond à &laquo;&nbsp;{modelFilter}&nbsp;&raquo;.</p>;
                       }
-                      return filtered.map((model) => (
-                        <ModelRow key={model.id} model={model} allLines={allLines} allModels={allModels} currentLineId={line.id} pending={pending} run={run} />
-                      ));
+                      // Les flèches ▲▼ permutent avec le voisin réel dans line.models (l'ordre complet,
+                      // pas la liste filtrée) — désactivées pendant une recherche pour éviter toute
+                      // confusion sur "quel est le voisin ?" quand la liste affichée est un sous-ensemble.
+                      return filtered.map((model) => {
+                        const fullIndex = line.models.findIndex((m) => m.id === model.id);
+                        return (
+                          <ModelRow
+                            key={model.id}
+                            model={model}
+                            allLines={allLines}
+                            allModels={allModels}
+                            currentLineId={line.id}
+                            pending={pending}
+                            run={run}
+                            canReorder={!q}
+                            isFirst={fullIndex === 0}
+                            isLast={fullIndex === line.models.length - 1}
+                          />
+                        );
+                      });
                     })()}
                   </>
                 )}
@@ -420,6 +439,9 @@ function ModelRow({
   currentLineId,
   pending,
   run,
+  canReorder,
+  isFirst,
+  isLast,
 }: {
   model: ModelData;
   allLines: { id: string; label: string }[];
@@ -427,6 +449,9 @@ function ModelRow({
   currentLineId: string;
   pending: boolean;
   run: (action: () => Promise<{ ok?: boolean; error?: string } | undefined>) => void;
+  canReorder: boolean;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(model.name);
@@ -484,6 +509,22 @@ function ModelRow({
   return (
     <div className="bg-white border border-gray-100 rounded-lg px-3 py-2">
     <div className="flex items-center gap-2">
+      <div className="flex flex-col shrink-0" title={canReorder ? "Réordonner l'affichage sur la page publique de la gamme" : 'Efface la recherche pour réordonner'}>
+        <button
+          onClick={() => run(() => moveModelOrder(model.id, 'up'))}
+          disabled={pending || !canReorder || isFirst}
+          className="text-gray-400 hover:text-brand disabled:opacity-20 disabled:cursor-not-allowed leading-none text-xs"
+        >
+          ▲
+        </button>
+        <button
+          onClick={() => run(() => moveModelOrder(model.id, 'down'))}
+          disabled={pending || !canReorder || isLast}
+          className="text-gray-400 hover:text-brand disabled:opacity-20 disabled:cursor-not-allowed leading-none text-xs"
+        >
+          ▼
+        </button>
+      </div>
       <div className="w-7 h-7 rounded border border-gray-100 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center">
         {model.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
