@@ -28,6 +28,38 @@ function cleanCardName(name: string) {
   return name.replace(/^gamme\s+/i, '').trim();
 }
 
+// Trie les cartes "modèle" d'une gamme du plus récent au plus ancien (ex: S26 en premier, S en
+// dernier) : on extrait le premier nombre du nom (le numéro de génération, ex: 23 pour "S23
+// Ultra (S918B)"), puis on classe les variantes d'une même génération dans un ordre habituel
+// (Ultra, puis +, puis le modèle de base, puis FE, puis Edge, puis le reste). Fonctionne aussi,
+// en repli plus simple (juste par numéro puis ordre alphabétique), pour les autres marques dont
+// les modèles ne suivent pas ce schéma de variantes.
+function extractModelGeneration(name: string): number {
+  const base = name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const match = base.match(/(\d{1,3})/);
+  return match ? parseInt(match[1], 10) : -1;
+}
+
+function modelVariantRank(name: string): number {
+  const base = name.replace(/\s*\([^)]*\)\s*$/, '').trim().toUpperCase().replace(/\s+/g, ' ');
+  if (/ULTRA/.test(base)) return 0;
+  if (/\+|\bPLUS\b/.test(base)) return 1;
+  if (/^S\s*\d*\s*(5G|4G)?$/.test(base)) return 2; // modèle de base, ex: "S23" ou "S23 5G"
+  if (/\bFE\b/.test(base)) return 3;
+  if (/EDGE/.test(base)) return 4;
+  return 5;
+}
+
+function sortModelCardsByRecency(cards: CategoryCard[]): CategoryCard[] {
+  return [...cards].sort((a, b) => {
+    const genDiff = extractModelGeneration(b.name) - extractModelGeneration(a.name);
+    if (genDiff !== 0) return genDiff;
+    const rankDiff = modelVariantRank(a.name) - modelVariantRank(b.name);
+    if (rankDiff !== 0) return rankDiff;
+    return a.name.localeCompare(b.name, 'fr');
+  });
+}
+
 // Même nettoyage que cleanCardName, mais aussi normalisé en minuscule pour servir de clé de
 // correspondance entre le nom d'une gamme/modèle en base (ex: "Mate") et le libellé d'une carte du
 // contenu scrappé (ex: "Gamme Mate"). Sert de repli quand la correspondance par slug (plus fiable,
@@ -257,7 +289,8 @@ export default async function CategoryPage({ params }: { params: { slug: string[
 
     pageTitle = content?.title ?? dbLine?.name ?? segment.replace(/-/g, ' ');
     pageDescription = content?.description ?? null;
-    resolvedCards = [...overriddenCards, ...newModelCards];
+    // Liste de modèles (pas de gammes) : du plus récent au plus ancien, comme demandé.
+    resolvedCards = sortModelCardsByRecency([...overriddenCards, ...newModelCards]);
   }
 
   // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un
@@ -300,7 +333,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
         {resolvedCards.length === 0 ? (
           <p className="text-gray-500">Aucune sous-catégorie à afficher pour le moment.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-6 gap-y-10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-10">
             {resolvedCards.map((card) => {
               const segment = lastPathSegment(card.href);
               // Une carte est une "branche" (menant à une sous-page) si le contenu scrappé statique
@@ -316,14 +349,14 @@ export default async function CategoryPage({ params }: { params: { slug: string[
 
               return (
                 <Link key={card.href} href={href} className="group text-center block">
-                  <div className="relative aspect-square bg-white mb-3 mx-auto max-w-[200px]">
+                  <div className="relative aspect-square bg-white mb-3 mx-auto max-w-[400px]">
                     {card.imageUrl ? (
                       <Image
                         src={card.imageUrl}
                         alt={card.name}
                         fill
                         className="object-contain group-hover:scale-105 transition"
-                        sizes="200px"
+                        sizes="400px"
                         unoptimized
                       />
                     ) : (
