@@ -1,5 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Génère les pages statiques une par une au lieu de plusieurs en même temps pendant `next build`.
+  // Le site a beaucoup de pages (179, dont ~160 pages /livraison/[ville]) et chacune interroge la
+  // base de données : en parallèle, ça sature le pool de connexions Supabase (limité à quelques
+  // connexions simultanées) et fait échouer l'export de certaines pages au hasard ("Export
+  // encountered errors on following paths"). En série, c'est un peu plus lent mais fiable.
+  experimental: {
+    workerThreads: false,
+    cpus: 1,
+  },
   images: {
     remotePatterns: [
       // Images encore hébergées sur l'ancien WordPress le temps de la migration

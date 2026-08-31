@@ -45,13 +45,36 @@ export async function updateBrandSlug(brandId: string, slugInput: string) {
   return { ok: true };
 }
 
+// Place une gamme en dernière position (sortOrder le plus grand + 1) dans la marque donnée —
+// même logique que nextSortOrder ci-dessous pour les modèles, pour ne jamais entrer en collision
+// avec l'ordre manuel déjà réglé par l'utilisateur (voir reorderLines).
+async function nextLineSortOrder(brandId: string): Promise<number> {
+  const last = await prisma.productLine.findFirst({ where: { brandId }, orderBy: { sortOrder: 'desc' } });
+  return (last?.sortOrder ?? -1) + 1;
+}
+
 export async function createLine(brandId: string, name: string) {
   await requireAdminUser();
   if (!name.trim()) return { error: 'Le nom ne peut pas être vide.' };
   const slug = slugify(name);
   const existing = await prisma.productLine.findUnique({ where: { brandId_slug: { brandId, slug } } });
   if (existing) return { error: 'Une gamme avec ce nom existe déjà pour cette marque.' };
-  await prisma.productLine.create({ data: { name: name.trim(), slug, brandId } });
+  const sortOrder = await nextLineSortOrder(brandId);
+  await prisma.productLine.create({ data: { name: name.trim(), slug, brandId, sortOrder } });
+  revalidateAll();
+  return { ok: true };
+}
+
+// Réordonne en une seule fois toutes les gammes d'une marque : reçoit la liste complète des ids
+// dans le nouvel ordre voulu (tel que reconstruit côté client après un glisser-déposer) et
+// réécrit sortOrder = 0, 1, 2... en conséquence.
+export async function reorderLines(brandId: string, orderedLineIds: string[]) {
+  await requireAdminUser();
+  await prisma.$transaction(
+    orderedLineIds.map((id, index) =>
+      prisma.productLine.update({ where: { id, brandId }, data: { sortOrder: index } })
+    )
+  );
   revalidateAll();
   return { ok: true };
 }
@@ -88,7 +111,7 @@ export async function deleteLine(lineId: string) {
 
 // Place un modèle en dernière position (sortOrder le plus grand + 1) dans la gamme donnée —
 // utilisé à la création d'un modèle et quand on le déplace vers une autre gamme, pour ne jamais
-// entrer en collision avec l'ordre manuel déjà réglé par l'utilisateur (voir moveModelOrder).
+// entrer en collision avec l'ordre manuel déjà réglé par l'utilisateur (voir reorderModels).
 async function nextSortOrder(lineId: string): Promise<number> {
   const last = await prisma.model.findFirst({ where: { productLineId: lineId }, orderBy: { sortOrder: 'desc' } });
   return (last?.sortOrder ?? -1) + 1;
@@ -136,33 +159,23 @@ export async function moveModel(modelId: string, newLineId: string) {
   return { ok: true };
 }
 
-// Déplace un modèle d'un cran vers le haut ou le bas dans l'ordre d'affichage de SA gamme (celle
-// affichée sur /marque/[marque]/[gamme]) — permute simplement son sortOrder avec celui du voisin
-// immédiat. Ne fait rien si le modèle est déjà en première/dernière position.
-export async function moveModelOrder(modelId: string, direction: 'up' | 'down') {
+// Réordonne en une seule fois tous les modèles d'une gamme : reçoit la liste complète des ids
+// dans le nouvel ordre voulu (tel que reconstruit côté client après un glisser-déposer) et
+// réécrit sortOrder = 0, 1, 2... en conséquence. Remplace l'ancien système de flèches ▲▼.
+export async function reorderModels(lineId: string, orderedModelIds: string[]) {
   await requireAdminUser();
-  const model = await prisma.model.findUnique({ where: { id: modelId } });
-  if (!model) return { error: 'Modèle introuvable.' };
-
-  const siblings = await prisma.model.findMany({
-    where: { productLineId: model.productLineId },
-    orderBy: { sortOrder: 'asc' },
-    select: { id: true, sortOrder: true },
-  });
-  const index = siblings.findIndex((m) => m.id === modelId);
-  const neighborIndex = direction === 'up' ? index - 1 : index + 1;
-  if (index === -1 || neighborIndex < 0 || neighborIndex >= siblings.length) return { ok: true }; // déjà en bout de liste
-
-  const neighbor = siblings[neighborIndex];
-  await prisma.$transaction([
-    prisma.model.update({ where: { id: model.id }, data: { sortOrder: neighbor.sortOrder } }),
-    prisma.model.update({ where: { id: neighbor.id }, data: { sortOrder: model.sortOrder } }),
-  ]);
+  await prisma.$transaction(
+    orderedModelIds.map((id, index) =>
+      prisma.model.update({ where: { id, productLineId: lineId }, data: { sortOrder: index } })
+    )
+  );
   revalidateAll();
   return { ok: true };
 }
 
-// Déplace une gamme entière (et donc toutes ses modèles/produits) vers une autre marque.
+// Déplace une gamme entière (et donc toutes ses modèles/produits) vers une autre marque. Placée en
+// dernière position de la marque d'arrivée (voir nextLineSortOrder) : son ancien sortOrder n'a
+// aucun sens dans la nouvelle marque et pourrait entrer en collision avec une gamme qui y est déjà.
 export async function moveLine(lineId: string, newBrandId: string) {
   await requireAdminUser();
   const slug = (await prisma.productLine.findUnique({ where: { id: lineId } }))?.slug;
@@ -175,7 +188,8 @@ export async function moveLine(lineId: string, newBrandId: string) {
     await prisma.model.updateMany({ where: { productLineId: lineId }, data: { productLineId: existing.id } });
     await prisma.productLine.delete({ where: { id: lineId } });
   } else {
-    await prisma.productLine.update({ where: { id: lineId }, data: { brandId: newBrandId } });
+    const sortOrder = await nextLineSortOrder(newBrandId);
+    await prisma.productLine.update({ where: { id: lineId }, data: { brandId: newBrandId, sortOrder } });
   }
   revalidateAll();
   return { ok: true };

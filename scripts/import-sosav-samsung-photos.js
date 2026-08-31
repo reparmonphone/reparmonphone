@@ -14,6 +14,9 @@
  * Usage :
  *   node scripts/import-sosav-samsung-photos.js --dry-run   # rapport seul, aucune écriture
  *   node scripts/import-sosav-samsung-photos.js             # upload + mise à jour réelle
+ *   node scripts/import-sosav-samsung-photos.js --model="Tab S9 FE"   # ne traite que les modèles
+ *     dont le nom contient ce texte (utile pour retraiter un seul modèle après une erreur réseau
+ *     en cours de route, sans re-télécharger/re-uploader tous les autres pour rien).
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '../.env.migration') });
@@ -23,6 +26,11 @@ const { PrismaClient } = require('@prisma/client');
 const { createClient } = require('@supabase/supabase-js');
 
 const DRY_RUN = process.argv.includes('--dry-run');
+const ONLY_FILTER = (() => {
+  const arg = process.argv.find((a) => a.startsWith('--model='));
+  if (!arg) return null;
+  return arg.slice('--model='.length).replace(/^["']|["']$/g, '').toLowerCase();
+})();
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -123,11 +131,15 @@ async function main() {
     process.exit(1);
   }
 
-  const models = await prisma.model.findMany({
+  let models = await prisma.model.findMany({
     where: { productLine: { brandId: brand.id } },
     include: { productLine: { select: { name: true } } },
     orderBy: [{ productLine: { name: 'asc' } }, { name: 'asc' }],
   });
+  if (ONLY_FILTER) {
+    models = models.filter((m) => m.name.toLowerCase().includes(ONLY_FILTER));
+    console.log(`🔎 Filtré avec --model="${ONLY_FILTER}" : ${models.length} modèle(s) retenu(s)`);
+  }
   console.log(`📱 ${models.length} modèles Samsung en base (toutes gammes confondues)\n`);
 
   const matched = [];
@@ -158,7 +170,7 @@ async function main() {
   // Entrées sosav jamais utilisées (gammes que le site liste mais que ton catalogue n'a pas, ou noms trop différents)
   const allSosavKeys = new Set([...index.byExact.keys()]);
   const unusedSosavKeys = [...allSosavKeys].filter((k) => !usedSosavKeys.has(k));
-  if (unusedSosavKeys.length) {
+  if (unusedSosavKeys.length && !ONLY_FILTER) {
     console.log(`ℹ️  ${unusedSosavKeys.length} images sosav.fr non utilisées (aucun modèle correspondant en base) — normal si ton catalogue ne couvre pas toute la gamme Samsung.`);
     console.log('');
   }

@@ -6,7 +6,7 @@ export default async function AdminGammesPage() {
     orderBy: { name: 'asc' },
     include: {
       lines: {
-        orderBy: { name: 'asc' },
+        orderBy: { sortOrder: 'asc' },
         include: {
           models: {
             orderBy: { sortOrder: 'asc' },
@@ -52,8 +52,9 @@ export default async function AdminGammesPage() {
       <h1 className="text-2xl font-bold mb-1">Marques, gammes & modèles</h1>
       <p className="text-gray-500 mb-6">
         Ajoute des gammes, renomme-les, et déplace un modèle mal classé vers la bonne gamme (tous ses produits
-        suivent automatiquement). Utilise les flèches <span className="font-medium">▲▼</span> pour régler l'ordre
-        d'affichage des modèles sur la page publique de chaque gamme. Les modèles en{' '}
+        suivent automatiquement). Attrape une ligne par sa poignée <span className="font-medium">⠿</span> et
+        glisse-la pour régler l'ordre d'affichage : celui des gammes sur la page publique de la marque, et celui
+        des modèles sur la page publique de chaque gamme (une fois celle-ci dépliée). Les modèles en{' '}
         <span className="text-amber-600 font-medium">doublon</span> avec
         une autre gamme (souvent un reliquat de la migration) proposent une fusion en un clic. Un modèle avec des
         produits ne peut pas être supprimé directement (🗑 grisé) — utilise le bouton <span className="font-medium">🔀 fusionner</span> pour

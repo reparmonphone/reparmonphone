@@ -50,10 +50,12 @@ function modelVariantRank(name: string): number {
   return 5;
 }
 
-// Trie par ordre manuel (Model.sortOrder, réglable depuis /admin/gammes avec les flèches ▲▼) —
-// le tri automatique ci-dessus (génération/variante) ne sert plus que de repli pour les cartes
-// sans sortOrder connu (normalement aucune, une fois scripts/seed-model-sort-order.js exécuté).
-function sortModelCards(cards: CategoryCard[]): CategoryCard[] {
+// Trie par ordre manuel — Model.sortOrder pour les cartes "modèle" (page d'une gamme),
+// ProductLine.sortOrder pour les cartes "gamme" (page racine d'une marque), réglables depuis
+// /admin/gammes en glissant-déposant les lignes. Le tri automatique ci-dessus (génération/variante,
+// puis alphabétique) ne sert plus que de repli pour une carte sans sortOrder connu (normalement
+// aucune, une fois scripts/seed-model-sort-order.js et scripts/seed-line-sort-order.js exécutés).
+function sortCardsByOrder(cards: CategoryCard[]): CategoryCard[] {
   return [...cards].sort((a, b) => {
     const aOrder = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
     const bOrder = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
@@ -151,14 +153,16 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   // se fait ensuite en mémoire, aussi bien pour la page racine d'une marque (liste des gammes) que
   // pour la page d'une gamme précise (liste des modèles) — voir plus bas.
   type DbModel = { id: string; name: string; slug: string; imageUrl: string | null; sortOrder: number; productCount: number; repImageUrl: string | null };
-  type DbLine = { id: string; name: string; slug: string; imageUrl: string | null; models: DbModel[] };
+  type DbLine = { id: string; name: string; slug: string; imageUrl: string | null; sortOrder: number; models: DbModel[] };
   const dbLinesRaw = await prisma.productLine.findMany({
     where: { brand: { slug: brandSlug } },
+    orderBy: { sortOrder: 'asc' },
     select: {
       id: true,
       name: true,
       slug: true,
       imageUrl: true,
+      sortOrder: true,
       models: {
         select: {
           id: true,
@@ -176,6 +180,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
     name: l.name,
     slug: l.slug,
     imageUrl: l.imageUrl,
+    sortOrder: l.sortOrder,
     models: l.models.map((m) => ({
       id: m.id,
       name: m.name,
@@ -220,7 +225,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
         const dbLine = findDbLineOverride(card);
         if (!dbLine) return card;
         matchedLineIds.add(dbLine.id);
-        return { ...card, name: dbLine.name, imageUrl: dbLine.imageUrl ?? card.imageUrl };
+        return { ...card, name: dbLine.name, imageUrl: dbLine.imageUrl ?? card.imageUrl, sortOrder: dbLine.sortOrder };
       });
 
     // Gammes créées depuis /admin/gammes qui n'ont encore AUCUNE carte dans le fichier figé (ex:
@@ -233,11 +238,16 @@ export default async function CategoryPage({ params }: { params: { slug: string[
         imageUrl: l.imageUrl ?? l.models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
         href: `${SITE_URL}/marque/${brandSlug}/${l.slug}/`,
         count: null,
+        sortOrder: l.sortOrder,
       }));
 
     pageTitle = content?.title ?? brandSlug;
     pageDescription = content?.description ?? null;
-    resolvedCards = [...overriddenCards, ...newLineCards];
+    // Trie par ordre manuel (ProductLine.sortOrder, réglable depuis /admin/gammes en glissant les
+    // lignes) — sortCardsByOrder() gère aussi bien les cartes "modèle" que "gamme", son repli
+    // (numéro de génération / alphabétique) ne servant que pour une carte scrappée jamais reliée à
+    // une gamme réelle en base (donc sans sortOrder connu).
+    resolvedCards = sortCardsByOrder([...overriddenCards, ...newLineCards]);
   } else {
     // ---------- Page d'une gamme précise (ex: /marque/samsung/galaxy-a) ----------
     // La clé du contenu scrappé statique ne correspond pas toujours à notre slug interne de gamme
@@ -300,7 +310,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
     pageTitle = content?.title ?? dbLine?.name ?? segment.replace(/-/g, ' ');
     pageDescription = content?.description ?? null;
     // Liste de modèles (pas de gammes) : ordre manuel réglé depuis /admin/gammes.
-    resolvedCards = sortModelCards([...overriddenCards, ...newModelCards]);
+    resolvedCards = sortCardsByOrder([...overriddenCards, ...newModelCards]);
   }
 
   // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un

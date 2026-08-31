@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   renameBrand,
   updateBrandSlug,
@@ -8,11 +8,12 @@ import {
   renameLine,
   deleteLine,
   moveLine,
+  reorderLines,
   deleteBrand,
   createModel,
   renameModel,
   moveModel,
-  moveModelOrder,
+  reorderModels,
   deleteModel,
   mergeIntoModel,
   updateLineImage,
@@ -29,6 +30,31 @@ type ModelData = {
 };
 type LineData = { id: string; name: string; imageUrl: string | null; models: ModelData[] };
 type BrandData = { id: string; name: string; slug: string; lines: LineData[] };
+
+// Déplace l'élément à `fromIndex` vers `toIndex` dans une copie du tableau (utilisé par le
+// glisser-déposer des gammes et des modèles ci-dessous).
+function reorderArray<T>(arr: T[], fromIndex: number, toIndex: number): T[] {
+  const copy = [...arr];
+  const [moved] = copy.splice(fromIndex, 1);
+  copy.splice(toIndex, 0, moved);
+  return copy;
+}
+
+// Petite poignée ⠿ + gestion commune du glisser-déposer natif HTML5 pour une liste réordonnable.
+// `dragIndex` est stocké dans un ref partagé (pas un state) pour rester synchro pendant le drag
+// sans re-render inutile ; le drop ne fait qu'un seul appel serveur avec l'ordre complet final.
+function DragHandle({ title, disabled }: { title: string; disabled?: boolean }) {
+  return (
+    <span
+      className={`shrink-0 select-none text-sm leading-none ${
+        disabled ? 'text-gray-200 cursor-not-allowed' : 'text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing'
+      }`}
+      title={title}
+    >
+      ⠿
+    </span>
+  );
+}
 
 // Toutes les gammes de toutes les marques, pour le sélecteur "déplacer vers"
 function flattenLines(brands: BrandData[]) {
@@ -140,6 +166,24 @@ function BrandCard({
   const [modelFilter, setModelFilter] = useState('');
   const otherBrands = allBrands.filter((b) => b.id !== brand.id);
 
+  // Ordre local des gammes de cette marque, pour un retour visuel immédiat pendant le
+  // glisser-déposer — resynchronisé dès que le serveur renvoie un ordre à jour (après un ajout,
+  // une suppression, ou la confirmation du drag lui-même).
+  const [orderedLines, setOrderedLines] = useState(brand.lines);
+  useEffect(() => setOrderedLines(brand.lines), [brand.lines]);
+  const dragLineIndex = useRef<number | null>(null);
+  const [dropLineIndex, setDropLineIndex] = useState<number | null>(null);
+
+  function handleLineDrop(targetIndex: number) {
+    const fromIndex = dragLineIndex.current;
+    dragLineIndex.current = null;
+    setDropLineIndex(null);
+    if (fromIndex === null || fromIndex === targetIndex) return;
+    const next = reorderArray(orderedLines, fromIndex, targetIndex);
+    setOrderedLines(next);
+    run(() => reorderLines(brand.id, next.map((l) => l.id)));
+  }
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-5">
       <div className="flex items-center gap-2 mb-1">
@@ -198,8 +242,19 @@ function BrandCard({
       </div>
 
       <div className="space-y-2">
-        {brand.lines.map((line) => (
-          <div key={line.id} className="border border-gray-100 rounded-lg">
+        {orderedLines.map((line, index) => (
+          <div
+            key={line.id}
+            draggable
+            onDragStart={() => { dragLineIndex.current = index; }}
+            onDragEnter={() => setDropLineIndex(index)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); handleLineDrop(index); }}
+            onDragEnd={() => { dragLineIndex.current = null; setDropLineIndex(null); }}
+            className={`border rounded-lg transition ${
+              dropLineIndex === index ? 'border-brand border-2 bg-brand/5' : 'border-gray-100'
+            }`}
+          >
             <LineRow
               line={line}
               otherBrands={otherBrands}
@@ -213,44 +268,15 @@ function BrandCard({
                 {line.models.length === 0 ? (
                   <p className="text-xs text-gray-400">Aucun modèle dans cette gamme.</p>
                 ) : (
-                  <>
-                    {line.models.length > 8 && (
-                      <input
-                        value={modelFilter}
-                        onChange={(e) => setModelFilter(e.target.value)}
-                        placeholder={`Rechercher parmi les ${line.models.length} modèles...`}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs bg-white mb-1"
-                        autoFocus
-                      />
-                    )}
-                    {(() => {
-                      const q = modelFilter.trim().toLowerCase();
-                      const filtered = q ? line.models.filter((m) => m.name.toLowerCase().includes(q)) : line.models;
-                      if (filtered.length === 0) {
-                        return <p className="text-xs text-gray-400">Aucun modèle ne correspond à &laquo;&nbsp;{modelFilter}&nbsp;&raquo;.</p>;
-                      }
-                      // Les flèches ▲▼ permutent avec le voisin réel dans line.models (l'ordre complet,
-                      // pas la liste filtrée) — désactivées pendant une recherche pour éviter toute
-                      // confusion sur "quel est le voisin ?" quand la liste affichée est un sous-ensemble.
-                      return filtered.map((model) => {
-                        const fullIndex = line.models.findIndex((m) => m.id === model.id);
-                        return (
-                          <ModelRow
-                            key={model.id}
-                            model={model}
-                            allLines={allLines}
-                            allModels={allModels}
-                            currentLineId={line.id}
-                            pending={pending}
-                            run={run}
-                            canReorder={!q}
-                            isFirst={fullIndex === 0}
-                            isLast={fullIndex === line.models.length - 1}
-                          />
-                        );
-                      });
-                    })()}
-                  </>
+                  <ModelsList
+                    line={line}
+                    allLines={allLines}
+                    allModels={allModels}
+                    pending={pending}
+                    run={run}
+                    modelFilter={modelFilter}
+                    setModelFilter={setModelFilter}
+                  />
                 )}
                 <NewModelForm lineId={line.id} pending={pending} run={run} />
               </div>
@@ -331,6 +357,7 @@ function LineRow({
 
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
+      <DragHandle title="Glisser pour réordonner les gammes sur la page publique de la marque" />
       <button onClick={onToggle} className="text-gray-400 text-xs w-4">{expanded ? '▾' : '▸'}</button>
 
       <div className="w-8 h-8 rounded border border-gray-100 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center">
@@ -432,6 +459,95 @@ function NewModelForm({
   );
 }
 
+// Liste réordonnable (glisser-déposer) des modèles d'une gamme, avec son propre champ de
+// recherche pour filtrer parmi les modèles affichés. Gère un ordre local (orderedModels) pour un
+// retour visuel immédiat pendant le drag, resynchronisé dès que le serveur renvoie line.models à
+// jour (ajout/suppression/fusion d'un modèle, ou confirmation du drag lui-même).
+function ModelsList({
+  line,
+  allLines,
+  allModels,
+  pending,
+  run,
+  modelFilter,
+  setModelFilter,
+}: {
+  line: LineData;
+  allLines: { id: string; label: string }[];
+  allModels: { id: string; label: string; productCount: number }[];
+  pending: boolean;
+  run: (action: () => Promise<{ ok?: boolean; error?: string } | undefined>) => void;
+  modelFilter: string;
+  setModelFilter: (v: string) => void;
+}) {
+  const [orderedModels, setOrderedModels] = useState(line.models);
+  useEffect(() => setOrderedModels(line.models), [line.models]);
+  const dragModelIndex = useRef<number | null>(null);
+  const [dropModelIndex, setDropModelIndex] = useState<number | null>(null);
+
+  function handleModelDrop(targetIndex: number) {
+    const fromIndex = dragModelIndex.current;
+    dragModelIndex.current = null;
+    setDropModelIndex(null);
+    if (fromIndex === null || fromIndex === targetIndex) return;
+    const next = reorderArray(orderedModels, fromIndex, targetIndex);
+    setOrderedModels(next);
+    run(() => reorderModels(line.id, next.map((m) => m.id)));
+  }
+
+  const q = modelFilter.trim().toLowerCase();
+  const filtered = q ? orderedModels.filter((m) => m.name.toLowerCase().includes(q)) : orderedModels;
+
+  return (
+    <>
+      {line.models.length > 8 && (
+        <input
+          value={modelFilter}
+          onChange={(e) => setModelFilter(e.target.value)}
+          placeholder={`Rechercher parmi les ${line.models.length} modèles...`}
+          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs bg-white mb-1"
+          autoFocus
+        />
+      )}
+      {filtered.length === 0 ? (
+        <p className="text-xs text-gray-400">Aucun modèle ne correspond à &laquo;&nbsp;{modelFilter}&nbsp;&raquo;.</p>
+      ) : (
+        // Le glisser-déposer se base sur la position réelle dans orderedModels (l'ordre complet,
+        // pas la liste filtrée) — désactivé pendant une recherche pour éviter toute confusion sur
+        // "où ça tombe ?" quand la liste affichée est un sous-ensemble.
+        filtered.map((model) => {
+          const fullIndex = orderedModels.findIndex((m) => m.id === model.id);
+          return (
+            <div
+              key={model.id}
+              draggable={!q}
+              // stopPropagation partout : cette carte modèle est imbriquée dans la carte gamme
+              // (elle aussi glissable, voir BrandCard) — sans ça, glisser un modèle déclencherait
+              // aussi les gestionnaires de la gamme parente (surbrillance, voire un drop de gamme).
+              onDragStart={(e) => { e.stopPropagation(); dragModelIndex.current = fullIndex; }}
+              onDragEnter={(e) => { if (q) return; e.stopPropagation(); setDropModelIndex(fullIndex); }}
+              onDragOver={(e) => { if (q) return; e.stopPropagation(); e.preventDefault(); }}
+              onDrop={(e) => { if (q) return; e.stopPropagation(); e.preventDefault(); handleModelDrop(fullIndex); }}
+              onDragEnd={(e) => { e.stopPropagation(); dragModelIndex.current = null; setDropModelIndex(null); }}
+              className={dropModelIndex === fullIndex ? 'ring-2 ring-brand rounded-lg' : undefined}
+            >
+              <ModelRow
+                model={model}
+                allLines={allLines}
+                allModels={allModels}
+                currentLineId={line.id}
+                pending={pending}
+                run={run}
+                canDrag={!q}
+              />
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+}
+
 function ModelRow({
   model,
   allLines,
@@ -439,9 +555,7 @@ function ModelRow({
   currentLineId,
   pending,
   run,
-  canReorder,
-  isFirst,
-  isLast,
+  canDrag,
 }: {
   model: ModelData;
   allLines: { id: string; label: string }[];
@@ -449,9 +563,7 @@ function ModelRow({
   currentLineId: string;
   pending: boolean;
   run: (action: () => Promise<{ ok?: boolean; error?: string } | undefined>) => void;
-  canReorder: boolean;
-  isFirst: boolean;
-  isLast: boolean;
+  canDrag: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(model.name);
@@ -509,22 +621,10 @@ function ModelRow({
   return (
     <div className="bg-white border border-gray-100 rounded-lg px-3 py-2">
     <div className="flex items-center gap-2">
-      <div className="flex flex-col shrink-0" title={canReorder ? "Réordonner l'affichage sur la page publique de la gamme" : 'Efface la recherche pour réordonner'}>
-        <button
-          onClick={() => run(() => moveModelOrder(model.id, 'up'))}
-          disabled={pending || !canReorder || isFirst}
-          className="text-gray-400 hover:text-brand disabled:opacity-20 disabled:cursor-not-allowed leading-none text-xs"
-        >
-          ▲
-        </button>
-        <button
-          onClick={() => run(() => moveModelOrder(model.id, 'down'))}
-          disabled={pending || !canReorder || isLast}
-          className="text-gray-400 hover:text-brand disabled:opacity-20 disabled:cursor-not-allowed leading-none text-xs"
-        >
-          ▼
-        </button>
-      </div>
+      <DragHandle
+        title={canDrag ? "Glisser pour réordonner l'affichage sur la page publique de la gamme" : 'Efface la recherche pour réordonner'}
+        disabled={!canDrag}
+      />
       <div className="w-7 h-7 rounded border border-gray-100 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center">
         {model.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
