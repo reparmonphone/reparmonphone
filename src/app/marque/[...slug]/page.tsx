@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
 import { redirectOrNotFound } from '@/lib/pageRedirect';
+import { withDeliveryMention } from '@/lib/seoText';
 import {
   getBrandContent,
   getContentByKey,
@@ -72,10 +73,13 @@ export async function generateMetadata({ params }: { params: { slug: string[] } 
     .trim()
     .slice(0, 160);
 
-  const title = `${content.title} — Pièces détachées & Accessoires | ReparMonPhone`;
-  const description =
+  const title = `${content.title} — Écran, Batterie & Pièces détachées | ReparMonPhone`;
+  // withDeliveryMention garantit que la promesse de livraison rapide apparaît toujours dans l'extrait
+  // Google, y compris quand plainDescription vient du contenu scrappé d'origine (qui n'en parlait pas).
+  const description = withDeliveryMention(
     plainDescription ||
-    `Pièces détachées et accessoires ${content.title} : écrans, batteries, connecteurs de charge. Livraison Chronopost 24h partout en France.`;
+      `Pièces détachées et accessoires ${content.title} : écrans, batteries, connecteurs de charge.`
+  );
   const url = `${SITE_URL}/marque/${params.slug.join('/')}`;
 
   return {

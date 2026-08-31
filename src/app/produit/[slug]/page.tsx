@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { redirectOrNotFound } from '@/lib/pageRedirect';
 import { formatPrice } from '@/lib/format';
+import { PIECE_TYPE_LABELS, withDeliveryMention } from '@/lib/seoText';
 import AddToCartButton from './AddToCartButton';
 import ProductGallery from './ProductGallery';
 import RelatedProducts from './RelatedProducts';
@@ -17,17 +18,29 @@ import { getFavoriteProductIds } from '@/app/compte/favoris/actions';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const product = await prisma.product.findUnique({ where: { slug: params.slug } });
+  const product = await prisma.product.findUnique({
+    where: { slug: params.slug },
+    include: { model: { include: { productLine: { include: { brand: true } } } } },
+  });
   if (!product) return {};
 
-  const fallbackDescription = product.shortDescription
-    ?.replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
+  const brandName = product.model.productLine.brand.name;
+  const pieceLabel = PIECE_TYPE_LABELS[product.pieceType];
 
-  const title = product.metaTitle || `${product.title} | ReparMonPhone`;
-  const description = product.metaDescription || fallbackDescription || undefined;
+  // Texte de base : la description personnalisée si Krys en a écrit une, sinon celle du produit,
+  // sinon une phrase générée automatiquement à partir de la pièce/marque/modèle — dans tous les cas,
+  // le message de livraison rapide est garanti d'apparaître dans l'extrait Google (voir
+  // withDeliveryMention), ce qui manquait sur la plupart des fiches jusqu'ici.
+  const rawDescription =
+    product.metaDescription ||
+    product.shortDescription?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() ||
+    `${product.title} : ${pieceLabel} de remplacement pour ${brandName} ${product.model.name}, neuve et testée.`;
+
+  // Le titre est ce que Google affiche en plus gros dans les résultats : on y met toujours le nom du
+  // produit (déjà très descriptif, ex: "Écran iPhone 13 Origine") suivi de la promesse de livraison
+  // rapide — sauf si Krys a défini un titre personnalisé, qui prime toujours.
+  const title = product.metaTitle || `${product.title} – Livraison 24h | ReparMonPhone`;
+  const description = withDeliveryMention(rawDescription);
   const url = `${SITE_URL}/produit/${product.slug}`;
   const image = product.imageUrl || (product.images?.[0] ?? undefined);
 
