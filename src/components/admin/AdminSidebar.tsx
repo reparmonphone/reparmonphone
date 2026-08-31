@@ -38,15 +38,20 @@ function Badge({ count }: { count: number }) {
 }
 
 export default async function AdminSidebar() {
-  const [pendingOrders, requestedAppointments, unhandledMessages, openClaims] = await Promise.all([
-    prisma.order.count({ where: { status: 'PENDING' } }),
+  // Le badge "Commandes" doit signaler les commandes NOUVELLES à traiter — c'est-à-dire payées
+  // (PAID) mais pas encore mises en préparation. Le statut PENDING correspond à un panier abandonné
+  // (paiement non terminé, relancé automatiquement par email) et pas à une vraie commande reçue :
+  // avec "PENDING" ici, le badge ne s'allumait quasiment jamais pour une commande réellement payée,
+  // ce qui donnait l'impression qu'aucune notification n'apparaissait pour les nouvelles commandes.
+  const [newOrders, requestedAppointments, unhandledMessages, openClaims] = await Promise.all([
+    prisma.order.count({ where: { status: 'PAID' } }),
     prisma.appointment.count({ where: { status: 'REQUESTED' } }),
     prisma.contactMessage.count({ where: { handled: false } }),
     prisma.claim.count({ where: { status: 'OPEN' } }),
   ]);
 
   const badgeCounts: Record<string, number> = {
-    orders: pendingOrders,
+    orders: newOrders,
     appointments: requestedAppointments,
     messages: unhandledMessages,
     claims: openClaims,

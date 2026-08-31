@@ -3,11 +3,15 @@ import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
 
 export default async function AdminDashboardPage() {
-  const [productsCount, outOfStockCount, pendingOrders, pendingAppointments, unhandledMessages, revenueAgg] =
+  const [productsCount, outOfStockCount, pendingOrders, newPaidOrders, pendingAppointments, unhandledMessages, revenueAgg] =
     await Promise.all([
       prisma.product.count(),
       prisma.product.count({ where: { inStock: false } }),
+      // Paniers non finalisés (paiement pas encore terminé) — relancés automatiquement par email,
+      // pas des commandes reçues. Voir "Commandes payées à traiter" ci-dessous pour les vraies
+      // nouvelles commandes qui attendent d'être préparées/expédiées.
       prisma.order.count({ where: { status: 'PENDING' } }),
+      prisma.order.count({ where: { status: 'PAID' } }),
       prisma.appointment.count({ where: { status: 'REQUESTED' } }),
       prisma.contactMessage.count({ where: { handled: false } }),
       prisma.order.aggregate({
@@ -22,7 +26,8 @@ export default async function AdminDashboardPage() {
     { label: 'Chiffre d\'affaires total', value: formatPrice(totalRevenue), href: '/admin/statistiques', accent: 'bg-green-50 text-green-700' },
     { label: 'Produits au catalogue', value: productsCount, href: '/admin/produits', accent: 'bg-blue-50 text-blue-700' },
     { label: 'Ruptures de stock', value: outOfStockCount, href: '/admin/produits?stock=rupture', accent: 'bg-red-50 text-red-700' },
-    { label: 'Commandes en attente', value: pendingOrders, href: '/admin/commandes', accent: 'bg-amber-50 text-amber-700' },
+    { label: 'Commandes payées à traiter', value: newPaidOrders, href: '/admin/commandes?statut=PAID', accent: 'bg-blue-50 text-blue-700' },
+    { label: 'Paniers non finalisés', value: pendingOrders, href: '/admin/commandes?statut=PENDING', accent: 'bg-amber-50 text-amber-700' },
     { label: 'RDV à confirmer', value: pendingAppointments, href: '/admin/rdv', accent: 'bg-purple-50 text-purple-700' },
     { label: 'Messages non traités', value: unhandledMessages, href: '/admin/messages', accent: 'bg-green-50 text-green-700' },
   ];
