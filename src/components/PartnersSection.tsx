@@ -1,5 +1,5 @@
-import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
+import PartnersCarousel from './PartnersCarousel';
 
 export default async function PartnersSection() {
   const [partners, referralLinks] = await Promise.all([
@@ -14,25 +14,9 @@ export default async function PartnersSection() {
       {partners.length > 0 && (
         <>
           <h2 className="text-2xl font-extrabold text-gray-900 mb-8">Partenaires</h2>
-          <div className="flex flex-nowrap justify-center items-center gap-6 overflow-x-auto pb-2">
-            {partners.map((p) => (
-              <a
-                key={p.id}
-                href={p.linkUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 w-[300px] h-[300px] bg-white border border-gray-100 rounded-xl p-8 flex items-center justify-center hover:shadow-md transition"
-              >
-                {p.logoUrl ? (
-                  <div className="relative w-full h-full">
-                    <Image src={p.logoUrl} alt={p.name} fill className="object-contain" sizes="300px" />
-                  </div>
-                ) : (
-                  <span className="font-extrabold text-gray-800 text-lg">{p.name}</span>
-                )}
-              </a>
-            ))}
-          </div>
+          <PartnersCarousel
+            partners={partners.map((p) => ({ id: p.id, name: p.name, logoUrl: p.logoUrl, linkUrl: p.linkUrl }))}
+          />
         </>
       )}
 
