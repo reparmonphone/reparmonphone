@@ -1,20 +1,31 @@
 import { prisma } from '@/lib/prisma';
 import NouveautesCarousel, { type NouveauteProduct } from './NouveautesCarousel';
 
+// Exclut les fiches manifestement invalides pour l'affichage vitrine : prix à 0€ (fiche
+// incomplète, jamais un vrai prix de vente — vu en base sur quelques fiches connecteur de
+// charge) et titres "(Copie)" (doublons laissés par un copier-coller côté catalogue, jamais de
+// vrais produits à montrer aux clients).
+const SHOWCASE_WHERE = {
+  inStock: true,
+  showInBoutique: true,
+  price: { gt: 0 },
+  NOT: { title: { contains: 'copie', mode: 'insensitive' as const } },
+};
+
 export default async function TopNouveautesSection() {
-  const total = await prisma.product.count({ where: { inStock: true, showInBoutique: true } });
+  const total = await prisma.product.count({ where: SHOWCASE_WHERE });
   if (total === 0) return null;
 
-  // Fenêtre aléatoire dans tout le catalogue, puis mélange — change à chaque chargement de page
-  const windowSize = Math.min(total, 80);
-  const maxSkip = Math.max(0, total - windowSize);
-  const skip = Math.floor(Math.random() * (maxSkip + 1));
-
+  // "Nouveautés" doit refléter les produits réellement les plus récents du catalogue — pas un
+  // tirage au sort dans TOUT le catalogue (l'ancien comportement), qui pouvait tout aussi bien
+  // présenter comme "nouveauté" un écran d'iPhone 3G vieux de 15 ans. On prend donc une fenêtre
+  // parmi les produits les plus récemment ajoutés (assez large pour varier l'affichage d'un
+  // chargement à l'autre), puis on mélange cette fenêtre.
+  const RECENT_POOL_SIZE = 300;
   const pool = await prisma.product.findMany({
-    where: { inStock: true, showInBoutique: true },
-    orderBy: { id: 'asc' },
-    skip,
-    take: windowSize,
+    where: SHOWCASE_WHERE,
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(total, RECENT_POOL_SIZE),
   });
 
   const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 20);
