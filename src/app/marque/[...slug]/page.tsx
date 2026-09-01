@@ -103,6 +103,40 @@ function isDbGeneratedCard(brandSlug: string, href: string): boolean {
   return brandSlug === 'huawei' && (segment.startsWith('huawei-line-') || segment.startsWith('huawei-'));
 }
 
+// Cas particulier "iPad" : contrairement à iPhone/Samsung, tous les modèles d'iPad (Pro, Air, Mini,
+// standard confondus — 31 au total) sont rattachés en base à UNE SEULE gamme ("ProductLine")
+// nommée "iPad" (slug "ipad"), au lieu de 4 gammes séparées. Résultat : la page /marque/apple/ipads
+// affichait tous les modèles en vrac, sans les 4 catégories cliquables (iPad / iPad Pro / iPad Mini
+// / iPad Air) qui existaient avant. Plutôt que de réorganiser la base (risqué, et à refaire à
+// chaque nouveau modèle ajouté), on recrée ces 4 catégories à la volée ici, par mot-clé dans le nom
+// du modèle — ça reste à jour tout seul quand un modèle est ajouté ou renommé depuis /admin/gammes.
+const IPAD_BUCKET_LABELS = { base: 'iPad', pro: 'iPad Pro', mini: 'iPad Mini', air: 'iPad Air' } as const;
+type IpadBucket = keyof typeof IPAD_BUCKET_LABELS;
+// Le segment d'URL utilisé pour chaque sous-page (ex: /marque/apple/ipads/ipad-pro) correspond
+// volontairement à une clé déjà existante dans le contenu scrappé (data/category_content.json),
+// pour que isBranchCard() reconnaisse ces 4 cartes comme des "branches" cliquables sans changement
+// ailleurs.
+const IPAD_BUCKET_BY_SEGMENT: Record<string, IpadBucket> = {
+  ipad: 'base',
+  'ipad-pro': 'pro',
+  'ipad-mini': 'mini',
+  'ipad-air': 'air',
+};
+const IPAD_BUCKET_ROUTE: Record<IpadBucket, string> = {
+  base: 'ipad',
+  pro: 'ipad-pro',
+  mini: 'ipad-mini',
+  air: 'ipad-air',
+};
+
+function classifyIpadModel(name: string): IpadBucket {
+  const n = name.toLowerCase();
+  if (n.includes('pro')) return 'pro';
+  if (n.includes('mini')) return 'mini';
+  if (n.includes('air')) return 'air';
+  return 'base';
+}
+
 export async function generateMetadata({ params }: { params: { slug: string[] } }) {
   const content = resolveContent(params.slug);
   if (!content) return {};
@@ -257,60 +291,109 @@ export default async function CategoryPage({ params }: { params: { slug: string[
     // /admin/gammes : son slug EST le segment d'URL utilisé pour la carte générée au niveau racine
     // ci-dessus), puis enfin le nom du contenu scrappé en dernier repli.
     const segment = params.slug[params.slug.length - 1];
-    const mappedSlug = getOurSlugForContentKey(brandSlug, segment);
-    const strippedSlug = extractLineSlug(brandSlug, segment);
-    const candidateSlugs = new Set([mappedSlug, strippedSlug, segment].filter((s): s is string => !!s));
+    const ipadLine = brandSlug === 'apple' ? dbLines.find((l) => l.slug === 'ipad') : undefined;
 
-    const dbLine =
-      dbLines.find((l) => candidateSlugs.has(l.slug)) ??
-      (content ? dbLines.find((l) => normalizeLineName(l.name) === normalizeLineName(content.title)) : undefined);
+    if (ipadLine && segment === 'ipads') {
+      // ---------- Page "hub" iPad (ex: /marque/apple/ipads) ----------
+      // Les 4 catégories cliquables, reconstruites à la volée (voir classifyIpadModel ci-dessus).
+      const buckets: Record<IpadBucket, DbModel[]> = { base: [], pro: [], mini: [], air: [] };
+      for (const m of ipadLine.models) buckets[classifyIpadModel(m.name)].push(m);
+      const staticImageByName = new Map((content?.cards ?? []).map((c) => [c.name, c.imageUrl]));
 
-    if (!content && !dbLine) {
-      await redirectOrNotFound(`/marque/${params.slug.join('/')}`);
-      notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
-    }
+      pageTitle = content?.title ?? 'iPads';
+      pageDescription = content?.description ?? null;
+      resolvedCards = (Object.keys(IPAD_BUCKET_LABELS) as IpadBucket[]).map((bucket) => {
+        const label = IPAD_BUCKET_LABELS[bucket];
+        const models = buckets[bucket];
+        return {
+          name: label,
+          imageUrl: staticImageByName.get(label) ?? models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
+          href: `${SITE_URL}/marque/apple/ipads/${IPAD_BUCKET_ROUTE[bucket]}/`,
+          count: null,
+          liveCount: models.reduce((s, m) => s + m.productCount, 0),
+        };
+      });
+    } else if (ipadLine && segment in IPAD_BUCKET_BY_SEGMENT) {
+      // ---------- Sous-page d'une catégorie iPad (ex: /marque/apple/ipads/ipad-pro) ----------
+      // On ignore volontairement le contenu scrappé statique (obsolète, comptages faux) : on ne
+      // montre que les vrais modèles de cette catégorie, directement depuis la base.
+      const bucket = IPAD_BUCKET_BY_SEGMENT[segment];
+      const models = ipadLine.models.filter((m) => classifyIpadModel(m.name) === bucket);
+      pageTitle = IPAD_BUCKET_LABELS[bucket];
+      pageDescription = null;
+      resolvedCards = sortCardsByOrder(
+        models.map((m) => ({
+          name: m.name,
+          imageUrl: m.imageUrl ?? m.repImageUrl ?? null,
+          href: `${SITE_URL}/marque/${params.slug.join('/')}/${m.slug}/`,
+          count: null,
+          liveCount: m.productCount,
+          sortOrder: m.sortOrder,
+        }))
+      );
+    } else {
+      // ---------- Page d'une gamme précise (ex: /marque/samsung/galaxy-a) ----------
+      // La clé du contenu scrappé statique ne correspond pas toujours à notre slug interne de gamme
+      // (ex: clé scrappée "iphones" pour notre gamme "iphone") — getOurSlugForContentKey couvre ces
+      // correspondances déjà répertoriées (voir LINE_CONTENT_KEY). On tente ensuite le format Huawei
+      // ("huawei-line-x"), puis le segment brut tel quel (cas d'une gamme créée depuis
+      // /admin/gammes : son slug EST le segment d'URL utilisé pour la carte générée au niveau racine
+      // ci-dessus), puis enfin le nom du contenu scrappé en dernier repli.
+      const mappedSlug = getOurSlugForContentKey(brandSlug, segment);
+      const strippedSlug = extractLineSlug(brandSlug, segment);
+      const candidateSlugs = new Set([mappedSlug, strippedSlug, segment].filter((s): s is string => !!s));
 
-    const modelBySlug = new Map((dbLine?.models ?? []).map((m) => [m.slug, m]));
-    const modelByNormalizedName = new Map((dbLine?.models ?? []).map((m) => [normalizeLineName(m.name), m]));
+      const dbLine =
+        dbLines.find((l) => candidateSlugs.has(l.slug)) ??
+        (content ? dbLines.find((l) => normalizeLineName(l.name) === normalizeLineName(content.title)) : undefined);
 
-    function findDbModelOverride(card: CategoryCard): DbModel | undefined {
-      const slug = lastPathSegment(card.href);
-      return modelBySlug.get(slug) ?? modelByNormalizedName.get(normalizeLineName(card.name));
-    }
+      if (!content && !dbLine) {
+        await redirectOrNotFound(`/marque/${params.slug.join('/')}`);
+        notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
+      }
 
-    const matchedModelIds = new Set<string>();
-    const staticCards = content?.cards ?? [];
+      const modelBySlug = new Map((dbLine?.models ?? []).map((m) => [m.slug, m]));
+      const modelByNormalizedName = new Map((dbLine?.models ?? []).map((m) => [normalizeLineName(m.name), m]));
 
-    const overriddenCards = staticCards.map((card) => {
-      const dbModel = findDbModelOverride(card);
-      if (!dbModel) return card;
-      matchedModelIds.add(dbModel.id);
-      return {
-        ...card,
-        name: dbModel.name,
-        imageUrl: dbModel.imageUrl ?? dbModel.repImageUrl ?? card.imageUrl,
-        liveCount: dbModel.productCount,
-        sortOrder: dbModel.sortOrder,
+      const findDbModelOverride = (card: CategoryCard): DbModel | undefined => {
+        const slug = lastPathSegment(card.href);
+        return modelBySlug.get(slug) ?? modelByNormalizedName.get(normalizeLineName(card.name));
       };
-    });
 
-    // Modèles ajoutés depuis /admin/gammes qui n'ont encore aucune carte dans le fichier figé
-    // (nouvelle gamme entière, ou nouveau modèle ajouté dans une gamme existante).
-    const newModelCards: CategoryCard[] = (dbLine?.models ?? [])
-      .filter((m) => !matchedModelIds.has(m.id))
-      .map((m) => ({
-        name: m.name,
-        imageUrl: m.imageUrl ?? m.repImageUrl ?? null,
-        href: `${SITE_URL}/marque/${params.slug.join('/')}/${m.slug}/`,
-        count: null,
-        liveCount: m.productCount,
-        sortOrder: m.sortOrder,
-      }));
+      const matchedModelIds = new Set<string>();
+      const staticCards = content?.cards ?? [];
 
-    pageTitle = content?.title ?? dbLine?.name ?? segment.replace(/-/g, ' ');
-    pageDescription = content?.description ?? null;
-    // Liste de modèles (pas de gammes) : ordre manuel réglé depuis /admin/gammes.
-    resolvedCards = sortCardsByOrder([...overriddenCards, ...newModelCards]);
+      const overriddenCards = staticCards.map((card) => {
+        const dbModel = findDbModelOverride(card);
+        if (!dbModel) return card;
+        matchedModelIds.add(dbModel.id);
+        return {
+          ...card,
+          name: dbModel.name,
+          imageUrl: dbModel.imageUrl ?? dbModel.repImageUrl ?? card.imageUrl,
+          liveCount: dbModel.productCount,
+          sortOrder: dbModel.sortOrder,
+        };
+      });
+
+      // Modèles ajoutés depuis /admin/gammes qui n'ont encore aucune carte dans le fichier figé
+      // (nouvelle gamme entière, ou nouveau modèle ajouté dans une gamme existante).
+      const newModelCards: CategoryCard[] = (dbLine?.models ?? [])
+        .filter((m) => !matchedModelIds.has(m.id))
+        .map((m) => ({
+          name: m.name,
+          imageUrl: m.imageUrl ?? m.repImageUrl ?? null,
+          href: `${SITE_URL}/marque/${params.slug.join('/')}/${m.slug}/`,
+          count: null,
+          liveCount: m.productCount,
+          sortOrder: m.sortOrder,
+        }));
+
+      pageTitle = content?.title ?? dbLine?.name ?? segment.replace(/-/g, ' ');
+      pageDescription = content?.description ?? null;
+      // Liste de modèles (pas de gammes) : ordre manuel réglé depuis /admin/gammes.
+      resolvedCards = sortCardsByOrder([...overriddenCards, ...newModelCards]);
+    }
   }
 
   // On calcule le nombre réel de produits en base pour chaque carte qui n'a pas déjà un
