@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { updateProductModel } from './actions';
+import { updateProductModel, deleteProduct } from './actions';
 import StockToggle from './StockToggle';
 import PriceEditable from './PriceEditable';
 
@@ -26,6 +26,8 @@ export default function ProductRowInline({ product, brands }: { product: Product
   const [modelId, setModelId] = useState(product.modelId);
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
   const selectedBrand = brands.find((b) => b.id === brandId);
   const availableLines = selectedBrand?.lines ?? [];
@@ -62,6 +64,22 @@ export default function ProductRowInline({ product, brands }: { product: Product
     setModelId(newModelId);
     save(newModelId);
   }
+
+  function handleDelete() {
+    if (!confirm(`Supprimer définitivement "${product.title}" ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    startTransition(async () => {
+      const result = await deleteProduct(product.id);
+      if (result?.error) {
+        alert(result.error);
+        setDeleting(false);
+      } else {
+        setHidden(true);
+      }
+    });
+  }
+
+  if (hidden) return null;
 
   const selectClass =
     'bg-transparent text-xs font-medium px-2 py-0.5 rounded border-0 focus:ring-1 focus:ring-brand cursor-pointer disabled:opacity-50';
@@ -112,10 +130,19 @@ export default function ProductRowInline({ product, brands }: { product: Product
       <td className="px-4 py-3">
         <StockToggle productId={product.id} inStock={product.inStock} />
       </td>
-      <td className="px-4 py-3 text-right">
+      <td className="px-4 py-3 text-right whitespace-nowrap">
         <Link href={`/admin/produits/${product.id}`} className="text-brand hover:underline">
           Modifier
         </Link>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="ml-3 text-red-500 hover:text-red-700 hover:underline disabled:opacity-50"
+          title="Supprimer définitivement ce produit"
+        >
+          {deleting ? '...' : 'Supprimer'}
+        </button>
       </td>
     </tr>
   );

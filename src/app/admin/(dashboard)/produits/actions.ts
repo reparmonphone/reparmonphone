@@ -72,6 +72,31 @@ export async function updateProduct(
   }
 }
 
+// Suppression définitive d'un produit. Bloquée par la base elle-même (contrainte de clé étrangère,
+// voir prisma/schema.prisma) si ce produit fait partie d'une commande déjà passée — on ne veut
+// jamais perdre l'historique des ventes. Dans ce cas on renvoie un message clair plutôt que de
+// planter : le produit doit être mis en rupture de stock / masqué plutôt que supprimé.
+export async function deleteProduct(productId: string) {
+  await requireAdminUser();
+  try {
+    await prisma.product.delete({ where: { id: productId } });
+  } catch (e: unknown) {
+    const code = (e as { code?: string })?.code;
+    if (code === 'P2003') {
+      return {
+        error:
+          "Impossible de supprimer : ce produit fait partie d'au moins une commande déjà passée. " +
+          'Mets-le en rupture de stock ou masque-le plutôt, pour garder l\'historique des ventes intact.',
+      };
+    }
+    return { error: 'Erreur inattendue lors de la suppression.' };
+  }
+  revalidatePath('/admin/produits');
+  revalidatePath('/boutique');
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export async function toggleStock(productId: string, inStock: boolean) {
   await requireAdminUser();
   await prisma.product.update({ where: { id: productId }, data: { inStock } });

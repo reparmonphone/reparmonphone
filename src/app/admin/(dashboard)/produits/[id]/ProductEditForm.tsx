@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { updateProduct } from '../actions';
+import { updateProduct, deleteProduct } from '../actions';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { generateMetaDescription } from '@/lib/seoDescription';
 import ImageEraserModal from './ImageEraserModal';
@@ -53,6 +53,7 @@ export default function ProductEditForm({ product, brands }: { product: Product;
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const selectedBrand = brands.find((b) => b.id === brandId);
   const availableLines = selectedBrand?.lines ?? [];
@@ -114,6 +115,20 @@ export default function ProductEditForm({ product, brands }: { product: Product;
       if (target < 0 || target >= next.length) return prev;
       [next[index], next[target]] = [next[target], next[index]];
       return next;
+    });
+  }
+
+  function handleDelete() {
+    if (!confirm(`Supprimer définitivement "${product.title}" ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    startTransition(async () => {
+      const result = await deleteProduct(product.id);
+      if (result?.error) {
+        alert(result.error);
+        setDeleting(false);
+      } else {
+        router.push('/admin/produits');
+      }
     });
   }
 
@@ -290,6 +305,14 @@ export default function ProductEditForm({ product, brands }: { product: Product;
           {pending ? 'Enregistrement...' : 'Enregistrer'}
         </button>
         {saved && <span className="text-green-600 text-sm">✅ Enregistré</span>}
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="ml-auto text-red-500 hover:text-red-700 hover:underline text-sm disabled:opacity-50"
+        >
+          {deleting ? 'Suppression...' : '🗑 Supprimer ce produit'}
+        </button>
       </div>
 
       {eraserIndex !== null && (
