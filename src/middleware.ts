@@ -56,20 +56,48 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(accountUrl);
   }
 
-  // Redirections 301 (utile après une migration de site — anciennes URLs WooCommerce, etc.)
-  // On ne vérifie que les chemins qui ne correspondent à AUCUNE route connue de l'app, pour éviter
-  // d'appeler la base de données à chaque navigation normale (coût de performance sinon inutile).
+  // Redirections 301 "structurelles" issues de la migration WooCommerce → Next.js (voir Google
+  // Search Console, rapport Liens, relevé du 2026-09-02 : des centaines d'anciennes URLs encore
+  // indexées/liées de l'extérieur, qui renvoyaient un 404 sec). Contrairement aux redirections au
+  // cas par cas gérées depuis /admin/seo (une ligne = une URL précise, pour les pages renommées/
+  // fusionnées individuellement), celles-ci couvrent des FAMILLES entières d'anciennes URLs par un
+  // simple changement de préfixe — pas besoin d'une ligne par produit en base :
+  //   - /product/{slug}/...      -> /produit/{slug}   (même slug des deux côtés, vérifié sur
+  //     plusieurs exemples réels : seul le préfixe "product" -> "produit" change)
+  //   - /product-tag/...         -> /boutique          (anciennes pages de tag WooCommerce, pas
+  //     d'équivalent direct dans la nouvelle arborescence marque/gamme/modèle)
+  //   - /product-category/...    -> /boutique          (idem, anciennes catégories WooCommerce)
+  //   - /mon-compte-2/...        -> /compte             (ancienne page compte/liste d'envies —
+  //     ces URLs représentent l'essentiel du volume mais ne sont que des liens d'action
+  //     "ajouter à la liste d'envies/comparateur", jamais du contenu à préserver en soi)
+  const { pathname } = request.nextUrl;
+  const productMatch = pathname.match(/^\/product\/([^/]+)\/?$/);
+  if (productMatch) {
+    return NextResponse.redirect(new URL(`/produit/${productMatch[1]}`, request.url), 301);
+  }
+  if (pathname.startsWith('/product-tag/') || pathname.startsWith('/product-category/')) {
+    return NextResponse.redirect(new URL('/boutique', request.url), 301);
+  }
+  if (pathname === '/mon-compte-2' || pathname.startsWith('/mon-compte-2/')) {
+    return NextResponse.redirect(new URL('/compte', request.url), 301);
+  }
+
+  // Redirections 301 au cas par cas (utile après une migration de site — anciennes URLs
+  // WooCommerce spécifiques, pages renommées/fusionnées individuellement, gérées depuis
+  // /admin/seo). On ne vérifie que les chemins qui ne correspondent à AUCUNE route connue de
+  // l'app ni à l'une des familles ci-dessus, pour éviter d'appeler la base de données à chaque
+  // navigation normale (coût de performance sinon inutile).
   const KNOWN_PREFIXES = [
     '/produit', '/boutique', '/marque', '/collection', '/compte', '/admin', '/rdv', '/contact',
     '/cgv', '/mentions-legales', '/confidentialite', '/a-propos', '/livraison-retours',
     '/panier', '/checkout', '/avis-verifies', '/maintenance', '/_next',
   ];
-  const isKnownPath = KNOWN_PREFIXES.some((p) => request.nextUrl.pathname.startsWith(p)) || request.nextUrl.pathname === '/';
+  const isKnownPath = KNOWN_PREFIXES.some((p) => pathname.startsWith(p)) || pathname === '/';
 
   if (!isKnownPath) {
     try {
       const checkUrl = new URL('/api/check-redirect', request.url);
-      checkUrl.searchParams.set('path', request.nextUrl.pathname);
+      checkUrl.searchParams.set('path', pathname);
       const checkRes = await fetch(checkUrl);
       const { redirect } = await checkRes.json();
       if (redirect) {
