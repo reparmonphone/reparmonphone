@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: { params: { ville: string } }
   const prefecture = PREFECTURES.find((p) => p.slug === params.ville);
   if (!prefecture) return {};
   return {
-    title: `Pièces détachées téléphone à ${prefecture.ville} — Livraison 24h | ReparMonPhone`,
+    title: `Pièces détachées téléphone à ${prefecture.ville} — Livraison 24h`,
     description: `Commandez vos pièces détachées et accessoires pour smartphone (écrans, batteries, connecteurs) et faites-vous livrer à ${prefecture.ville} en 24h via Chronopost. Apple, Samsung, Huawei, Xiaomi.`,
   };
 }

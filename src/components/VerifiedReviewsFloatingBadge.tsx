@@ -29,7 +29,7 @@ export default async function VerifiedReviewsFloatingBadge() {
         </svg>
       </div>
       <div className="leading-tight">
-        <p className="text-[11px] font-bold text-gray-800 uppercase tracking-wide">Avis Vérifiés</p>
+        <p className="text-[11px] font-bold text-gray-800 uppercase tracking-wide">Achats Vérifiés</p>
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-bold text-gray-900">{average.toFixed(1)}</span>
           <span className="text-amber-400 text-xs">

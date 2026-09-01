@@ -2,7 +2,7 @@ import StaticPage, { getPage } from '@/components/StaticPage';
 
 export async function generateMetadata() {
   const page = await getPage('mentions-legales');
-  return { title: `${page?.title ?? 'Mentions légales'} | ReparMonPhone` };
+  return { title: page?.title ?? 'Mentions légales' };
 }
 
 export default function MentionsLegalesPage() {

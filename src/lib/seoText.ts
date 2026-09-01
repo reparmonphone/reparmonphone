@@ -19,7 +19,7 @@ export const PIECE_TYPE_LABELS: Record<PieceType, string> = {
 
 // Source unique pour le message de livraison rapide : à modifier ici seulement si jamais le délai ou
 // le transporteur change, ça se répercute partout où ce message est utilisé.
-export const DELIVERY_LINE = 'Livraison Chronopost 24h partout en France';
+export const DELIVERY_LINE = 'Livraison Chronopost 24h en France métropolitaine';
 
 // Vrai si le texte mentionne déjà la livraison/le délai (pour ne jamais dupliquer le message quand
 // Krys a elle-même écrit quelque chose à ce sujet dans sa description personnalisée).

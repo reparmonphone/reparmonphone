@@ -7,7 +7,7 @@ import ProductCard from '@/components/ProductCard';
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const collection = await prisma.collection.findUnique({ where: { slug: params.slug } });
   if (!collection) return {};
-  return { title: `${collection.name} | ReparMonPhone` };
+  return { title: collection.name };
 }
 
 export default async function CollectionPage({

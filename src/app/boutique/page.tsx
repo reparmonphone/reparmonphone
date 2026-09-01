@@ -34,7 +34,7 @@ function normalizeModelQuery(s: string): string {
 export async function generateMetadata({ searchParams }: { searchParams: BoutiqueSearchParams }) {
   const hasFilters = !!(searchParams.marque || searchParams.gamme || searchParams.modele || searchParams.type || searchParams.q);
 
-  let title = 'Boutique — Pièces détachées téléphone | ReparMonPhone';
+  let title = 'Boutique — Pièces détachées téléphone';
   let description =
     'Toutes nos pièces détachées et accessoires pour smartphone : écrans, batteries, connecteurs de charge. Apple, Samsung, Huawei, Xiaomi. Livraison Chronopost 24h.';
 
@@ -42,7 +42,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Boutiqu
     const labelParts = [searchParams.marque, searchParams.gamme, searchParams.modele, searchParams.q].filter(Boolean);
     if (labelParts.length > 0) {
       const label = labelParts.join(' ');
-      title = `${label} — Pièces détachées | ReparMonPhone`;
+      title = `${label} — Pièces détachées`;
       description = `Découvrez nos pièces détachées et accessoires ${label} : écrans, batteries, connecteurs. Livraison Chronopost 24h partout en France.`;
     }
   }

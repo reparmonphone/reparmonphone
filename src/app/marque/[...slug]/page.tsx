@@ -113,7 +113,7 @@ export async function generateMetadata({ params }: { params: { slug: string[] } 
     .trim()
     .slice(0, 160);
 
-  const title = `${content.title} — Écran, Batterie & Pièces détachées | ReparMonPhone`;
+  const title = `${content.title} — Écran, Batterie & Pièces détachées`;
   // withDeliveryMention garantit que la promesse de livraison rapide apparaît toujours dans l'extrait
   // Google, y compris quand plainDescription vient du contenu scrappé d'origine (qui n'en parlait pas).
   const description = withDeliveryMention(

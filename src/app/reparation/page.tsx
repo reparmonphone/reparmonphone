@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
 
 export const metadata = {
-  title: 'Guides de réparation — Apple, Samsung, Huawei, Xiaomi | ReparMonPhone',
+  title: 'Guides de réparation — Apple, Samsung, Huawei, Xiaomi',
   description:
     'Tous nos guides de réparation étape par étape : remplacement d\u2019écran, batterie, connecteur de charge... Tutoriels gratuits pour réparer votre téléphone vous-même.',
 };

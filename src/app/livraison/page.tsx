@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { PREFECTURES } from '@/data/prefectures';
 
 export const metadata = {
-  title: 'Livraison de pièces détachées téléphone partout en France | ReparMonPhone',
+  title: 'Livraison de pièces détachées téléphone partout en France',
   description:
-    'Nous livrons vos pièces détachées et accessoires pour smartphone dans toute la France via Chronopost, sous 24h. Retrouvez les informations de livraison pour votre ville.',
+    'Nous livrons vos pièces détachées et accessoires pour smartphone partout en France via Chronopost, sous 24h en France métropolitaine. Retrouvez les informations de livraison pour votre ville.',
 };
 
 export default function LivraisonHubPage() {

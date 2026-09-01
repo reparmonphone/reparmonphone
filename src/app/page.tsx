@@ -30,7 +30,8 @@ export default async function HomePage() {
           <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
             Réparation en Atelier à <span className="whitespace-nowrap">Sainte-Maxime</span> ou à domicile dans
             tout le Golfe de <span className="whitespace-nowrap">Saint-Tropez</span>. Pour toute la{' '}
-            <span className="whitespace-nowrap">France Livraison Chronopost 24h</span> sur toutes les pièces !
+            <span className="whitespace-nowrap">France métropolitaine</span>, livraison{' '}
+            <span className="whitespace-nowrap">Chronopost 24h</span> sur toutes les pièces !
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <Link href="/boutique" className="bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark transition">

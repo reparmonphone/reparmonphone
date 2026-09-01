@@ -2,7 +2,7 @@ const BADGES = [
   { icon: '🚚', title: 'Livraison Rapide', subtitle: '24h Chronopost' },
   { icon: '💳', title: 'Paiements Sécurisés', subtitle: 'Visa, Mastercard' },
   { icon: '↩️', title: '14 Jours Retours', subtitle: 'Achetez en toute confiance' },
-  { icon: '🎧', title: 'Support 7j/7', subtitle: 'Une question ? Écrivez-nous' },
+  { icon: '🎧', title: 'Support Réactif', subtitle: 'Lun–Sam 9h–18h · Écrivez-nous' },
 ];
 
 export default function TrustBadgesBar() {

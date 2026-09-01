@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   // Le titre est ce que Google affiche en plus gros dans les résultats : on y met toujours le nom du
   // produit (déjà très descriptif, ex: "Écran iPhone 13 Origine") suivi de la promesse de livraison
   // rapide — sauf si Krys a défini un titre personnalisé, qui prime toujours.
-  const title = product.metaTitle || `${product.title} – Livraison 24h | ReparMonPhone`;
+  const title = product.metaTitle || `${product.title} – Livraison 24h`;
   const description = withDeliveryMention(rawDescription);
   const url = `${SITE_URL}/produit/${product.slug}`;
   const image = product.imageUrl || (product.images?.[0] ?? undefined);

@@ -1,4 +1,4 @@
-export const metadata = { title: 'Avis Vérifiés | ReparMonPhone' };
+export const metadata = { title: 'Avis Vérifiés' };
 
 export default function AvisVerifiesPage() {
   return (

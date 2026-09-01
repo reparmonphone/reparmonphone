@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   const guide = await prisma.repairGuide.findUnique({ where: { slug: params.slug } });
   if (!guide) return {};
   return {
-    title: guide.metaTitle || `${guide.title} | Guide ReparMonPhone`,
+    title: guide.metaTitle || `${guide.title} — Guide`,
     description: guide.metaDescription || guide.excerpt || undefined,
   };
 }

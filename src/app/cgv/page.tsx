@@ -2,7 +2,7 @@ import StaticPage, { getPage } from '@/components/StaticPage';
 
 export async function generateMetadata() {
   const page = await getPage('cgv');
-  return { title: `${page?.title ?? 'CGV'} | ReparMonPhone` };
+  return { title: page?.title ?? 'CGV' };
 }
 
 export default function CgvPage() {
