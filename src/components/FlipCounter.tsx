@@ -46,15 +46,19 @@ export default function FlipCounter({
   const digits = String(Math.max(0, Math.round(count))).padStart(6, '0').split('');
 
   return (
-    <div className="flex items-stretch rounded-lg overflow-hidden shadow-sm border border-gray-200 h-[52px]">
-      <div className="flex items-center justify-center w-12 shrink-0" style={{ background: theme.iconBg }}>
+    // Sur mobile, en dessous de la taille "sm" : icône, chiffres et espacements réduits pour que
+    // les compteurs Facebook + Instagram tiennent sur une seule ligne côte à côte sans faire
+    // déborder la page horizontalement (voir FacebookPageWidget.tsx) — taille d'origine à partir
+    // de "sm" où il y a plus de place.
+    <div className="flex items-stretch rounded-lg overflow-hidden shadow-sm border border-gray-200 h-10 sm:h-[52px]">
+      <div className="flex items-center justify-center w-8 sm:w-12 shrink-0" style={{ background: theme.iconBg }}>
         {platform === 'facebook' ? <FacebookIcon /> : <InstagramIcon />}
       </div>
-      <div className="flex gap-[2px] bg-[#e8ded1] px-[3px] items-center">
+      <div className="flex gap-[1px] sm:gap-[2px] bg-[#e8ded1] px-[2px] sm:px-[3px] items-center">
         {digits.map((d, i) => (
           <div
             key={i}
-            className="relative w-6 h-9 rounded-[2px] flex items-center justify-center text-white text-base font-bold overflow-hidden"
+            className="relative w-4 h-7 sm:w-6 sm:h-9 rounded-[2px] flex items-center justify-center text-white text-[10px] sm:text-base font-bold overflow-hidden"
             style={{ background: theme.tileBg }}
           >
             {d}
