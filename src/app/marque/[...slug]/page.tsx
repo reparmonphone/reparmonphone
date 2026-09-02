@@ -237,7 +237,17 @@ export default async function CategoryPage({ params }: { params: { slug: string[
         const dbLine = findDbLineOverride(card);
         if (!dbLine) return card;
         matchedLineIds.add(dbLine.id);
-        return { ...card, name: dbLine.name, imageUrl: dbLine.imageUrl ?? card.imageUrl, sortOrder: dbLine.sortOrder };
+        // liveCount précis (somme des produits de tous les modèles de la gamme) plutôt que de laisser
+        // le repli par recherche floue plus bas (cardsNeedingSearch) : sans ça, une gamme dont le nom
+        // n'apparaît dans aucun titre/nom de modèle (ex: "Accessoires", "Reprogrammation" sous Outils)
+        // affiche "Aucune pièce disponible" alors qu'elle contient bien des produits.
+        return {
+          ...card,
+          name: dbLine.name,
+          imageUrl: dbLine.imageUrl ?? card.imageUrl,
+          liveCount: dbLine.models.reduce((s, m) => s + m.productCount, 0),
+          sortOrder: dbLine.sortOrder,
+        };
       });
 
     // Gammes créées depuis /admin/gammes qui n'ont encore AUCUNE carte dans le fichier figé (ex:
@@ -254,6 +264,9 @@ export default async function CategoryPage({ params }: { params: { slug: string[
         imageUrl: l.imageUrl ?? l.models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
         href: `${SITE_URL}/marque/${brandSlug}/${l.slug}/`,
         count: null,
+        // Même raison que ci-dessus (overriddenCards) : compte exact plutôt que le repli par recherche
+        // floue, qui échoue silencieusement quand le nom de la gamme n'apparaît dans aucun produit.
+        liveCount: l.models.reduce((s, m) => s + m.productCount, 0),
         sortOrder: l.sortOrder,
       }));
 
