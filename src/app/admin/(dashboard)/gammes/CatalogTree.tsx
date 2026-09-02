@@ -17,6 +17,8 @@ import {
   deleteModel,
   mergeIntoModel,
   updateLineImage,
+  updateLineHubImage,
+  clearLineHubImage,
   updateModelImage,
 } from './actions';
 
@@ -28,7 +30,7 @@ type ModelData = {
   mergeSuggestion: { targetId: string; targetLabel: string } | null;
   sortOrder: number;
 };
-type LineData = { id: string; name: string; imageUrl: string | null; models: ModelData[] };
+type LineData = { id: string; name: string; imageUrl: string | null; hubImageUrl: string | null; models: ModelData[] };
 type BrandData = { id: string; name: string; slug: string; lines: LineData[] };
 
 // Déplace l'élément à `fromIndex` vers `toIndex` dans une copie du tableau (utilisé par le
@@ -330,6 +332,8 @@ function LineRow({
   const [name, setName] = useState(line.name);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [hubUploading, setHubUploading] = useState(false);
+  const hubFileInputRef = useRef<HTMLInputElement>(null);
   const totalProducts = line.models.reduce((sum, m) => sum + m.productCount, 0);
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -355,6 +359,32 @@ function LineRow({
     }
   }
 
+  // Image "alternative" : ne sert que pour une gamme affichée à deux endroits différents (ex: "iPad",
+  // à la fois carte sur /marque/apple et sous-catégorie de la page /marque/apple/ipads) — voir
+  // hubImageUrl dans le schéma. Tant qu'elle n'est pas définie, l'image ci-dessus sert partout.
+  async function handleHubImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setHubUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/admin/upload-line-image', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        alert(data.error || "Échec de l'upload de l'image.");
+        return;
+      }
+      run(() => updateLineHubImage(line.id, data.url));
+    } catch {
+      alert("Échec de l'upload de l'image.");
+    } finally {
+      setHubUploading(false);
+    }
+  }
+
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
       <DragHandle title="Glisser pour réordonner les gammes sur la page publique de la marque" />
@@ -377,6 +407,37 @@ function LineRow({
       >
         {uploading ? '⏳' : '🖼️'} modifier image
       </button>
+
+      <div
+        className="w-8 h-8 rounded border border-gray-100 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center"
+        title="Image alternative (voir le bouton juste à droite)"
+      >
+        {line.hubImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={line.hubImageUrl} alt={`${line.name} (image alternative)`} className="w-full h-full object-contain" />
+        ) : (
+          <span className="text-gray-200 text-xs">·</span>
+        )}
+      </div>
+      <input ref={hubFileInputRef} type="file" accept="image/*" onChange={handleHubImageChange} className="hidden" />
+      <button
+        onClick={() => hubFileInputRef.current?.click()}
+        disabled={pending || hubUploading}
+        className="text-xs text-gray-400 hover:text-brand shrink-0"
+        title='Image utilisée uniquement quand cette gamme apparaît une seconde fois ailleurs sur le site (ex: la carte "iPad" dans la page des 4 catégories iPad) — laisse vide pour réutiliser la même image que ci-dessus partout'
+      >
+        {hubUploading ? '⏳' : '🖼️'} image alternative
+      </button>
+      {line.hubImageUrl && (
+        <button
+          onClick={() => run(() => clearLineHubImage(line.id))}
+          disabled={pending}
+          className="text-xs text-gray-300 hover:text-red-500 shrink-0"
+          title="Revenir à la même image que ci-dessus"
+        >
+          ✕
+        </button>
+      )}
 
       {editing ? (
         <>

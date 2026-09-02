@@ -70,6 +70,7 @@ export default async function AdminGammesPage() {
             id: l.id,
             name: l.name,
             imageUrl: l.imageUrl,
+            hubImageUrl: l.hubImageUrl,
             models: l.models.map((m) => ({
               id: m.id,
               name: m.name,

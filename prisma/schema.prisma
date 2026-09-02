@@ -30,6 +30,10 @@ model ProductLine {
   slug      String
   imageUrl  String? // image de la carte catégorie affichée sur /marque/[marque] — remplace, quand définie,
   // l'image scrappée statique de data/category_content.json (voir src/lib/categoryContent.ts)
+  hubImageUrl String? // image alternative, optionnelle, utilisée UNIQUEMENT quand cette gamme apparaît une
+  // deuxième fois ailleurs sur le site (ex: la gamme "iPad" est à la fois une carte sur /marque/apple ET
+  // une des 4 sous-catégories affichées sur /marque/apple/ipads, voir IPAD_HUB_SLUGS dans
+  // src/app/marque/[...slug]/page.tsx). Laissée vide (null), la même `imageUrl` sert partout comme avant.
   sortOrder Int     @default(0) // ordre d'affichage manuel des cartes gamme sur /marque/[marque]
   // (du plus petit au plus grand) — modifiable depuis /admin/gammes en glissant-déposant les lignes.
   // Initialisé une fois par scripts/seed-line-sort-order.js, puis entièrement sous le contrôle de

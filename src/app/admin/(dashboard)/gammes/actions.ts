@@ -98,6 +98,26 @@ export async function updateLineImage(lineId: string, imageUrl: string) {
   return { ok: true };
 }
 
+// Met à jour l'image "alternative" d'une gamme, utilisée uniquement quand cette gamme apparaît une
+// deuxième fois ailleurs sur le site (ex: "iPad" à la fois sur /marque/apple et dans la page des 4
+// catégories iPad) — voir hubImageUrl dans prisma/schema.prisma. Même mécanique d'upload que
+// updateLineImage ci-dessus.
+export async function updateLineHubImage(lineId: string, imageUrl: string) {
+  await requireAdminUser();
+  if (!imageUrl.trim()) return { error: 'URL d\'image invalide.' };
+  await prisma.productLine.update({ where: { id: lineId }, data: { hubImageUrl: imageUrl.trim() } });
+  revalidateAll();
+  return { ok: true };
+}
+
+// Efface l'image alternative : la gamme réutilise alors la même image partout (comportement par défaut).
+export async function clearLineHubImage(lineId: string) {
+  await requireAdminUser();
+  await prisma.productLine.update({ where: { id: lineId }, data: { hubImageUrl: null } });
+  revalidateAll();
+  return { ok: true };
+}
+
 export async function deleteLine(lineId: string) {
   await requireAdminUser();
   const count = await prisma.model.count({ where: { productLineId: lineId } });

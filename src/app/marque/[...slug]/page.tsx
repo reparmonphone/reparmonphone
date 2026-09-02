@@ -163,7 +163,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   // se fait ensuite en mémoire, aussi bien pour la page racine d'une marque (liste des gammes) que
   // pour la page d'une gamme précise (liste des modèles) — voir plus bas.
   type DbModel = { id: string; name: string; slug: string; imageUrl: string | null; sortOrder: number; productCount: number; repImageUrl: string | null };
-  type DbLine = { id: string; name: string; slug: string; imageUrl: string | null; sortOrder: number; models: DbModel[] };
+  type DbLine = { id: string; name: string; slug: string; imageUrl: string | null; hubImageUrl: string | null; sortOrder: number; models: DbModel[] };
   const dbLinesRaw = await prisma.productLine.findMany({
     where: { brand: { slug: brandSlug } },
     orderBy: { sortOrder: 'asc' },
@@ -172,6 +172,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
       name: true,
       slug: true,
       imageUrl: true,
+      hubImageUrl: true,
       sortOrder: true,
       models: {
         select: {
@@ -190,6 +191,7 @@ export default async function CategoryPage({ params }: { params: { slug: string[
     name: l.name,
     slug: l.slug,
     imageUrl: l.imageUrl,
+    hubImageUrl: l.hubImageUrl,
     sortOrder: l.sortOrder,
     models: l.models.map((m) => ({
       id: m.id,
@@ -279,7 +281,9 @@ export default async function CategoryPage({ params }: { params: { slug: string[
       resolvedCards = sortCardsByOrder(
         ipadHubLines.map((l) => ({
           name: l.name,
-          imageUrl: l.imageUrl ?? l.models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
+          // hubImageUrl (réglable séparément depuis /admin/gammes) a priorité ici : permet une photo
+          // différente de celle utilisée pour la carte "iPad" sur /marque/apple (voir schema.prisma).
+          imageUrl: l.hubImageUrl ?? l.imageUrl ?? l.models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
           href: `${SITE_URL}/marque/apple/ipads/${l.slug}/`,
           count: null,
           liveCount: l.models.reduce((s, m) => s + m.productCount, 0),
