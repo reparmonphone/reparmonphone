@@ -20,7 +20,11 @@ export default async function VerifiedReviewsFloatingBadge() {
     <Link
       href="/avis-verifies"
       suppressHydrationWarning
-      className="fixed left-4 bottom-4 z-50 flex items-center gap-3 bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 hover:shadow-xl transition"
+      aria-label={`Achats Vérifiés — ${average.toFixed(1)}/5 sur ${count} avis`}
+      // Sur mobile : juste le badge (icône ronde), sans le texte, pour ne pas saturer le bas de
+      // l'écran à côté de la bulle d'aide (voir HelpWidget, positionnée à droite) — le détail complet
+      // ne revient qu'à partir de la largeur "sm" (tablette/desktop).
+      className="fixed left-4 bottom-4 z-50 flex items-center gap-3 bg-white border border-gray-200 rounded-xl shadow-lg p-2 sm:px-4 sm:py-3 hover:shadow-xl transition"
     >
       <div className="relative w-9 h-9 shrink-0">
         <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
@@ -28,7 +32,7 @@ export default async function VerifiedReviewsFloatingBadge() {
           <path d="M9 12.5l2 2 4-4.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-      <div className="leading-tight">
+      <div className="hidden sm:block leading-tight">
         <p className="text-[11px] font-bold text-gray-800 uppercase tracking-wide">Achats Vérifiés</p>
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-bold text-gray-900">{average.toFixed(1)}</span>

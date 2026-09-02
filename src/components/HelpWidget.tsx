@@ -102,10 +102,14 @@ export default function HelpWidget() {
 
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-3 bg-brand hover:bg-brand-dark transition text-white rounded-full pl-2 pr-5 py-2 shadow-lg"
+        aria-label="Besoin d'aide ? Nous contacter"
+        // Sur mobile : juste la bulle (icône ronde), sans le texte, pour ne pas saturer le bas de
+        // l'écran à côté du badge "Achats Vérifiés" (voir VerifiedReviewsFloatingBadge, positionné à
+        // gauche) — le texte complet ne revient qu'à partir de la largeur "sm" (tablette/desktop).
+        className="flex items-center gap-3 bg-brand hover:bg-brand-dark transition text-white rounded-full p-2 sm:pl-2 sm:pr-5 shadow-lg"
       >
         <span className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-lg shrink-0">💬</span>
-        <span className="text-left leading-tight">
+        <span className="hidden sm:inline text-left leading-tight">
           <span className="block font-bold text-sm">Besoin d&apos;aide ?</span>
           <span className="block text-xs text-white/80">Nous contacter</span>
         </span>

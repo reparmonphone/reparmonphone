@@ -12,20 +12,38 @@ const ASSETS: Record<string, { logo: string; phones: string }> = {
   xiaomi: { logo: '/categories/logo-xiaomi.png', phones: '/categories/phones-xiaomi.png' },
 };
 
+// Gammes choisies à la main pour cette section (dans cet ordre précis) plutôt que les 6 premières
+// gammes par ordre alphabétique (comportement par défaut ci-dessous, encore utilisé pour Apple/
+// Huawei/Xiaomi tant qu'aucune sélection n'a été demandée pour elles) — sans ça "Galaxy S", par
+// exemple, n'apparaîtrait jamais ici (alphabétiquement trop loin pour entrer dans les 6 premières).
+const FEATURED_LINE_SLUGS: Record<string, string[]> = {
+  samsung: ['galaxy-a', 'galaxy-s', 'galaxy-j', 'galaxy-m', 'galaxy-z', 'galaxy-note'],
+};
+
 export default async function CategoriesEnVedette() {
   const brandsRaw = await prisma.brand.findMany({
     // On n'affiche que les 4 marques téléphone reconnues (par slug, stable même si le nom est renommé) —
     // la marque "Outils" (ou toute autre marque annexe) n'apparaît jamais ici.
     where: { slug: { in: BRAND_ORDER } },
     include: {
+      // Pas de `take` ici : pour une marque avec une sélection FEATURED_LINE_SLUGS, il faut pouvoir
+      // retrouver n'importe laquelle de ses gammes (pas seulement les 6 premières alphabétiquement) —
+      // le "top 6" par défaut est appliqué plus bas, en JS, seulement pour les marques sans sélection.
       lines: {
         orderBy: { name: 'asc' },
-        take: 6,
       },
     },
   });
 
-  const brands = [...brandsRaw].sort((a, b) => BRAND_ORDER.indexOf(a.slug) - BRAND_ORDER.indexOf(b.slug));
+  const brands = [...brandsRaw]
+    .sort((a, b) => BRAND_ORDER.indexOf(a.slug) - BRAND_ORDER.indexOf(b.slug))
+    .map((brand) => {
+      const featuredSlugs = FEATURED_LINE_SLUGS[brand.slug];
+      if (!featuredSlugs) return { ...brand, lines: brand.lines.slice(0, 6) };
+      const bySlug = new Map(brand.lines.map((l) => [l.slug, l]));
+      const lines = featuredSlugs.map((slug) => bySlug.get(slug)).filter((l): l is (typeof brand.lines)[number] => !!l);
+      return { ...brand, lines };
+    });
 
   if (brands.length === 0) return null;
 
