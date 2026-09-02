@@ -103,39 +103,15 @@ function isDbGeneratedCard(brandSlug: string, href: string): boolean {
   return brandSlug === 'huawei' && (segment.startsWith('huawei-line-') || segment.startsWith('huawei-'));
 }
 
-// Cas particulier "iPad" : contrairement à iPhone/Samsung, tous les modèles d'iPad (Pro, Air, Mini,
-// standard confondus — 31 au total) sont rattachés en base à UNE SEULE gamme ("ProductLine")
-// nommée "iPad" (slug "ipad"), au lieu de 4 gammes séparées. Résultat : la page /marque/apple/ipads
-// affichait tous les modèles en vrac, sans les 4 catégories cliquables (iPad / iPad Pro / iPad Mini
-// / iPad Air) qui existaient avant. Plutôt que de réorganiser la base (risqué, et à refaire à
-// chaque nouveau modèle ajouté), on recrée ces 4 catégories à la volée ici, par mot-clé dans le nom
-// du modèle — ça reste à jour tout seul quand un modèle est ajouté ou renommé depuis /admin/gammes.
-const IPAD_BUCKET_LABELS = { base: 'iPad', pro: 'iPad Pro', mini: 'iPad Mini', air: 'iPad Air' } as const;
-type IpadBucket = keyof typeof IPAD_BUCKET_LABELS;
-// Le segment d'URL utilisé pour chaque sous-page (ex: /marque/apple/ipads/ipad-pro) correspond
-// volontairement à une clé déjà existante dans le contenu scrappé (data/category_content.json),
-// pour que isBranchCard() reconnaisse ces 4 cartes comme des "branches" cliquables sans changement
-// ailleurs.
-const IPAD_BUCKET_BY_SEGMENT: Record<string, IpadBucket> = {
-  ipad: 'base',
-  'ipad-pro': 'pro',
-  'ipad-mini': 'mini',
-  'ipad-air': 'air',
-};
-const IPAD_BUCKET_ROUTE: Record<IpadBucket, string> = {
-  base: 'ipad',
-  pro: 'ipad-pro',
-  mini: 'ipad-mini',
-  air: 'ipad-air',
-};
-
-function classifyIpadModel(name: string): IpadBucket {
-  const n = name.toLowerCase();
-  if (n.includes('pro')) return 'pro';
-  if (n.includes('mini')) return 'mini';
-  if (n.includes('air')) return 'air';
-  return 'base';
-}
+// Cas particulier "iPad" : la gamme est désormais scindée en base en 4 vraies gammes ("ProductLine")
+// sous la marque Apple — "iPad" (slug "ipad"), "iPad Pro" (ipad-pro), "iPad Mini" (ipad-mini),
+// "iPad Air" (ipad-air), voir scripts/split-ipad-lines.js. Comme ce sont de vraies gammes, elles se
+// gèrent normalement depuis /admin/gammes (renommer, glisser pour réordonner, changer l'image...).
+// Deux petits ajustements restent nécessaires ici : (1) la page /marque/apple/ipads doit lister ces
+// 4 gammes comme des cartes plutôt que la longue liste plate habituelle des gammes d'une marque, et
+// (2) ces 4 gammes ne doivent pas apparaître une seconde fois comme cartes indépendantes sur la page
+// racine /marque/apple (voir plus bas, `newLineCards`) — seule la carte "iPad" y figure, comme avant.
+const IPAD_HUB_SLUGS = ['ipad', 'ipad-pro', 'ipad-mini', 'ipad-air'];
 
 export async function generateMetadata({ params }: { params: { slug: string[] } }) {
   const content = resolveContent(params.slug);
@@ -267,6 +243,10 @@ export default async function CategoryPage({ params }: { params: { slug: string[
     // en carte "branche" (menant à la liste de ses modèles, voir plus bas et le calcul de `branch`).
     const newLineCards: CategoryCard[] = dbLines
       .filter((l) => !matchedLineIds.has(l.id))
+      // "iPad Pro"/"iPad Mini"/"iPad Air" (voir IPAD_HUB_SLUGS) sont des sous-catégories de la
+      // carte "iPad" existante (elle-même déjà gérée ci-dessus via matchedLineIds) — sans ce filtre
+      // elles s'ajouteraient une seconde fois ici, comme 3 cartes indépendantes sur /marque/apple.
+      .filter((l) => !(brandSlug === 'apple' && IPAD_HUB_SLUGS.includes(l.slug) && l.slug !== 'ipad'))
       .map((l) => ({
         name: l.name,
         imageUrl: l.imageUrl ?? l.models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
@@ -283,52 +263,27 @@ export default async function CategoryPage({ params }: { params: { slug: string[
     // une gamme réelle en base (donc sans sortOrder connu).
     resolvedCards = sortCardsByOrder([...overriddenCards, ...newLineCards]);
   } else {
-    // ---------- Page d'une gamme précise (ex: /marque/samsung/galaxy-a) ----------
-    // La clé du contenu scrappé statique ne correspond pas toujours à notre slug interne de gamme
-    // (ex: clé scrappée "iphones" pour notre gamme "iphone") — getOurSlugForContentKey couvre ces
-    // correspondances déjà répertoriées (voir LINE_CONTENT_KEY). On tente ensuite le format Huawei
-    // ("huawei-line-x"), puis le segment brut tel quel (cas d'une gamme créée depuis
-    // /admin/gammes : son slug EST le segment d'URL utilisé pour la carte générée au niveau racine
-    // ci-dessus), puis enfin le nom du contenu scrappé en dernier repli.
     const segment = params.slug[params.slug.length - 1];
-    const ipadLine = brandSlug === 'apple' ? dbLines.find((l) => l.slug === 'ipad') : undefined;
+    // Les 4 vraies gammes iPad (voir IPAD_HUB_SLUGS ci-dessus et scripts/split-ipad-lines.js),
+    // dans l'ordre manuel réglable depuis /admin/gammes (glisser les lignes "iPad"/"iPad Pro"/
+    // "iPad Mini"/"iPad Air" sous Apple).
+    const ipadHubLines =
+      brandSlug === 'apple'
+        ? IPAD_HUB_SLUGS.map((s) => dbLines.find((l) => l.slug === s)).filter((l): l is DbLine => !!l)
+        : [];
 
-    if (ipadLine && segment === 'ipads') {
+    if (brandSlug === 'apple' && segment === 'ipads' && ipadHubLines.length > 0) {
       // ---------- Page "hub" iPad (ex: /marque/apple/ipads) ----------
-      // Les 4 catégories cliquables, reconstruites à la volée (voir classifyIpadModel ci-dessus).
-      const buckets: Record<IpadBucket, DbModel[]> = { base: [], pro: [], mini: [], air: [] };
-      for (const m of ipadLine.models) buckets[classifyIpadModel(m.name)].push(m);
-      const staticImageByName = new Map((content?.cards ?? []).map((c) => [c.name, c.imageUrl]));
-
       pageTitle = content?.title ?? 'iPads';
       pageDescription = content?.description ?? null;
-      resolvedCards = (Object.keys(IPAD_BUCKET_LABELS) as IpadBucket[]).map((bucket) => {
-        const label = IPAD_BUCKET_LABELS[bucket];
-        const models = buckets[bucket];
-        return {
-          name: label,
-          imageUrl: staticImageByName.get(label) ?? models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
-          href: `${SITE_URL}/marque/apple/ipads/${IPAD_BUCKET_ROUTE[bucket]}/`,
-          count: null,
-          liveCount: models.reduce((s, m) => s + m.productCount, 0),
-        };
-      });
-    } else if (ipadLine && segment in IPAD_BUCKET_BY_SEGMENT) {
-      // ---------- Sous-page d'une catégorie iPad (ex: /marque/apple/ipads/ipad-pro) ----------
-      // On ignore volontairement le contenu scrappé statique (obsolète, comptages faux) : on ne
-      // montre que les vrais modèles de cette catégorie, directement depuis la base.
-      const bucket = IPAD_BUCKET_BY_SEGMENT[segment];
-      const models = ipadLine.models.filter((m) => classifyIpadModel(m.name) === bucket);
-      pageTitle = IPAD_BUCKET_LABELS[bucket];
-      pageDescription = null;
       resolvedCards = sortCardsByOrder(
-        models.map((m) => ({
-          name: m.name,
-          imageUrl: m.imageUrl ?? m.repImageUrl ?? null,
-          href: `${SITE_URL}/marque/${params.slug.join('/')}/${m.slug}/`,
+        ipadHubLines.map((l) => ({
+          name: l.name,
+          imageUrl: l.imageUrl ?? l.models.find((m) => m.imageUrl || m.repImageUrl)?.imageUrl ?? null,
+          href: `${SITE_URL}/marque/apple/ipads/${l.slug}/`,
           count: null,
-          liveCount: m.productCount,
-          sortOrder: m.sortOrder,
+          liveCount: l.models.reduce((s, m) => s + m.productCount, 0),
+          sortOrder: l.sortOrder,
         }))
       );
     } else {
