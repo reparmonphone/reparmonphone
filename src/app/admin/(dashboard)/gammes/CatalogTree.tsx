@@ -20,6 +20,7 @@ import {
   updateLineHubImage,
   clearLineHubImage,
   updateModelImage,
+  toggleModelFeatured,
 } from './actions';
 
 type ModelData = {
@@ -29,6 +30,7 @@ type ModelData = {
   productCount: number;
   mergeSuggestion: { targetId: string; targetLabel: string } | null;
   sortOrder: number;
+  featuredOnHome: boolean;
 };
 type LineData = { id: string; name: string; imageUrl: string | null; hubImageUrl: string | null; models: ModelData[] };
 type BrandData = { id: string; name: string; slug: string; lines: LineData[] };
@@ -702,6 +704,19 @@ function ModelRow({
         title="Changer l'image de ce modèle (affichée sur la page publique de la gamme)"
       >
         {uploading ? '⏳' : '🖼️'}
+      </button>
+
+      <button
+        onClick={() => run(() => toggleModelFeatured(model.id, !model.featuredOnHome))}
+        disabled={pending}
+        className={`text-base shrink-0 ${model.featuredOnHome ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'}`}
+        title={
+          model.featuredOnHome
+            ? 'Inclus dans le tirage "Vedette" de la page d\'accueil — clique pour retirer'
+            : 'Inclure ce modèle dans le tirage "Vedette" de la page d\'accueil'
+        }
+      >
+        {model.featuredOnHome ? '★' : '☆'}
       </button>
 
       {editing ? (

@@ -79,11 +79,15 @@ export default async function TopProduitsSection() {
   const nouveautes = await getRecentProducts(baseWhere, 20);
   const nouveauteIds = nouveautes.map((p) => p.id);
 
+  // "Vedette" tire au hasard uniquement parmi les modèles cochés ⭐ depuis /admin/gammes (voir
+  // Model.featuredOnHome) — pour ne plus faire remonter de vieilles pièces bon marché (iPhone 5,
+  // etc.) à côté des modèles récents. Tant que Krys n'a encore rien coché nulle part, on retombe sur
+  // l'ancien comportement (tirage dans tout le catalogue) pour ne jamais afficher un bloc vide.
+  const featuredWhere: Prisma.ProductWhereInput = { ...baseWhere, model: { featuredOnHome: true } };
+  const hasFeaturedSelection = (await prisma.product.count({ where: featuredWhere })) > 0;
+
   const [vedette, promos] = await Promise.all([
-    // "Vedette" reste un tirage aléatoire (pas de notion de "produit vedette" en base pour
-    // l'instant), mais exclut désormais les produits déjà affichés juste au-dessus dans
-    // "Nouveautés" pour éviter de montrer deux fois le même article sur la page d'accueil.
-    getRandomProducts(baseWhere, 20, nouveauteIds),
+    getRandomProducts(hasFeaturedSelection ? featuredWhere : baseWhere, 20, nouveauteIds),
     prisma.product.findMany({
       where: { inStock: true, showInBoutique: true, ...SHOWCASE_FILTER, regularPrice: { not: null } },
       take: 40,

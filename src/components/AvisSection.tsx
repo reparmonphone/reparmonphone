@@ -44,6 +44,7 @@ export default async function AvisSection() {
           title="Avis Google"
           sourceIcon={<GoogleIcon />}
           sourceLogo={<GoogleLogo />}
+          sourceName="Google"
           mode="grid"
           maxItems={4}
           average={getSetting('google_reviews_average') ? Number(getSetting('google_reviews_average')) : null}
@@ -58,6 +59,7 @@ export default async function AvisSection() {
             title="Avis Facebook"
             sourceIcon={<FacebookIcon />}
             sourceLogo={<FacebookLogo />}
+            sourceName="Facebook"
             starColor="text-[#1877F2]"
             maxItems={5}
             average={getSetting('facebook_reviews_average') ? Number(getSetting('facebook_reviews_average')) : null}

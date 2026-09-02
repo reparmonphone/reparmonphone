@@ -57,6 +57,10 @@ model Model {
   // (du plus petit au plus grand) — modifiable depuis /admin/gammes en glissant-déposant les lignes.
   // Initialisé une fois par scripts/seed-model-sort-order.js (du plus récent au plus ancien),
   // puis entièrement sous le contrôle de l'utilisateur ensuite.
+  featuredOnHome Boolean    @default(false) // inclut ce modèle dans le tirage aléatoire "Vedette" de la
+  // page d'accueil (voir TopProduitsSection.tsx) — réglable depuis /admin/gammes (case ⭐ par modèle).
+  // Tant qu'aucun modèle d'aucune gamme n'est coché, la page d'accueil garde son ancien comportement
+  // (tirage dans tout le catalogue) — voir la logique de repli dans TopProduitsSection.tsx.
   productLineId String
   productLine   ProductLine @relation(fields: [productLineId], references: [id])
   products      Product[]

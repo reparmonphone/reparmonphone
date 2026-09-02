@@ -78,6 +78,7 @@ export default async function AdminGammesPage() {
               productCount: m._count.products,
               mergeSuggestion: mergeSuggestions.get(m.id) ?? null,
               sortOrder: m.sortOrder,
+              featuredOnHome: m.featuredOnHome,
             })),
           })),
         }))}

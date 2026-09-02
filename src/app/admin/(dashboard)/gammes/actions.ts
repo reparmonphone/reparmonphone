@@ -168,6 +168,15 @@ export async function updateModelImage(modelId: string, imageUrl: string) {
   return { ok: true };
 }
 
+// Inclut ou retire un modèle du tirage aléatoire "Vedette" de la page d'accueil (voir
+// Model.featuredOnHome dans le schéma, et TopProduitsSection.tsx pour la logique de tirage/repli).
+export async function toggleModelFeatured(modelId: string, featured: boolean) {
+  await requireAdminUser();
+  await prisma.model.update({ where: { id: modelId }, data: { featuredOnHome: featured } });
+  revalidateAll();
+  return { ok: true };
+}
+
 // Déplace un modèle (et donc tous ses produits) vers une autre gamme, éventuellement d'une autre marque.
 // Placé en dernière position de la gamme d'arrivée (voir nextSortOrder) : son ancien sortOrder n'a
 // aucun sens dans la nouvelle gamme et pourrait entrer en collision avec un modèle qui y est déjà.

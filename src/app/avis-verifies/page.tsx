@@ -1,12 +1,101 @@
+import Link from 'next/link';
+import Image from 'next/image';
+import { prisma } from '@/lib/prisma';
+import ProductStars from '@/components/ProductStars';
+
 export const metadata = { title: 'Avis Vérifiés' };
 
-export default function AvisVerifiesPage() {
+// Cette page était jusqu'ici uniquement explicative (ce que signifie le badge "Achat vérifié") —
+// elle affiche maintenant aussi les avis vérifiés eux-mêmes, avec le produit concerné, pour que
+// les visiteurs qui cliquent sur le badge (bas de page, ou le badge flottant en bas à gauche,
+// voir VerifiedReviewsFloatingBadge.tsx) retrouvent bien de vrais avis ici.
+export default async function AvisVerifiesPage() {
+  const [reviews, agg] = await Promise.all([
+    prisma.productReview.findMany({
+      where: { verified: true },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+      include: {
+        product: { select: { slug: true, title: true, imageUrl: true } },
+      },
+    }),
+    prisma.productReview.aggregate({
+      where: { verified: true },
+      _avg: { rating: true },
+      _count: { rating: true },
+    }),
+  ]);
+
+  const average = agg._avg.rating;
+  const count = agg._count.rating;
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-16">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="max-w-5xl mx-auto px-4 py-16">
+      <div className="flex items-center gap-3 mb-2">
         <ShieldIcon />
         <h1 className="text-2xl font-bold text-gray-900">Avis Vérifiés</h1>
       </div>
+
+      {!!average && !!count && (
+        <div className="flex items-center gap-2 mb-8">
+          <ProductStars rating={average} count={count} size="text-lg" />
+          <span className="text-sm text-gray-500">
+            {average.toFixed(1).replace('.', ',')}/5 sur {count} avis vérifié{count > 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+
+      {reviews.length === 0 ? (
+        <p className="text-gray-500 text-sm mb-12">Aucun avis vérifié pour le moment.</p>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-4 mb-12">
+          {reviews.map((r) => (
+            <div key={r.id} className="border border-gray-100 rounded-xl p-4 flex gap-3">
+              {r.product && (
+                <Link href={`/produit/${r.product.slug}`} className="shrink-0">
+                  <div className="w-16 h-16 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
+                    {r.product.imageUrl ? (
+                      <Image
+                        src={r.product.imageUrl}
+                        alt={r.product.title}
+                        width={64}
+                        height={64}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </div>
+                </Link>
+              )}
+
+              <div className="min-w-0 flex-1">
+                {r.product && (
+                  <Link
+                    href={`/produit/${r.product.slug}`}
+                    className="text-xs font-medium text-brand hover:underline block truncate mb-1"
+                  >
+                    {r.product.title}
+                  </Link>
+                )}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-medium text-sm text-gray-800">{r.authorName}</span>
+                  <span className="text-xs text-gray-400 shrink-0 ml-2">
+                    {new Date(r.createdAt).toLocaleDateString('fr-FR')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <ProductStars rating={r.rating} count={1} showCount={false} />
+                  <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded font-medium">
+                    ✔️ Achat vérifié
+                  </span>
+                </div>
+                {r.text && <p className="text-sm text-gray-600">{r.text}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-4 text-gray-700 leading-relaxed">
         <p>

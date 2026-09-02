@@ -96,6 +96,7 @@ export default function AvisCarousel({
   title,
   sourceIcon,
   sourceLogo,
+  sourceName,
   starColor = 'text-amber-400',
   average,
   total,
@@ -106,6 +107,8 @@ export default function AvisCarousel({
   title: string;
   sourceIcon: React.ReactNode;
   sourceLogo: React.ReactNode;
+  /** Nom de la source affiché dans le résumé (ex: "Google", "Facebook") — voir le résumé plus bas. */
+  sourceName?: string;
   starColor?: string;
   average: number | null;
   total: number | null;
@@ -141,12 +144,19 @@ export default function AvisCarousel({
         <p className="text-xs font-bold tracking-wide text-gray-500 uppercase">
           {average && average >= 4 ? 'Excellent' : average && average >= 3 ? 'Très bien' : 'Avis clients'}
         </p>
-        {average && <Stars rating={average} size="text-2xl" color={starColor} />}
-        {total && (
-          <p className="text-sm text-gray-500 mt-1">
-            Basé sur <strong>{total}</strong> avis
-          </p>
-        )}
+        {/* Note chiffrée (ex: "4,96/5") + nombre d'avis sur la même ligne que les étoiles, plutôt que
+            "Basé sur X avis" seul en dessous — plus lisible en un coup d'œil (demandé par Krys). */}
+        <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1">
+          {average && <Stars rating={average} size="text-2xl" color={starColor} />}
+          {average && (
+            <span className="text-base font-bold text-gray-800">{average.toFixed(2).replace('.', ',')}/5</span>
+          )}
+          {total && (
+            <span className="text-sm text-gray-500">
+              — {total} avis{sourceName ? ` ${sourceName}` : ''}
+            </span>
+          )}
+        </div>
         <div className="mt-1 flex justify-center">{sourceLogo}</div>
       </div>
 
