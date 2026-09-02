@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import ProductStars from '@/components/ProductStars';
 import ProductReviewForm from '@/components/ProductReviewForm';
+import { firstNameOnly } from '@/lib/displayName';
 
 export default async function ProductReviewsSection({ productId }: { productId: string }) {
   const reviews = await prisma.productReview.findMany({
@@ -38,7 +39,7 @@ export default async function ProductReviewsSection({ productId }: { productId: 
           {reviews.map((r) => (
             <div key={r.id} className="border border-gray-100 rounded-xl p-4">
               <div className="flex items-center justify-between mb-1">
-                <span className="font-medium text-sm text-gray-800">{r.authorName}</span>
+                <span className="font-medium text-sm text-gray-800">{firstNameOnly(r.authorName)}</span>
                 <span className="text-xs text-gray-400">
                   {new Date(r.createdAt).toLocaleDateString('fr-FR')}
                 </span>

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import AvisCarousel from './AvisCarousel';
+import { firstNameOnly } from '@/lib/displayName';
 
 export default async function AvisSection() {
   const [reviews, settings] = await Promise.all([
@@ -20,9 +21,11 @@ export default async function AvisSection() {
 
   if (google.length === 0 && facebook.length === 0) return null;
 
+  // Prénom uniquement côté public (demandé par Krys) — le nom complet reste en base et visible
+  // tel quel dans /admin/avis pour la gestion.
   const toReviewItem = (r: (typeof reviews)[number]) => ({
     id: r.id,
-    author: r.authorName,
+    author: firstNameOnly(r.authorName),
     authorPhotoUrl: r.authorPhotoUrl,
     rating: r.rating,
     text: r.text,

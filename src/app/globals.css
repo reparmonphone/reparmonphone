@@ -6,6 +6,15 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Filet de sécurité : empêche tout élément trop large (ex: le compteur Facebook/Instagram sur
+   mobile, voir FacebookPageWidget.tsx) de faire défiler la page horizontalement et, avec lui,
+   de pousser hors écran les bulles fixes en bas de page ("Besoin d'aide", "Achats Vérifiés") —
+   voir HelpWidget.tsx / VerifiedReviewsFloatingBadge.tsx. Un futur élément trop large sera
+   simplement rogné plutôt que de casser tout le bas de page. */
+html, body {
+  overflow-x: hidden;
+}
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
 import ProductStars from '@/components/ProductStars';
+import { firstNameOnly } from '@/lib/displayName';
 
 export const metadata = { title: 'Avis Vérifiés' };
 
@@ -79,7 +80,7 @@ export default async function AvisVerifiesPage() {
                   </Link>
                 )}
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-sm text-gray-800">{r.authorName}</span>
+                  <span className="font-medium text-sm text-gray-800">{firstNameOnly(r.authorName)}</span>
                   <span className="text-xs text-gray-400 shrink-0 ml-2">
                     {new Date(r.createdAt).toLocaleDateString('fr-FR')}
                   </span>
