@@ -17,6 +17,7 @@ const ASSETS: Record<string, { logo: string; phones: string }> = {
 // Huawei/Xiaomi tant qu'aucune sélection n'a été demandée pour elles) — sans ça "Galaxy S", par
 // exemple, n'apparaîtrait jamais ici (alphabétiquement trop loin pour entrer dans les 6 premières).
 const FEATURED_LINE_SLUGS: Record<string, string[]> = {
+  apple: ['iphone', 'ipad', 'airpods', 'apple-watch'],
   samsung: ['galaxy-a', 'galaxy-s', 'galaxy-j', 'galaxy-m', 'galaxy-z', 'galaxy-note'],
 };
 
