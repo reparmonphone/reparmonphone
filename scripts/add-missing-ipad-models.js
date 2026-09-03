@@ -38,6 +38,13 @@ function slugify(s) {
 const NEW_MODELS = [
   { lineSlug: 'ipad-pro', name: 'iPad Pro 11" 2020 (2e Gen)', afterModelSlug: 'ipad-pro-11-2018-1e-gen' },
   { lineSlug: 'ipad-air', name: 'iPad Air 5 (2022)', afterModelSlug: 'ipad-air-6-13-2024-m2' },
+  // Repérés le 2026-09-03 : cartes fantômes sur le site (0 produit, lien mort vers l'ancienne URL
+  // WordPress) car ces 2 modèles Apple bien réels n'ont jamais eu de ligne "Model" en base — le
+  // fournisseur actuel n'a par ailleurs aucune pièce référencée pour eux (vérifié dans scripts/Ipads.csv,
+  // 0 ligne pour les deux), donc la page passera de "lien cassé" à "aucune pièce disponible" (propre,
+  // fonctionnel), prête à se remplir automatiquement dès qu'un futur import y trouvera des produits.
+  { lineSlug: 'ipad-pro', name: 'iPad Pro 11" 2022 (4e Gen)', afterModelSlug: 'ipad-pro-11-2021-3e-gen' },
+  { lineSlug: 'ipad', name: 'iPad 2020 10.2" (8e Gen)', afterModelSlug: 'ipad-2019-10-2-7e-gen' },
 ];
 
 async function uniqueModelSlug(productLineId, name) {
