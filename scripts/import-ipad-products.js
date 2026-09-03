@@ -107,6 +107,7 @@ const MODEL_NAME_OVERRIDES = new Map(
     ['iPad Pro 12.9" (4ème Gen.) (2020)', 'ipad-pro-12-9-2020-4e-gen'],
     ['iPad Pro 12.9" (2ème Gen.) (2017)', 'ipad-pro-12-9-2017-2e-gen'],
     ['iPad Pro 11" (3ème Gen) (2021)', 'ipad-pro-11-2021-3e-gen'],
+    ['iPad Pro 11" (2ème Gen.) (2020)', 'ipad-pro-11-2020-2e-gen'],
     ['iPad Pro 9.7" (2016)', 'ipad-pro-9-7-2016-1e-gen'],
     ['iPad Air 11" (6ème Gen.) (2024) (M2)', 'ipad-air-6-11-2024-m2'],
     ['iPad Air 13" (6ème Gen.) (2024) M2', 'ipad-air-6-13-2024-m2'],
