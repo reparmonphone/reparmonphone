@@ -145,23 +145,14 @@ export default async function CategoryPage({ params }: { params: { slug: string[
   const brandSlug = params.slug[0];
   const content = resolveContent(params.slug);
 
-  // Sur la page racine d'une marque, l'absence de contenu scrappé est fatale (aucune marque de ce
-  // catalogue n'a jamais existé que via ce fichier figé). Sur la page d'une gamme précise en
-  // revanche, l'absence de contenu peut simplement signifier une gamme entièrement nouvelle, créée
-  // depuis /admin/gammes après la migration (ex: "Galaxy Z", "Galaxy Tab") — on vérifie la base
-  // avant de décider un 404, voir plus bas.
-  // Une gamme renommée/supprimée/fusionnée (voir scripts de nettoyage catalogue) 301 vers sa nouvelle
-  // adresse si une redirection a été enregistrée dans /admin/seo, plutôt qu'un 404 sec — le middleware
-  // ne vérifie pas les URLs /marque lui-même (voir KNOWN_PREFIXES dans src/middleware.ts).
-  if (params.slug.length === 1 && !content) {
-    await redirectOrNotFound(`/marque/${params.slug.join('/')}`);
-    notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
-  }
-
   // On charge TOUTES les gammes de la marque avec leurs modèles (et de quoi calculer un compteur
   // produit exact par modèle) une seule fois : la correspondance avec le contenu scrappé statique
   // se fait ensuite en mémoire, aussi bien pour la page racine d'une marque (liste des gammes) que
-  // pour la page d'une gamme précise (liste des modèles) — voir plus bas.
+  // pour la page d'une gamme précise (liste des modèles) — voir plus bas. Chargé AVANT la vérification
+  // de contenu scrappé ci-dessous, car c'est justement ce qui permet de distinguer une VRAIE marque
+  // manquante (jamais créée) d'une marque entièrement nouvelle créée depuis un script (ex:
+  // "Accessoires", scripts/create-accessoires-categories.js) qui n'a jamais eu de fiche WordPress et
+  // donc aucune entrée dans data/category_content.json — ce n'est pas une raison de 404.
   type DbModel = { id: string; name: string; slug: string; imageUrl: string | null; sortOrder: number; productCount: number; repImageUrl: string | null };
   type DbLine = { id: string; name: string; slug: string; imageUrl: string | null; hubImageUrl: string | null; sortOrder: number; models: DbModel[] };
   const dbLinesRaw = await prisma.productLine.findMany({
@@ -203,6 +194,19 @@ export default async function CategoryPage({ params }: { params: { slug: string[
       repImageUrl: m.products.find((p) => p.imageUrl)?.imageUrl ?? null,
     })),
   }));
+
+  // Sur la page racine d'une marque, l'absence de contenu scrappé n'est fatale QUE si la marque n'a
+  // non plus aucune gamme en base (donc n'existe vraiment pas). Sur la page d'une gamme précise,
+  // l'absence de contenu peut simplement signifier une gamme entièrement nouvelle, créée depuis
+  // /admin/gammes après la migration (ex: "Galaxy Z", "Galaxy Tab") — on vérifie la base avant de
+  // décider un 404, voir plus bas.
+  // Une gamme renommée/supprimée/fusionnée (voir scripts de nettoyage catalogue) 301 vers sa nouvelle
+  // adresse si une redirection a été enregistrée dans /admin/seo, plutôt qu'un 404 sec — le middleware
+  // ne vérifie pas les URLs /marque lui-même (voir KNOWN_PREFIXES dans src/middleware.ts).
+  if (params.slug.length === 1 && !content && dbLines.length === 0) {
+    await redirectOrNotFound(`/marque/${params.slug.join('/')}`);
+    notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
+  }
 
   let pageTitle: string;
   let pageDescription: string | null;

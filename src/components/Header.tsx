@@ -109,7 +109,10 @@ export default function Header({
                     return (
                       <div key={line.id}>
                         <Link href={lineHref} className="text-sm font-bold text-brand-dark hover:underline">
-                          {displayName(brand.name)} / {displayName(line.name)}
+                          {/* displayName() ne s'applique qu'au nom de la MARQUE (cas "Autre" -> "Outils")
+                              — jamais au nom de la gamme, sinon une gamme "Autres" (ex: sous "Accessoires")
+                              s'afficherait aussi "Outils", ce qui prêterait à confusion avec le vrai onglet. */}
+                          {displayName(brand.name)} / {line.name}
                         </Link>
                         <ul className="mt-1 space-y-0.5">
                           {line.models.slice(0, 6).map((model) => (
