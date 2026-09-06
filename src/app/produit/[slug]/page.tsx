@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { redirectOrNotFound } from '@/lib/pageRedirect';
 import { formatPrice } from '@/lib/format';
 import { PIECE_TYPE_LABELS, withDeliveryMention } from '@/lib/seoText';
+import { findScreenProtectorSuggestion } from '@/lib/screenProtectorSuggestion';
 import AddToCartButton from './AddToCartButton';
 import ProductGallery from './ProductGallery';
 import RelatedProducts from './RelatedProducts';
@@ -88,6 +89,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
     orderBy: { viewCount: 'desc' },
     take: 4,
   });
+
+  // Vente additionnelle : pour un écran, on propose le verre trempé du même modèle exact au moment
+  // de l'ajout au panier (voir AddToCartButton). Uniquement pour les écrans — inutile de le calculer
+  // pour les autres pièces (batterie, connecteur...).
+  const screenProtector =
+    product.pieceType === 'ECRAN' ? await findScreenProtectorSuggestion(product.model.name) : null;
 
   const images = product.images && product.images.length > 0
     ? product.images
@@ -180,6 +187,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
                   imageUrl: product.imageUrl,
                 }}
                 disabled={!product.inStock}
+                screenProtector={screenProtector}
               />
             </div>
             <ShareButton title={product.title} url={`${SITE_URL}/produit/${product.slug}`} />
