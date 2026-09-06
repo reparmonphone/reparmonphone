@@ -19,16 +19,26 @@ function matchesDeviceModel(title: string, modelName: string): boolean {
   return re.test(title);
 }
 
-// Pour un écran donné (identifié par le nom exact de son modèle, ex: "iPhone 14"), cherche le verre
-// trempé qui correspond très précisément au même appareil, parmi les protections d'écran de la marque
-// "Accessoires" (voir scripts/reclassify-protection-ecran-by-family.js). Retourne le moins cher des
-// verres trouvés en stock, ou null si aucune correspondance fiable n'existe — on ne devine jamais.
-export async function findScreenProtectorSuggestion(modelName: string): Promise<ScreenProtectorSuggestion | null> {
+// Un titre "Verre Trempé (Lot x25) iPhone 13..." vend 25 verres d'un coup — pratique pour un
+// professionnel, mais un client qui vient de casser SON écran veut presque toujours une seule pièce.
+// On classe donc les lots après les unités, jamais avant, dans la liste proposée.
+function isBulkPack(title: string): boolean {
+  return /\blot\b/i.test(title);
+}
+
+const MAX_SUGGESTIONS = 3;
+
+// Pour un écran donné (identifié par le nom exact de son modèle, ex: "iPhone 14"), cherche jusqu'à
+// MAX_SUGGESTIONS verres trempés qui correspondent très précisément au même appareil, parmi les
+// protections d'écran de la marque "Accessoires" (voir scripts/reclassify-protection-ecran-by-family.js).
+// Les ventes à l'unité passent toujours avant les lots multiples, puis du moins cher au plus cher.
+// Retourne un tableau vide si aucune correspondance fiable n'existe — on ne devine jamais.
+export async function findScreenProtectorSuggestions(modelName: string): Promise<ScreenProtectorSuggestion[]> {
   const brand = await prisma.brand.findFirst({ where: { name: 'Accessoires' } });
-  if (!brand) return null;
+  if (!brand) return [];
 
   const line = await prisma.productLine.findFirst({ where: { brandId: brand.id, slug: 'protection-ecran' } });
-  if (!line) return null;
+  if (!line) return [];
 
   const candidates = await prisma.product.findMany({
     where: { model: { productLineId: line.id }, showInBoutique: true, inStock: true },
@@ -36,9 +46,19 @@ export async function findScreenProtectorSuggestion(modelName: string): Promise<
   });
 
   const matches = candidates.filter((p) => matchesDeviceModel(p.title, modelName));
-  if (matches.length === 0) return null;
+  if (matches.length === 0) return [];
 
-  matches.sort((a, b) => Number(a.price) - Number(b.price));
-  const best = matches[0];
-  return { id: best.id, slug: best.slug, title: best.title, price: Number(best.price), imageUrl: best.imageUrl };
+  matches.sort((a, b) => {
+    const bulkDiff = Number(isBulkPack(a.title)) - Number(isBulkPack(b.title));
+    if (bulkDiff !== 0) return bulkDiff;
+    return Number(a.price) - Number(b.price);
+  });
+
+  return matches.slice(0, MAX_SUGGESTIONS).map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    price: Number(p.price),
+    imageUrl: p.imageUrl,
+  }));
 }

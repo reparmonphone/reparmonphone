@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { redirectOrNotFound } from '@/lib/pageRedirect';
 import { formatPrice } from '@/lib/format';
 import { PIECE_TYPE_LABELS, withDeliveryMention } from '@/lib/seoText';
-import { findScreenProtectorSuggestion } from '@/lib/screenProtectorSuggestion';
+import { findScreenProtectorSuggestions } from '@/lib/screenProtectorSuggestion';
 import AddToCartButton from './AddToCartButton';
 import ProductGallery from './ProductGallery';
 import RelatedProducts from './RelatedProducts';
@@ -90,11 +90,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
     take: 4,
   });
 
-  // Vente additionnelle : pour un écran, on propose le verre trempé du même modèle exact au moment
-  // de l'ajout au panier (voir AddToCartButton). Uniquement pour les écrans — inutile de le calculer
-  // pour les autres pièces (batterie, connecteur...).
-  const screenProtector =
-    product.pieceType === 'ECRAN' ? await findScreenProtectorSuggestion(product.model.name) : null;
+  // Vente additionnelle : pour un écran, on propose jusqu'à 3 verres trempés du même modèle exact au
+  // moment de l'ajout au panier (voir AddToCartButton) — plusieurs choix plutôt qu'un seul, pour que
+  // le client puisse préférer une unité à un lot de plusieurs verres. Uniquement pour les écrans —
+  // inutile de le calculer pour les autres pièces (batterie, connecteur...).
+  const screenProtectors =
+    product.pieceType === 'ECRAN' ? await findScreenProtectorSuggestions(product.model.name) : [];
 
   const images = product.images && product.images.length > 0
     ? product.images
@@ -187,7 +188,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
                   imageUrl: product.imageUrl,
                 }}
                 disabled={!product.inStock}
-                screenProtector={screenProtector}
+                screenProtectors={screenProtectors}
               />
             </div>
             <ShareButton title={product.title} url={`${SITE_URL}/produit/${product.slug}`} />
