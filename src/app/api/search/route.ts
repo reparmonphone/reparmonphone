@@ -21,6 +21,16 @@ function normalizeModelQuery(s: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
+// Une recherche tapée par un client contient souvent plusieurs mots qui n'apparaissent pas forcément
+// côte à côte, ni dans le même ordre, dans le titre du produit (ex: "verre trempé iphone 14" ne
+// correspond à aucun titre tel quel, car les titres sont plutôt "Verre trempé intégral iPhone 14 Pro
+// ..." — un mot ("intégral") s'intercale). Traiter la requête comme UNE SEULE chaîne à retrouver telle
+// quelle ne remontait donc jamais rien dès que la recherche dépassait un mot. On découpe maintenant la
+// requête en mots et on exige que CHACUN apparaisse quelque part dans le titre (peu importe l'ordre).
+function tokenize(q: string): string[] {
+  return q.split(/\s+/).map((t) => t.trim()).filter(Boolean);
+}
+
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim();
 
@@ -28,22 +38,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ models: [], products: [] });
   }
 
+  const terms = tokenize(q);
+
   const [modelCandidates, productCandidates] = await Promise.all([
     prisma.model.findMany({
-      where: { name: { contains: q, mode: 'insensitive' } },
+      where: { AND: terms.map((t) => ({ name: { contains: t, mode: 'insensitive' } })) },
       include: { productLine: { include: { brand: true } } },
       orderBy: { name: 'asc' },
       take: 40,
     }),
     prisma.product.findMany({
-      where: { title: { contains: q, mode: 'insensitive' } },
+      where: { AND: terms.map((t) => ({ title: { contains: t, mode: 'insensitive' } })) },
       include: { model: { select: { name: true } } },
       orderBy: { title: 'asc' },
       take: 40,
     }),
   ]);
 
-  const models = modelCandidates.filter((m) => matchesWholeWord(m.name, q)).slice(0, 6);
+  const models = modelCandidates.filter((m) => terms.every((t) => matchesWholeWord(m.name, t))).slice(0, 6);
 
   const normQ = normalizeModelQuery(q);
   const exactModelNames = new Set(
@@ -52,7 +64,7 @@ export async function GET(req: NextRequest) {
   const products = (
     exactModelNames.size > 0
       ? productCandidates.filter((p) => exactModelNames.has(p.model.name))
-      : productCandidates.filter((p) => matchesWholeWord(p.title, q))
+      : productCandidates.filter((p) => terms.every((t) => matchesWholeWord(p.title, t)))
   ).slice(0, 6);
 
   return NextResponse.json({

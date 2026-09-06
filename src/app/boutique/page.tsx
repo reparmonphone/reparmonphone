@@ -38,6 +38,14 @@ function normalizeModelQuery(s: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
+// Même correctif que src/app/api/search/route.ts : une recherche à plusieurs mots (ex: "verre trempé
+// iphone 14") ne doit pas être cherchée comme une seule chaîne contiguë — les mots peuvent apparaître
+// dans un ordre différent dans le titre, avec d'autres mots intercalés. On exige que chaque mot de la
+// recherche apparaisse quelque part dans le titre, peu importe l'ordre.
+function tokenize(q: string): string[] {
+  return q.split(/\s+/).map((t) => t.trim()).filter(Boolean);
+}
+
 export async function generateMetadata({ searchParams }: { searchParams: BoutiqueSearchParams }) {
   const hasFilters = !!(searchParams.marque || searchParams.gamme || searchParams.modele || searchParams.type || searchParams.q);
 
@@ -110,19 +118,27 @@ export default async function BoutiquePage({
       // voisins au nom plus long (ex: "iPhone 16" ne doit pas remonter "iPhone 16 Pro Max").
       where.modelId = { in: exactModelIds };
     } else {
-      // Tier 2 : repli sur une recherche texte en mot entier (voir matchesWholeWord ci-dessus).
+      // Tier 2 : repli sur une recherche mot par mot (voir tokenize/matchesWholeWord ci-dessus) —
+      // chaque mot de la recherche doit apparaître quelque part dans le titre ou le nom du modèle,
+      // peu importe l'ordre (ex: "verre trempé iphone 14" doit remonter "Verre trempé intégral
+      // iPhone 14 Pro ...").
+      const terms = tokenize(q);
       const candidates = await prisma.product.findMany({
         where: {
-          OR: [
-            { title: { contains: q, mode: 'insensitive' } },
-            { model: { name: { contains: q, mode: 'insensitive' } } },
-          ],
+          AND: terms.map((t) => ({
+            OR: [
+              { title: { contains: t, mode: 'insensitive' } },
+              { model: { name: { contains: t, mode: 'insensitive' } } },
+            ],
+          })),
         },
         select: { id: true, title: true, model: { select: { name: true } } },
       });
       where.id = {
         in: candidates
-          .filter((p) => matchesWholeWord(p.title, q) || matchesWholeWord(p.model.name, q))
+          .filter((p) =>
+            terms.every((t) => matchesWholeWord(p.title, t) || matchesWholeWord(p.model.name, t))
+          )
           .map((p) => p.id),
       };
     }
