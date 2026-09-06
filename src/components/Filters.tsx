@@ -50,7 +50,7 @@ export default function Filters({
       <select
         className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         value={selectedBrandSlug ?? ''}
-        onChange={(e) => updateParam({ marque: e.target.value || null, gamme: null, modele: null })}
+        onChange={(e) => updateParam({ marque: e.target.value || null, gamme: null, modele: null, page: null })}
       >
         <option value="">Toutes les marques</option>
         {brands.map((b) => (
@@ -62,7 +62,7 @@ export default function Filters({
         className="border border-gray-200 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
         disabled={!selectedBrand}
         value={selectedLineSlug ?? ''}
-        onChange={(e) => updateParam({ gamme: e.target.value || null, modele: null })}
+        onChange={(e) => updateParam({ gamme: e.target.value || null, modele: null, page: null })}
       >
         <option value="">Toutes les gammes</option>
         {filteredLines.map((l) => (
@@ -74,7 +74,7 @@ export default function Filters({
         className="border border-gray-200 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
         disabled={!selectedLine}
         value={params.get('modele') ?? ''}
-        onChange={(e) => updateParam({ modele: e.target.value || null })}
+        onChange={(e) => updateParam({ modele: e.target.value || null, page: null })}
       >
         <option value="">Tous les modèles</option>
         {filteredModels.map((m) => (
@@ -85,7 +85,7 @@ export default function Filters({
       <select
         className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         value={params.get('type') ?? ''}
-        onChange={(e) => updateParam({ type: e.target.value || null })}
+        onChange={(e) => updateParam({ type: e.target.value || null, page: null })}
       >
         <option value="">Toutes les pièces</option>
         {PIECE_TYPES.map((t) => (

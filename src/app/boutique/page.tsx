@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import ProductCard from '@/components/ProductCard';
 import Filters from '@/components/Filters';
@@ -6,7 +7,13 @@ import { getFavoriteProductIds } from '@/app/compte/favoris/actions';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
-type BoutiqueSearchParams = { marque?: string; gamme?: string; modele?: string; type?: string; q?: string };
+type BoutiqueSearchParams = { marque?: string; gamme?: string; modele?: string; type?: string; q?: string; page?: string };
+
+// Nombre de produits affichés par page. Avant l'ajout de la pagination, la page ne montrait jamais
+// que les 60 premiers produits (par ordre alphabétique) d'une catégorie, sans aucun moyen d'accéder
+// aux suivants — invisible pour une petite sélection, mais bloquant pour une gamme qui contient
+// plusieurs centaines de produits (ex: "Accessoires > Protection > iPhone", 247 produits).
+const PAGE_SIZE = 60;
 
 // Une recherche "A52" ne doit matcher que "A52" en tant que référence isolée (ex: dans le titre
 // "... Galaxy A52 4G (A525F) ...", ou le nom de modèle "A52"), pas n'importe quelle référence qui
@@ -121,15 +128,35 @@ export default async function BoutiquePage({
     }
   }
 
+  const totalCount = await prisma.product.count({ where });
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const requestedPage = parseInt(searchParams.page ?? '1', 10);
+  const currentPage = Math.min(Math.max(1, Number.isNaN(requestedPage) ? 1 : requestedPage), totalPages);
+
   const [products, favoriteIds] = await Promise.all([
     prisma.product.findMany({
       where,
       include: { model: { include: { productLine: { include: { brand: true } } } } },
       orderBy: { title: 'asc' },
-      take: 60,
+      skip: (currentPage - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
     getFavoriteProductIds(),
   ]);
+
+  // Construit le lien vers une autre page en conservant tous les filtres actifs (marque, gamme,
+  // modèle, type, recherche) — seul le paramètre "page" change.
+  function buildPageHref(page: number) {
+    const next = new URLSearchParams();
+    if (searchParams.marque) next.set('marque', searchParams.marque);
+    if (searchParams.gamme) next.set('gamme', searchParams.gamme);
+    if (searchParams.modele) next.set('modele', searchParams.modele);
+    if (searchParams.type) next.set('type', searchParams.type);
+    if (searchParams.q) next.set('q', searchParams.q);
+    if (page > 1) next.set('page', String(page));
+    const qs = next.toString();
+    return qs ? `/boutique?${qs}` : '/boutique';
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -160,6 +187,40 @@ export default async function BoutiquePage({
               }}
             />
           ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 mt-10">
+          {currentPage > 1 ? (
+            <Link
+              href={buildPageHref(currentPage - 1)}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50"
+            >
+              ← Précédent
+            </Link>
+          ) : (
+            <span className="px-4 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-300">
+              ← Précédent
+            </span>
+          )}
+
+          <span className="text-sm text-gray-500">
+            Page {currentPage} sur {totalPages} ({totalCount} produits)
+          </span>
+
+          {currentPage < totalPages ? (
+            <Link
+              href={buildPageHref(currentPage + 1)}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50"
+            >
+              Suivant →
+            </Link>
+          ) : (
+            <span className="px-4 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-300">
+              Suivant →
+            </span>
+          )}
         </div>
       )}
     </div>
