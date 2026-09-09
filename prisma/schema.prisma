@@ -309,6 +309,54 @@ model Appointment {
   @@map("appointments")
 }
 
+// ---------- Réparation par correspondance (envoi postal) ----------
+// Le client envoie son appareil par Chronopost, Krys diagnostique et répare, puis ne renvoie
+// l'appareil qu'une fois le paiement reçu (voir sendMailInRepairPaymentLink côté admin) — le prix
+// envoyé au client inclut toujours les frais de renvoi Chronopost, jamais facturés séparément.
+
+enum MailInRepairStatus {
+  REQUESTED        // demande reçue, en attente de réponse
+  AWAITING_DEVICE  // réponse/estimation envoyée, on attend que le client envoie l'appareil
+  DEVICE_RECEIVED  // appareil reçu à l'atelier
+  AWAITING_PAYMENT // diagnostic fait, lien de paiement envoyé au client
+  PAID             // payé — réparation en cours ou terminée, prête à être renvoyée
+  SHIPPED_BACK     // renvoyé au client (voir outboundTrackingNumber)
+  CANCELLED
+}
+
+model MailInRepair {
+  id               String             @id @default(cuid())
+  userId           String? // uuid Supabase Auth si le client était connecté au moment de la demande
+  customerName     String
+  customerEmail    String
+  customerPhone    String
+  deviceBrand      String
+  deviceModel      String
+  issueDescription String             @db.Text
+
+  status           MailInRepairStatus @default(REQUESTED)
+
+  adminReply       String?            @db.Text // dernière réponse libre envoyée au client (estimation, adresse et instructions d'envoi...)
+  repliedAt        DateTime?
+
+  quotedPrice      Decimal?           @db.Decimal(10, 2) // prix final confirmé après diagnostic (pièce + main d'œuvre + renvoi Chronopost inclus)
+  stripeSessionId  String?            @unique
+  stripePaymentIntentId String?
+  paidAt           DateTime?
+
+  inboundTrackingNumber  String? // suivi Chronopost utilisé par le CLIENT pour nous envoyer l'appareil (facultatif, saisi par l'admin)
+  outboundCarrier        ShippingCarrier @default(CHRONOPOST)
+  outboundTrackingNumber String? // suivi du RENVOI, une fois payé et réparé
+
+  adminNote        String?            @db.Text // note interne, jamais visible du client
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("mail_in_repairs")
+}
+
 // ---------- Zones de livraison / déplacement à supplément ----------
 // Sainte-Maxime = zone de base (gratuit)
 // Saint-Tropez, Grimaud, Cogolin, La Croix-Valmer, Gassin, Plan-de-la-Tour, Les Issambres = +30€

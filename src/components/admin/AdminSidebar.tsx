@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import LogoutButton from './LogoutButton';
 
-type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' | 'claims' };
+type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' | 'claims' | 'mailInRepairs' };
 
 const NAV: NavItem[] = [
   { href: '/admin', label: '📊 Tableau de bord', exact: true },
@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { href: '/admin/statistiques', label: '📈 Statistiques' },
   { href: '/admin/seo', label: '🔍 SEO & Référencement' },
   { href: '/admin/rdv', label: '📅 Rendez-vous', badgeKey: 'appointments' },
+  { href: '/admin/reparation-a-distance', label: '📮 Réparation par correspondance', badgeKey: 'mailInRepairs' },
   { href: '/admin/utilisateurs', label: '👥 Utilisateurs' },
   { href: '/admin/messages', label: '✉️ Messages de contact', badgeKey: 'messages' },
   { href: '/admin/pages', label: '📄 Pages de contenu' },
@@ -43,11 +44,12 @@ export default async function AdminSidebar() {
   // (paiement non terminé, relancé automatiquement par email) et pas à une vraie commande reçue :
   // avec "PENDING" ici, le badge ne s'allumait quasiment jamais pour une commande réellement payée,
   // ce qui donnait l'impression qu'aucune notification n'apparaissait pour les nouvelles commandes.
-  const [newOrders, requestedAppointments, unhandledMessages, openClaims] = await Promise.all([
+  const [newOrders, requestedAppointments, unhandledMessages, openClaims, newMailInRepairs] = await Promise.all([
     prisma.order.count({ where: { status: 'PAID' } }),
     prisma.appointment.count({ where: { status: 'REQUESTED' } }),
     prisma.contactMessage.count({ where: { handled: false } }),
     prisma.claim.count({ where: { status: 'OPEN' } }),
+    prisma.mailInRepair.count({ where: { status: 'REQUESTED' } }),
   ]);
 
   const badgeCounts: Record<string, number> = {
@@ -55,6 +57,7 @@ export default async function AdminSidebar() {
     appointments: requestedAppointments,
     messages: unhandledMessages,
     claims: openClaims,
+    mailInRepairs: newMailInRepairs,
   };
 
   return (

@@ -34,12 +34,15 @@ export default async function HomePage() {
             <span className="whitespace-nowrap">24h</span> partout en{' '}
             <span className="whitespace-nowrap">France métropolitaine</span>.
           </p>
-          <div className="mt-8 flex justify-center gap-4">
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link href="/boutique" className="bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark transition">
               🛒 Acheter une pièce
             </Link>
             <Link href="/rdv" className="bg-white border border-brand text-brand px-6 py-3 rounded-lg font-semibold hover:bg-brand-light transition">
               🔧 Prendre RDV réparation
+            </Link>
+            <Link href="/reparation-a-distance" className="bg-white border border-brand text-brand px-6 py-3 rounded-lg font-semibold hover:bg-brand-light transition">
+              📮 Réparation par correspondance
             </Link>
           </div>
         </div>

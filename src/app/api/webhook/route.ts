@@ -21,6 +21,71 @@ export async function POST(req: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
 
+    // Réparation par correspondance : on ne renvoie l'appareil qu'une fois ce paiement confirmé —
+    // c'est ce webhook qui fait foi, jamais la page de succès affichée au client.
+    const mailInRepairId = session.metadata?.mailInRepairId;
+    if (mailInRepairId) {
+      const existingRepair = await prisma.mailInRepair.findUnique({
+        where: { id: mailInRepairId },
+        select: { status: true },
+      });
+      const wasAlreadyPaid = existingRepair?.status === 'PAID' || existingRepair?.status === 'SHIPPED_BACK';
+
+      if (!wasAlreadyPaid) {
+        const repair = await prisma.mailInRepair.update({
+          where: { id: mailInRepairId },
+          data: {
+            status: 'PAID',
+            paidAt: new Date(),
+            stripePaymentIntentId: (session.payment_intent as string) ?? undefined,
+          },
+        });
+
+        const resend = getResendClient();
+        if (resend) {
+          try {
+            await resend.emails.send({
+              from: process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>',
+              to: repair.customerEmail,
+              subject: `Paiement confirmé — votre appareil part en Chronopost 24h`,
+              html: `
+                <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto;">
+                  <div style="background:#16a34a; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+                    <h1 style="color:#ffffff; font-size: 20px; margin: 0;">Paiement reçu ✅</h1>
+                  </div>
+                  <div style="background:#ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; padding: 24px;">
+                    <p style="color:#374151; font-size: 14px; line-height: 1.6;">
+                      Bonjour ${repair.customerName}, votre paiement a bien été reçu. Votre
+                      <strong>${repair.deviceBrand} ${repair.deviceModel}</strong> réparé part en
+                      Chronopost 24h — vous recevrez le numéro de suivi dès l'expédition.
+                    </p>
+                  </div>
+                </div>
+              `,
+            });
+          } catch (e) {
+            console.error("Erreur lors de l'envoi de la confirmation de paiement (réparation par correspondance)", e);
+          }
+        }
+
+        try {
+          const resendAdmin = getResendClient();
+          if (resendAdmin) {
+            await resendAdmin.emails.send({
+              from: process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>',
+              to: 'contact@reparmonphone.fr',
+              subject: `💳 Paiement reçu — à renvoyer en Chronopost — ${repair.customerName}`,
+              html: `<p>${repair.customerName} vient de payer ${Number(repair.quotedPrice ?? 0).toFixed(2)}€ pour la réparation de son ${repair.deviceBrand} ${repair.deviceModel}. À renvoyer en Chronopost 24h.</p><p><a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr'}/admin/reparation-a-distance/${repair.id}">Voir la demande</a></p>`,
+            });
+          }
+        } catch (e) {
+          console.error("Erreur lors de la notification admin de paiement (réparation par correspondance)", e);
+        }
+      }
+
+      return NextResponse.json({ received: true });
+    }
+
     const orderId = session.metadata?.orderId;
     const shippingAddress = session.shipping_details?.address ?? session.customer_details?.address;
     const shippingName = session.shipping_details?.name ?? session.customer_details?.name;
