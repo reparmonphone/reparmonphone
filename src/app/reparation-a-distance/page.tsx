@@ -2,9 +2,9 @@ import RepairByMailForm from './RepairByMailForm';
 import JsonLd from '@/components/JsonLd';
 
 export const metadata = {
-  title: 'Réparation de téléphone par correspondance — Chronopost ou Colissimo | ReparMonPhone',
+  title: 'Réparation de téléphone à distance / par correspondance — Chronopost, Colissimo | ReparMonPhone',
   description:
-    "Pas de réparateur près de chez vous ? Envoyez votre téléphone par Chronopost ou Colissimo recommandé, on le répare et on vous le renvoie sous 24h après réparation. Devis gratuit, paiement uniquement après diagnostic.",
+    "Pas de réparateur près de chez vous ? Faites réparer votre téléphone à distance, par correspondance : envoyez-le par Chronopost ou Colissimo recommandé, on le répare à Sainte-Maxime et on vous le renvoie sous 24h. Devis gratuit, paiement uniquement après diagnostic.",
   alternates: { canonical: 'https://www.reparmonphone.fr/reparation-a-distance' },
 };
 
@@ -37,6 +37,10 @@ const STEPS = [
 ];
 
 const FAQ = [
+  {
+    q: 'Qu\'est-ce que la réparation de téléphone par correspondance ?',
+    a: 'C\'est un service qui permet de faire réparer son smartphone ou sa tablette sans se déplacer : vous décrivez la panne en ligne, vous envoyez l\'appareil par Chronopost ou Colissimo recommandé à notre atelier de Sainte-Maxime, et vous le récupérez réparé chez vous en Chronopost 24h. On parle aussi de "réparation à distance" ou "réparation par courrier".',
+  },
   {
     q: "Dans quelle ville dois-je habiter pour utiliser ce service ?",
     a: "Aucune ! C'est justement l'intérêt de la réparation par correspondance : que vous soyez à côté de Sainte-Maxime ou à l'autre bout de la France métropolitaine, vous nous envoyez votre appareil par Chronopost ou Colissimo recommandé et on vous le renvoie réparé, sans avoir à trouver un réparateur près de chez vous.",
@@ -73,10 +77,45 @@ const faqSchema = {
   })),
 };
 
+// Service dédié (distinct du ElectronicsStore local défini dans layout.tsx) : signale explicitement
+// à Google que cette prestation précise est disponible sur toute la France, pas seulement autour de
+// Sainte-Maxime — important car le reste du site cible surtout une zone géographique locale.
+const serviceSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Service',
+  serviceType: 'Réparation de téléphone et tablette par correspondance',
+  name: 'Réparation de téléphone par correspondance (à distance)',
+  description:
+    "Envoi du smartphone ou de la tablette par Chronopost ou Colissimo recommandé, diagnostic et réparation à l'atelier de Sainte-Maxime, puis renvoi en Chronopost 24h, partout en France métropolitaine.",
+  provider: {
+    '@type': 'ElectronicsStore',
+    name: 'ReparMonPhone',
+    url: 'https://www.reparmonphone.fr',
+  },
+  areaServed: { '@type': 'Country', name: 'France' },
+  url: 'https://www.reparmonphone.fr/reparation-a-distance',
+};
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://www.reparmonphone.fr' },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Réparation par correspondance',
+      item: 'https://www.reparmonphone.fr/reparation-a-distance',
+    },
+  ],
+};
+
 export default function ReparationADistancePage() {
   return (
     <div>
       <JsonLd data={faqSchema} />
+      <JsonLd data={serviceSchema} />
+      <JsonLd data={breadcrumbSchema} />
 
       <section className="bg-gradient-to-b from-brand-light to-white py-14">
         <div className="max-w-4xl mx-auto px-4 text-center">

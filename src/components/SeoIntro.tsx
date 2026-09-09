@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function SeoIntro() {
   return (
     <section className="max-w-6xl mx-auto px-4 py-10">
@@ -38,6 +40,25 @@ export default function SeoIntro() {
             <strong>atelier ou à domicile</strong>, avec un <strong>service de prise de rendez-vous en ligne</strong>{' '}
             rapide et simple. Grâce à notre <strong>expérience de 30 ans</strong>, nous garantissons des{' '}
             <strong>interventions fiables, rapides et au meilleur prix</strong>.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            📮 Réparation De Téléphone Par Correspondance – Partout En France
+          </h2>
+          <p className="mt-2 text-gray-600 leading-relaxed">
+            Pas de réparateur de confiance près de chez vous ? Notre service de{' '}
+            <strong>réparation de téléphone par correspondance</strong>, aussi appelée{' '}
+            <strong>réparation à distance</strong>, vous permet d&apos;envoyer votre{' '}
+            <strong>smartphone ou tablette</strong> par <strong>Chronopost ou Colissimo recommandé</strong>,
+            où que vous soyez en <strong>France métropolitaine</strong>. Notre atelier de Sainte-Maxime le
+            répare puis vous le renvoie en <strong>Chronopost 24h</strong>, frais de retour toujours
+            inclus dans le devis.{' '}
+            <Link href="/reparation-a-distance" className="underline text-brand font-medium">
+              Découvrir la réparation par correspondance
+            </Link>
+            .
           </p>
         </div>
       </div>

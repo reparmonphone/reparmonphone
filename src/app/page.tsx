@@ -30,9 +30,10 @@ export default async function HomePage() {
           <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
             Apple, Samsung, Huawei, Xiaomi et plus : réparation en atelier à{' '}
             <span className="whitespace-nowrap">Sainte-Maxime</span>, à domicile dans tout le Golfe de{' '}
-            <span className="whitespace-nowrap">Saint-Tropez</span>, ou pièce livrée chez vous en{' '}
-            <span className="whitespace-nowrap">24h</span> partout en{' '}
-            <span className="whitespace-nowrap">France métropolitaine</span>.
+            <span className="whitespace-nowrap">Saint-Tropez</span>, ou par correspondance partout en{' '}
+            <span className="whitespace-nowrap">France métropolitaine</span>. Besoin d&apos;une pièce
+            seule ? Livraison en <span className="whitespace-nowrap">24h</span> par Chronopost, France
+            entière.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link href="/boutique" className="bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark transition">

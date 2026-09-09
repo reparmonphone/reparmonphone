@@ -23,6 +23,7 @@ export async function GET() {
 - Marques couvertes : Apple (iPhone, iPad, Apple Watch, AirPods), Samsung (Galaxy A/J/M/Note/S/Z), Huawei, Xiaomi.
 - Outils et consommables de réparation : colle, produit de désoxydation, pinces, outils d'ouverture, outils de programmation, tournevis.
 - Service de réparation en atelier ou à domicile dans le Golfe de Saint-Tropez (Sainte-Maxime, Saint-Tropez, et communes environnantes du Var).
+- Réparation de téléphone et tablette par correspondance (aussi appelée réparation à distance) : disponible depuis n'importe où en France métropolitaine. Le client envoie l'appareil par Chronopost ou Colissimo recommandé, l'atelier de Sainte-Maxime le répare, puis le renvoie en Chronopost 24h, frais de retour inclus dans le devis.
 - Livraison Chronopost 24h disponible sur la France entière pour l'achat de pièces détachées seules.
 
 ## Coordonnées
@@ -40,6 +41,7 @@ ${avgRatingAgg._count.rating > 0 ? `- Note moyenne des avis clients vérifiés :
 
 - Boutique complète : https://www.reparmonphone.fr/boutique
 - Prise de rendez-vous réparation (atelier ou domicile) : https://www.reparmonphone.fr/rdv
+- Réparation par correspondance / à distance (France entière) : https://www.reparmonphone.fr/reparation-a-distance
 - Zones de déplacement à domicile et tarifs : voir page d'accueil, section "Zones desservies"
 - Contact : https://www.reparmonphone.fr/contact
 
