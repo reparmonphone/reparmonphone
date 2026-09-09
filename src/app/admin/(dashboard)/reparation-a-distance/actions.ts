@@ -217,3 +217,15 @@ export async function updateMailInRepairLogistics(
   revalidatePath(`/admin/reparation-a-distance/${repairId}`);
   revalidatePath('/admin/reparation-a-distance');
 }
+
+// Photos de l'appareil RÉPARÉ, ajoutées par l'admin avant le renvoi — visibles du client sur ses
+// pages de suivi (public et espace compte). Remplace la liste entière (comme les autres champs de
+// ce fichier) : c'est PhotoUploader qui gère l'ajout/retrait côté client avant l'enregistrement.
+export async function updateMailInRepairPhotos(repairId: string, repairedPhotos: string[]) {
+  await requireAdminUser();
+  await prisma.mailInRepair.update({ where: { id: repairId }, data: { repairedPhotos } });
+  revalidatePath(`/admin/reparation-a-distance/${repairId}`);
+  revalidatePath('/admin/reparation-a-distance');
+  revalidatePath('/reparation-a-distance/suivi/[id]', 'page');
+  revalidatePath('/compte/reparation-a-distance/[id]', 'page');
+}

@@ -5,6 +5,7 @@ import MailInRepairStatusSelect from '../MailInRepairStatusSelect';
 import MailInRepairReplyForm from './MailInRepairReplyForm';
 import MailInRepairPaymentForm from './MailInRepairPaymentForm';
 import MailInRepairLogisticsForm from './MailInRepairLogisticsForm';
+import MailInRepairPhotosForm from './MailInRepairPhotosForm';
 
 export default async function AdminMailInRepairDetailPage({ params }: { params: { id: string } }) {
   const repair = await prisma.mailInRepair.findUnique({ where: { id: params.id } });
@@ -50,6 +51,19 @@ export default async function AdminMailInRepairDetailPage({ params }: { params: 
           </p>
         </div>
 
+        {repair.clientPhotos.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs text-gray-400 mb-1">Photos jointes par le client</p>
+            <div className="flex flex-wrap gap-2">
+              {repair.clientPhotos.map((url) => (
+                <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                  <img src={url} alt="" className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mb-4">
           <p className="text-xs text-gray-400 mb-1">Statut</p>
           <MailInRepairStatusSelect repairId={repair.id} currentStatus={repair.status} />
@@ -85,6 +99,8 @@ export default async function AdminMailInRepairDetailPage({ params }: { params: 
         initialOutboundCarrier={repair.outboundCarrier}
         initialAdminNote={repair.adminNote}
       />
+
+      <MailInRepairPhotosForm repairId={repair.id} initialPhotos={repair.repairedPhotos} />
     </div>
   );
 }

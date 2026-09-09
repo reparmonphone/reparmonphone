@@ -61,12 +61,24 @@ export default async function AdminSidebar() {
   };
 
   return (
-    <aside className="w-64 shrink-0 bg-gray-900 text-gray-200 min-h-screen flex flex-col">
-      <div className="p-5 border-b border-gray-800">
-        <Link href="/" className="font-bold text-white">
-          📲 ReparMonPhone
-        </Link>
-        <p className="text-xs text-gray-400 mt-0.5">Administration</p>
+    // Sur mobile/tablette (< lg), la sidebar est un tiroir hors écran par défaut, ouvert via la
+    // case à cocher #admin-nav-toggle (voir layout.tsx — bouton ☰ + overlay), sans JS : juste du CSS
+    // (peer-checked). Sur desktop (≥ lg), elle redevient statique et toujours visible comme avant.
+    <aside className="w-72 max-w-[85vw] shrink-0 bg-gray-900 text-gray-200 min-h-screen flex flex-col fixed inset-y-0 left-0 z-40 -translate-x-full peer-checked:translate-x-0 transition-transform duration-200 lg:translate-x-0 lg:static lg:w-64 overflow-y-auto">
+      <div className="p-5 border-b border-gray-800 flex items-center justify-between">
+        <div>
+          <Link href="/" className="font-bold text-white">
+            📲 ReparMonPhone
+          </Link>
+          <p className="text-xs text-gray-400 mt-0.5">Administration</p>
+        </div>
+        <label
+          htmlFor="admin-nav-toggle"
+          className="lg:hidden text-gray-400 hover:text-white text-xl leading-none cursor-pointer px-1"
+          aria-label="Fermer le menu"
+        >
+          ✕
+        </label>
       </div>
 
       <nav className="flex-1 p-3 space-y-1">

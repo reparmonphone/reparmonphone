@@ -70,6 +70,19 @@ export default async function MonReparationADistanceDetailPage({ params }: { par
         </p>
       )}
 
+      {repair.repairedPhotos.length > 0 && (
+        <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-green-800 mb-2">📸 Ton appareil réparé</p>
+          <div className="flex flex-wrap gap-2">
+            {repair.repairedPhotos.map((url) => (
+              <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                <img src={url} alt="" className="w-24 h-24 object-cover rounded-lg border border-green-200 hover:opacity-80 transition" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {repair.repliedAt && repair.status !== 'CANCELLED' && repair.status !== 'SHIPPED_BACK' && (
         <div className="mt-6">
           <p className="text-xs text-gray-400 mb-2">

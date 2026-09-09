@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import PhotoUploader from '@/components/PhotoUploader';
 
 export default function RepairByMailForm() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -19,6 +21,7 @@ export default function RepairByMailForm() {
       deviceBrand: form.get('deviceBrand'),
       deviceModel: form.get('deviceModel'),
       issueDescription: form.get('issueDescription'),
+      clientPhotos: photos,
     };
     try {
       const res = await fetch('/api/reparation-a-distance', {
@@ -78,6 +81,13 @@ export default function RepairByMailForm() {
         placeholder="Décrivez la panne (écran cassé, batterie qui ne tient plus, ne s'allume plus...)"
         rows={4}
         className="w-full border border-gray-200 rounded-lg px-3 py-2"
+      />
+
+      <PhotoUploader
+        value={photos}
+        onChange={setPhotos}
+        uploadUrl="/api/reparation-a-distance/upload-photo"
+        label="Photos de l'état de l'appareil (facultatif, recommandé pour un écran fissuré par exemple)"
       />
 
       {error && <p className="text-red-600 text-sm">{error}</p>}

@@ -333,6 +333,7 @@ model MailInRepair {
   deviceBrand      String
   deviceModel      String
   issueDescription String             @db.Text
+  clientPhotos     String[]           @default([]) // photos de l'état de l'appareil jointes par le CLIENT à la demande initiale
 
   status           MailInRepairStatus @default(REQUESTED)
 
@@ -348,6 +349,7 @@ model MailInRepair {
   inboundTrackingNumber  String? // suivi utilisé par le CLIENT pour nous envoyer l'appareil (facultatif, saisi par le client ou l'admin)
   outboundCarrier        ShippingCarrier @default(CHRONOPOST)
   outboundTrackingNumber String? // suivi du RENVOI, une fois payé et réparé
+  repairedPhotos          String[]        @default([]) // photos de l'appareil RÉPARÉ ajoutées par l'ADMIN avant renvoi — visibles du client
 
   adminNote        String?            @db.Text // note interne, jamais visible du client
 

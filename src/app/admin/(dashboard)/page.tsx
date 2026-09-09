@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
 
 export default async function AdminDashboardPage() {
-  const [productsCount, outOfStockCount, pendingOrders, newPaidOrders, pendingAppointments, unhandledMessages, revenueAgg] =
+  const [productsCount, outOfStockCount, pendingOrders, newPaidOrders, pendingAppointments, unhandledMessages, revenueAgg, mailInRepairRevenueAgg] =
     await Promise.all([
       prisma.product.count(),
       prisma.product.count({ where: { inStock: false } }),
@@ -18,12 +18,21 @@ export default async function AdminDashboardPage() {
         where: { status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] } },
         _sum: { total: true },
       }),
+      // Chiffre d'affaires réparation par correspondance : on se base sur paidAt (paiement Stripe
+      // confirmé) plutôt que sur le statut, pour rester correct même si une demande est ANNULÉE après
+      // avoir été payée (cas rare mais le paiement reste bien encaissé).
+      prisma.mailInRepair.aggregate({
+        where: { paidAt: { not: null } },
+        _sum: { quotedPrice: true },
+      }),
     ]);
 
   const totalRevenue = Number(revenueAgg._sum.total ?? 0);
+  const mailInRepairRevenue = Number(mailInRepairRevenueAgg._sum.quotedPrice ?? 0);
 
   const cards = [
     { label: 'Chiffre d\'affaires total', value: formatPrice(totalRevenue), href: '/admin/statistiques', accent: 'bg-green-50 text-green-700' },
+    { label: 'CA réparation à distance', value: formatPrice(mailInRepairRevenue), href: '/admin/reparation-a-distance', accent: 'bg-green-50 text-green-700' },
     { label: 'Produits au catalogue', value: productsCount, href: '/admin/produits', accent: 'bg-blue-50 text-blue-700' },
     { label: 'Ruptures de stock', value: outOfStockCount, href: '/admin/produits?stock=rupture', accent: 'bg-red-50 text-red-700' },
     { label: 'Commandes payées à traiter', value: newPaidOrders, href: '/admin/commandes?statut=PAID', accent: 'bg-blue-50 text-blue-700' },

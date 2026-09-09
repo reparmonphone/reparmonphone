@@ -11,6 +11,7 @@ const schema = z.object({
   deviceBrand: z.string().min(1),
   deviceModel: z.string().min(1),
   issueDescription: z.string().min(5),
+  clientPhotos: z.array(z.string().url()).max(6).optional(),
 });
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
