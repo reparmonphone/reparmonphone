@@ -52,7 +52,10 @@ export default function MailInRepairLogisticsForm({
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Suivi Chronopost — envoi du client (aller)</label>
+            <label className="block text-xs text-gray-500 mb-1">
+              Suivi Chronopost — envoi du client (aller) — peut être rempli automatiquement par le
+              client via son lien de suivi
+            </label>
             <input
               type="text"
               value={inbound}

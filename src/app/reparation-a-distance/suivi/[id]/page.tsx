@@ -1,0 +1,59 @@
+import { notFound } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import TrackingSubmitForm from './TrackingSubmitForm';
+import type { MailInRepairStatus } from '@prisma/client';
+
+export const metadata = {
+  title: 'Renseigner mon numéro de suivi — Réparation par correspondance | ReparMonPhone',
+  robots: { index: false },
+};
+
+const STATUS_LABELS: Record<MailInRepairStatus, string> = {
+  REQUESTED: 'Demande reçue, en attente de validation',
+  AWAITING_DEVICE: "En attente de réception de votre appareil",
+  DEVICE_RECEIVED: 'Appareil reçu, diagnostic en cours',
+  AWAITING_PAYMENT: 'Diagnostic terminé, en attente de votre paiement',
+  PAID: 'Paiement reçu, appareil en préparation pour le renvoi',
+  SHIPPED_BACK: 'Votre appareil réparé est en route',
+  CANCELLED: 'Demande annulée',
+};
+
+export default async function SuiviMailInRepairPage({ params }: { params: { id: string } }) {
+  const repair = await prisma.mailInRepair.findUnique({ where: { id: params.id } });
+  if (!repair) notFound();
+
+  // Par sécurité : ce lien n'est censé être envoyé qu'une fois la demande validée (adresse
+  // communiquée). S'il est ouvert avant, on affiche un message d'attente plutôt que le formulaire.
+  if (!repair.repliedAt) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center">
+        <div className="text-5xl mb-4">⏳</div>
+        <h1 className="text-2xl font-bold mb-3">Demande pas encore validée</h1>
+        <p className="text-gray-600">
+          Votre demande concernant votre <strong>{repair.deviceBrand} {repair.deviceModel}</strong> est
+          en cours de traitement. Vous recevrez un email avec l'adresse d'envoi et ce lien dès qu'elle
+          sera validée — pas besoin d'agir pour le moment.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-12">
+      <div className="text-center mb-8">
+        <h1 className="text-2xl font-bold mb-2">Suivi de votre réparation</h1>
+        <p className="text-gray-500">{repair.deviceBrand} {repair.deviceModel}</p>
+        <p className="mt-2 inline-block bg-brand-light text-brand text-sm font-medium px-3 py-1 rounded-full">
+          {STATUS_LABELS[repair.status]}
+        </p>
+      </div>
+
+      <TrackingSubmitForm repairId={repair.id} initialTrackingNumber={repair.inboundTrackingNumber} />
+
+      <p className="text-xs text-gray-400 text-center mt-6">
+        Une fois votre appareil réceptionné, on met à jour votre statut ci-dessus. Une question ?
+        Appelez-nous au <a href="tel:+33783497262" className="text-brand hover:underline">07 83 49 72 62</a>.
+      </p>
+    </div>
+  );
+}

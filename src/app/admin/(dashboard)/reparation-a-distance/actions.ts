@@ -63,6 +63,18 @@ export async function sendMailInRepairReply(repairId: string, replyMessage: stri
               <p style="color:#6b7280; font-size: 13px; margin-top: 20px;">
                 Rappel de votre demande initiale : <strong>${repair.deviceBrand} ${repair.deviceModel}</strong>.
               </p>
+              <div style="background:#eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin: 20px 0;">
+                <p style="color:#1e3a8a; font-size: 14px; line-height: 1.6; margin:0 0 10px; font-weight:600;">
+                  📦 Une fois votre appareil envoyé
+                </p>
+                <p style="color:#1e40af; font-size: 13px; line-height: 1.6; margin:0 0 12px;">
+                  Renseignez-nous votre numéro de suivi Chronopost via ce lien, pour qu'on sache que votre
+                  colis est en route :
+                </p>
+                <div style="text-align:center;">
+                  <a href="${SITE_URL}/reparation-a-distance/suivi/${repair.id}" style="display:inline-block; background:#1e3a8a; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Indiquer mon numéro de suivi</a>
+                </div>
+              </div>
               <p style="color:#374151; font-size: 14px; margin-top: 20px;">
                 Vous pouvez répondre directement à cet email si vous avez une question.
               </p>

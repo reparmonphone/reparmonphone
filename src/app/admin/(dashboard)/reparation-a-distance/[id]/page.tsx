@@ -50,9 +50,19 @@ export default async function AdminMailInRepairDetailPage({ params }: { params: 
           </p>
         </div>
 
-        <div>
+        <div className="mb-4">
           <p className="text-xs text-gray-400 mb-1">Statut</p>
           <MailInRepairStatusSelect repairId={repair.id} currentStatus={repair.status} />
+        </div>
+
+        <div>
+          <p className="text-xs text-gray-400 mb-1">
+            Lien de suivi client (envoyé automatiquement dans l'email de réponse ci-dessous — utile à
+            renvoyer manuellement si besoin)
+          </p>
+          <p className="text-sm text-brand break-all bg-gray-50 rounded-lg px-3 py-2">
+            {`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr'}/reparation-a-distance/suivi/${repair.id}`}
+          </p>
         </div>
       </div>
 
