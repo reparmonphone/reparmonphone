@@ -1,34 +1,18 @@
 import { prisma } from '@/lib/prisma';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
 import ProductStars from '@/components/ProductStars';
-import ProductReviewForm from '@/components/ProductReviewForm';
 import { firstNameOnly } from '@/lib/displayName';
+import ReviewFormGate from './ReviewFormGate';
 
+// Composant serveur volontairement gardé sans dépendance à la session (cookies) : la liste d'avis
+// est publique et doit rester mise en cache avec le reste de la fiche produit. La partie qui dépend
+// de qui est connecté (peut-on laisser un avis ?) est déléguée à <ReviewFormGate>, qui la charge
+// côté navigateur — voir ReviewFormGate.tsx.
 export default async function ProductReviewsSection({ productId }: { productId: string }) {
   const reviews = await prisma.productReview.findMany({
     where: { productId },
     orderBy: { createdAt: 'desc' },
     take: 30,
   });
-
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let canReview = false;
-  let alreadyReviewed = false;
-
-  if (user) {
-    const [hasPurchased, existingReview] = await Promise.all([
-      prisma.orderItem.findFirst({
-        where: { productId, order: { userId: user.id, status: 'DELIVERED' } },
-      }),
-      prisma.productReview.findFirst({ where: { productId, userId: user.id } }),
-    ]);
-    canReview = !!hasPurchased;
-    alreadyReviewed = !!existingReview;
-  }
 
   return (
     <div>
@@ -61,17 +45,7 @@ export default async function ProductReviewsSection({ productId }: { productId: 
         </div>
       )}
 
-      {user && canReview && !alreadyReviewed && <ProductReviewForm productId={productId} />}
-      {user && !canReview && (
-        <p className="text-sm text-gray-400">
-          Tu pourras laisser un avis une fois ta commande de ce produit marquée comme livrée.
-        </p>
-      )}
-      {!user && (
-        <p className="text-sm text-gray-400">
-          Connecte-toi avec le compte utilisé pour ta commande pour laisser un avis sur ce produit.
-        </p>
-      )}
+      <ReviewFormGate productId={productId} />
     </div>
   );
 }

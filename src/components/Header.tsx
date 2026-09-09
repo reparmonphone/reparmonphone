@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,17 @@ type ProductLine = { id: string; name: string; slug: string; models: Model[] };
 type Brand = { id: string; name: string; slug: string; lines: ProductLine[] };
 type CurrentUser = { email: string; firstName: string; avatarUrl: string | null } | null;
 type MenuItem = { id: string; label: string; href: string; openInNewTab: boolean };
+
+// Construit le CurrentUser affiché dans le menu à partir de l'utilisateur Supabase brut — même
+// mapping que faisait auparavant getCurrentUser() côté serveur dans layout.tsx.
+function toCurrentUser(user: { email?: string; user_metadata?: Record<string, unknown> } | null): CurrentUser {
+  if (!user) return null;
+  return {
+    email: user.email ?? '',
+    firstName: (user.user_metadata?.first_name as string | undefined) ?? '',
+    avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
+  };
+}
 
 const BRAND_ORDER = ['Apple', 'Samsung', 'Huawei', 'Xiaomi'];
 
@@ -33,19 +44,35 @@ function sortBrands(brands: Brand[]) {
 export default function Header({
   menuTree,
   menuItems,
-  user,
 }: {
   menuTree: Brand[];
   menuItems: MenuItem[];
-  user: CurrentUser;
 }) {
   const router = useRouter();
   const totalItems = useCart((s) => s.totalItems());
   const [openBrand, setOpenBrand] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [user, setUser] = useState<CurrentUser>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const brands = sortBrands(menuTree);
+
+  // La session est lue côté navigateur (et non plus dans layout.tsx côté serveur) pour que les
+  // pages restent cacheables — voir le commentaire dans layout.tsx. getSession() lit la session déjà
+  // stockée localement (rapide, pas d'appel réseau) ; onAuthStateChange garde le menu à jour tout de
+  // suite après une connexion/déconnexion, sans recharger la page.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(toCurrentUser(session?.user ?? null));
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(toCurrentUser(session?.user ?? null));
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   function openBrandMenu(id: string) {
     if (closeTimer.current) {

@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import ProductCard from '@/components/ProductCard';
 import Filters from '@/components/Filters';
 import type { PieceType } from '@prisma/client';
-import { getFavoriteProductIds } from '@/app/compte/favoris/actions';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
@@ -149,16 +148,16 @@ export default async function BoutiquePage({
   const requestedPage = parseInt(searchParams.page ?? '1', 10);
   const currentPage = Math.min(Math.max(1, Number.isNaN(requestedPage) ? 1 : requestedPage), totalPages);
 
-  const [products, favoriteIds] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      include: { model: { include: { productLine: { include: { brand: true } } } } },
-      orderBy: { title: 'asc' },
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    getFavoriteProductIds(),
-  ]);
+  // Le statut favori est chargé côté navigateur par <FavoriteButton> (voir /api/favoris), plus ici —
+  // même raison que sur la fiche produit : ça évitait un aller-retour cookie/DB inutile à chaque
+  // affichage de la grille boutique.
+  const products = await prisma.product.findMany({
+    where,
+    include: { model: { include: { productLine: { include: { brand: true } } } } },
+    orderBy: { title: 'asc' },
+    skip: (currentPage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
 
   // Construit le lien vers une autre page en conservant tous les filtres actifs (marque, gamme,
   // modèle, type, recherche) — seul le paramètre "page" change.
@@ -188,7 +187,6 @@ export default async function BoutiquePage({
           {products.map((p) => (
             <ProductCard
               key={p.id}
-              favorited={favoriteIds.includes(p.id)}
               product={{
                 id: p.id,
                 slug: p.slug,

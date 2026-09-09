@@ -23,7 +23,6 @@ export default async function FavorisPage() {
             <div key={product.id} className="bg-white border border-gray-100 rounded-xl overflow-hidden relative">
               <FavoriteButton
                 productId={product.id}
-                initialFavorited
                 className="absolute top-2 right-2 z-10 bg-white/90 rounded-full p-1.5 shadow"
               />
               <Link href={`/produit/${product.slug}`}>

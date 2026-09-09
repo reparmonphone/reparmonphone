@@ -1,21 +1,30 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toggleFavorite } from '@/app/compte/favoris/actions';
+import { useFavorites } from '@/store/favorites';
 
 export default function FavoriteButton({
   productId,
-  initialFavorited,
   className = '',
 }: {
   productId: string;
-  initialFavorited: boolean;
   className?: string;
 }) {
-  const [favorited, setFavorited] = useState(initialFavorited);
+  // L'état favori/non-favori vient d'un store client partagé (chargé une seule fois via
+  // /api/favoris) plutôt que d'une prop calculée côté serveur — ce qui permet à cette fiche produit
+  // (et à la grille boutique) de rester en cache au lieu d'être régénérées à chaque visite.
+  const load = useFavorites((s) => s.load);
+  const loaded = useFavorites((s) => s.loaded);
+  const favorited = useFavorites((s) => s.isFavorited(productId));
+  const setFavorited = useFavorites((s) => s.setFavorited);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function handleClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -23,17 +32,17 @@ export default function FavoriteButton({
 
     // Optimiste : on bascule l'affichage immédiatement, on annule si le serveur refuse
     const next = !favorited;
-    setFavorited(next);
+    setFavorited(productId, next);
 
     startTransition(async () => {
       const result = await toggleFavorite(productId);
       if ('error' in result && result.error === 'NOT_LOGGED_IN') {
-        setFavorited(!next); // on annule le changement optimiste
+        setFavorited(productId, !next); // on annule le changement optimiste
         router.push('/compte/connexion');
         return;
       }
       if ('favorited' in result) {
-        setFavorited(result.favorited);
+        setFavorited(productId, result.favorited);
       }
     });
   }

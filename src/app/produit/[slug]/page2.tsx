@@ -107,7 +107,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
             <span className="text-sm text-gray-400">
               {product.model.productLine.brand.name} / {product.model.productLine.name} / {product.model.name}
             </span>
-            <FavoriteButton productId={product.id} initialFavorited={favoriteIds.includes(product.id)} />
+            <FavoriteButton productId={product.id} />
           </div>
           <h1 className="text-2xl font-bold mt-1 mb-4">{product.title}</h1>
 

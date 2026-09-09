@@ -11,7 +11,6 @@ import ManageCookiesLink from '@/components/ManageCookiesLink';
 import SmartlookLoader from '@/components/SmartlookLoader';
 import JsonLd from '@/components/JsonLd';
 import { prisma } from '@/lib/prisma';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getSiteMeta } from '@/lib/siteMeta';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
@@ -83,26 +82,14 @@ async function getMenuItems() {
   }
 }
 
-async function getCurrentUser() {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return null;
-    return {
-      email: user.email ?? '',
-      firstName: (user.user_metadata?.first_name as string | undefined) ?? '',
-      avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
-    };
-  } catch (e) {
-    console.error('Impossible de récupérer la session', e);
-    return null;
-  }
-}
-
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [menuTree, menuItems, user] = await Promise.all([getMenuTree(), getMenuItems(), getCurrentUser()]);
+  // Qui est connecté n'est plus déterminé ici : contrairement à menuTree/menuItems (données produit,
+  // identiques pour tout le monde, très cacheables), savoir si un visiteur est connecté nécessite de
+  // lire son cookie de session — et comme ce layout enveloppe TOUTES les pages du site, le moindre
+  // appel à ce cookie ici forçait le site entier (fiches produit comprises) à être régénéré à chaque
+  // visite au lieu d'être servi depuis le cache. Header affiche donc "Connexion"/le prénom en se
+  // basant sur la session récupérée côté navigateur (voir Header.tsx), pas ici.
+  const [menuTree, menuItems] = await Promise.all([getMenuTree(), getMenuItems()]);
 
   const localBusinessSchema = {
     '@context': 'https://schema.org',
@@ -132,7 +119,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-white text-gray-900 antialiased">
         <JsonLd data={localBusinessSchema} />
         <TopUtilityBar />
-        <Header menuTree={menuTree} menuItems={menuItems} user={user} />
+        <Header menuTree={menuTree} menuItems={menuItems} />
         <main className="min-h-screen">{children}</main>
         <footer className="bg-gray-900 text-gray-300 mt-16 pt-12 pb-6 text-sm">
           <div className="max-w-6xl mx-auto px-4">

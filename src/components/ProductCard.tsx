@@ -19,16 +19,13 @@ export type ProductCardData = {
 
 export default function ProductCard({
   product,
-  favorited = false,
 }: {
   product: ProductCardData;
-  favorited?: boolean;
 }) {
   return (
     <div className="group relative flex flex-col rounded-xl border border-gray-100 bg-white overflow-hidden hover:shadow-md transition">
       <FavoriteButton
         productId={product.id}
-        initialFavorited={favorited}
         className="absolute top-2 right-2 z-10 bg-white/90 rounded-full p-1.5 shadow-sm"
       />
 

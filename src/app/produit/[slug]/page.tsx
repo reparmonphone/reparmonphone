@@ -14,7 +14,6 @@ import ReviewsAccordion from '@/components/ReviewsAccordion';
 import JsonLd from '@/components/JsonLd';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
-import { getFavoriteProductIds } from '@/app/compte/favoris/actions';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
@@ -69,13 +68,15 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function ProductPage({ params }: { params: { slug: string } }) {
-  const [product, favoriteIds] = await Promise.all([
-    prisma.product.findUnique({
-      where: { slug: params.slug },
-      include: { model: { include: { productLine: { include: { brand: true } } } } },
-    }),
-    getFavoriteProductIds(),
-  ]);
+  // Le statut favori du produit n'est plus calculé ici : il est chargé côté navigateur par
+  // <FavoriteButton> (via /api/favoris). L'appeler ici lisait un cookie (auth.getUser()) et
+  // forçait donc TOUTE cette page à être régénérée à chaque visite au lieu d'être mise en cache —
+  // ce qui explique une bonne partie du dépassement de quota Vercel (fiche produit = page la plus
+  // visitée du site).
+  const product = await prisma.product.findUnique({
+    where: { slug: params.slug },
+    include: { model: { include: { productLine: { include: { brand: true } } } } },
+  });
 
   // Une fiche produit renommée/supprimée (fusion de doublons, réorganisation catalogue) 301 vers sa
   // nouvelle adresse si une redirection a été enregistrée dans /admin/seo, plutôt qu'un 404 sec.
@@ -158,7 +159,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
             <span className="text-sm text-gray-400">
               {product.model.productLine.brand.name} / {product.model.productLine.name} / {product.model.name}
             </span>
-            <FavoriteButton productId={product.id} initialFavorited={favoriteIds.includes(product.id)} />
+            <FavoriteButton productId={product.id} />
           </div>
           <h1 className="text-2xl font-bold mt-1 mb-4">{product.title}</h1>
 

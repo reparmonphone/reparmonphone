@@ -130,7 +130,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-white text-gray-900 antialiased">
         <JsonLd data={localBusinessSchema} />
         <TopUtilityBar />
-        <Header menuTree={menuTree} menuItems={menuItems} user={user} />
+        <Header menuTree={menuTree} menuItems={menuItems} />
         <main className="min-h-screen">{children}</main>
         <footer className="bg-gray-900 text-gray-300 mt-16 pt-12 pb-6 text-sm">
           <div className="max-w-6xl mx-auto px-4">
