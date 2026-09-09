@@ -190,6 +190,12 @@ export default function Header({
                     <Link href="/compte/rdv" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                       Mes rendez-vous
                     </Link>
+                    <Link href="/compte/reparation-a-distance" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      Réparation à distance
+                    </Link>
+                    <Link href="/compte/favoris" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      Mes favoris
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 mt-1"
