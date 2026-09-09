@@ -1,21 +1,11 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import TrackingSubmitForm from './TrackingSubmitForm';
-import type { MailInRepairStatus } from '@prisma/client';
+import MailInRepairStepper from '@/components/MailInRepairStepper';
 
 export const metadata = {
   title: 'Renseigner mon numéro de suivi — Réparation par correspondance | ReparMonPhone',
   robots: { index: false },
-};
-
-const STATUS_LABELS: Record<MailInRepairStatus, string> = {
-  REQUESTED: 'Demande reçue, en attente de validation',
-  AWAITING_DEVICE: "En attente de réception de votre appareil",
-  DEVICE_RECEIVED: 'Appareil reçu, diagnostic en cours',
-  AWAITING_PAYMENT: 'Diagnostic terminé, en attente de votre paiement',
-  PAID: 'Paiement reçu, appareil en préparation pour le renvoi',
-  SHIPPED_BACK: 'Votre appareil réparé est en route',
-  CANCELLED: 'Demande annulée',
 };
 
 export default async function SuiviMailInRepairPage({ params }: { params: { id: string } }) {
@@ -43,12 +33,24 @@ export default async function SuiviMailInRepairPage({ params }: { params: { id: 
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold mb-2">Suivi de votre réparation</h1>
         <p className="text-gray-500">{repair.deviceBrand} {repair.deviceModel}</p>
-        <p className="mt-2 inline-block bg-brand-light text-brand text-sm font-medium px-3 py-1 rounded-full">
-          {STATUS_LABELS[repair.status]}
-        </p>
       </div>
 
-      <TrackingSubmitForm repairId={repair.id} initialTrackingNumber={repair.inboundTrackingNumber} />
+      {repair.status === 'CANCELLED' ? (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 text-center">
+          Cette demande a été annulée. Une question ? Appelez-nous au{' '}
+          <a href="tel:+33783497262" className="underline">07 83 49 72 62</a>.
+        </div>
+      ) : (
+        <div className="mb-8">
+          <MailInRepairStepper status={repair.status} />
+        </div>
+      )}
+
+      <TrackingSubmitForm
+        repairId={repair.id}
+        initialTrackingNumber={repair.inboundTrackingNumber}
+        initialCarrier={repair.inboundCarrier}
+      />
 
       <p className="text-xs text-gray-400 text-center mt-6">
         Une fois votre appareil réceptionné, on met à jour votre statut ci-dessus. Une question ?

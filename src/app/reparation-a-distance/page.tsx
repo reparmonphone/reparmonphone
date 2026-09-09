@@ -2,9 +2,9 @@ import RepairByMailForm from './RepairByMailForm';
 import JsonLd from '@/components/JsonLd';
 
 export const metadata = {
-  title: 'Réparation de téléphone par correspondance — Envoi Chronopost | ReparMonPhone',
+  title: 'Réparation de téléphone par correspondance — Chronopost ou Colissimo | ReparMonPhone',
   description:
-    "Pas de réparateur près de chez vous ? Envoyez votre téléphone par Chronopost, on le répare et on vous le renvoie sous 24h après réparation. Devis gratuit, paiement uniquement après diagnostic.",
+    "Pas de réparateur près de chez vous ? Envoyez votre téléphone par Chronopost ou Colissimo recommandé, on le répare et on vous le renvoie sous 24h après réparation. Devis gratuit, paiement uniquement après diagnostic.",
   alternates: { canonical: 'https://www.reparmonphone.fr/reparation-a-distance' },
 };
 
@@ -22,7 +22,7 @@ const STEPS = [
   {
     icon: '📦',
     title: '3. Envoyez votre appareil',
-    text: 'Vous nous envoyez votre téléphone par Chronopost, bien protégé, à l\'adresse confirmée par email.',
+    text: 'Vous nous envoyez votre téléphone par Chronopost ou Colissimo recommandé, bien protégé, à l\'adresse confirmée par email.',
   },
   {
     icon: '🔧',
@@ -39,7 +39,7 @@ const STEPS = [
 const FAQ = [
   {
     q: "Dans quelle ville dois-je habiter pour utiliser ce service ?",
-    a: "Aucune ! C'est justement l'intérêt de la réparation par correspondance : que vous soyez à côté de Sainte-Maxime ou à l'autre bout de la France métropolitaine, vous nous envoyez votre appareil par Chronopost et on vous le renvoie réparé, sans avoir à trouver un réparateur près de chez vous.",
+    a: "Aucune ! C'est justement l'intérêt de la réparation par correspondance : que vous soyez à côté de Sainte-Maxime ou à l'autre bout de la France métropolitaine, vous nous envoyez votre appareil par Chronopost ou Colissimo recommandé et on vous le renvoie réparé, sans avoir à trouver un réparateur près de chez vous.",
   },
   {
     q: 'Combien coûte le renvoi de mon appareil réparé ?',
@@ -59,7 +59,7 @@ const FAQ = [
   },
   {
     q: 'Combien de temps prend la réparation ?',
-    a: 'La réparation elle-même prend généralement moins d\'une heure une fois l\'appareil reçu. Le délai total dépend surtout du transport Chronopost aller et retour, en général 2 à 4 jours ouvrés au total.',
+    a: 'La réparation elle-même prend généralement moins d\'une heure une fois l\'appareil reçu. Le délai total dépend surtout du transport aller (Chronopost ou Colissimo recommandé) et du retour en Chronopost 24h, en général 2 à 4 jours ouvrés au total.',
   },
 ];
 
@@ -85,8 +85,8 @@ export default function ReparationADistancePage() {
           </h1>
           <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
             Où que vous soyez en France métropolitaine, décrivez votre panne, on vous confirme une
-            estimation et l'adresse d'envoi, vous nous expédiez l'appareil par Chronopost, et on vous le
-            renvoie réparé en Chronopost 24h — frais de renvoi toujours inclus dans le prix, jamais de
+            estimation et l'adresse d'envoi, vous nous expédiez l'appareil par Chronopost ou Colissimo
+            recommandé, et on vous le renvoie réparé en Chronopost 24h — frais de renvoi toujours inclus dans le prix, jamais de
             mauvaise surprise.
           </p>
           <a

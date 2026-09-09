@@ -80,6 +80,7 @@ export default async function AdminMailInRepairDetailPage({ params }: { params: 
       <MailInRepairLogisticsForm
         repairId={repair.id}
         initialInboundTracking={repair.inboundTrackingNumber}
+        initialInboundCarrier={repair.inboundCarrier}
         initialOutboundTracking={repair.outboundTrackingNumber}
         initialOutboundCarrier={repair.outboundCarrier}
         initialAdminNote={repair.adminNote}

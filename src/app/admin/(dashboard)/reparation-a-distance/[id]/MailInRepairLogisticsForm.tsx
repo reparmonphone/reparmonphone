@@ -15,17 +15,20 @@ const CARRIERS: { value: ShippingCarrier; label: string }[] = [
 export default function MailInRepairLogisticsForm({
   repairId,
   initialInboundTracking,
+  initialInboundCarrier,
   initialOutboundTracking,
   initialOutboundCarrier,
   initialAdminNote,
 }: {
   repairId: string;
   initialInboundTracking: string | null;
+  initialInboundCarrier: ShippingCarrier | null;
   initialOutboundTracking: string | null;
   initialOutboundCarrier: ShippingCarrier;
   initialAdminNote: string | null;
 }) {
   const [inbound, setInbound] = useState(initialInboundTracking ?? '');
+  const [inboundCarrier, setInboundCarrier] = useState<ShippingCarrier>(initialInboundCarrier ?? 'CHRONOPOST');
   const [outbound, setOutbound] = useState(initialOutboundTracking ?? '');
   const [carrier, setCarrier] = useState<ShippingCarrier>(initialOutboundCarrier);
   const [note, setNote] = useState(initialAdminNote ?? '');
@@ -37,6 +40,7 @@ export default function MailInRepairLogisticsForm({
     startTransition(async () => {
       await updateMailInRepairLogistics(repairId, {
         inboundTrackingNumber: inbound,
+        inboundCarrier,
         outboundTrackingNumber: outbound,
         outboundCarrier: carrier,
         adminNote: note,
@@ -53,16 +57,27 @@ export default function MailInRepairLogisticsForm({
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">
-              Suivi Chronopost — envoi du client (aller) — peut être rempli automatiquement par le
-              client via son lien de suivi
+              Suivi — envoi du client vers l'atelier (aller) — peut être rempli automatiquement par
+              le client via son lien de suivi
             </label>
-            <input
-              type="text"
-              value={inbound}
-              onChange={(e) => setInbound(e.target.value)}
-              placeholder="N° de suivi aller"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-            />
+            <div className="flex gap-2">
+              <select
+                value={inboundCarrier}
+                onChange={(e) => setInboundCarrier(e.target.value as ShippingCarrier)}
+                className="border border-gray-200 rounded-lg px-2 py-2 text-sm"
+              >
+                {CARRIERS.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={inbound}
+                onChange={(e) => setInbound(e.target.value)}
+                placeholder="N° de suivi aller"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Transporteur du renvoi</label>

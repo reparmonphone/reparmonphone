@@ -344,7 +344,8 @@ model MailInRepair {
   stripePaymentIntentId String?
   paidAt           DateTime?
 
-  inboundTrackingNumber  String? // suivi Chronopost utilisé par le CLIENT pour nous envoyer l'appareil (facultatif, saisi par l'admin)
+  inboundCarrier         ShippingCarrier? // transporteur choisi par le CLIENT pour l'envoi vers l'atelier (Chronopost ou Colissimo recommandé)
+  inboundTrackingNumber  String? // suivi utilisé par le CLIENT pour nous envoyer l'appareil (facultatif, saisi par le client ou l'admin)
   outboundCarrier        ShippingCarrier @default(CHRONOPOST)
   outboundTrackingNumber String? // suivi du RENVOI, une fois payé et réparé
 

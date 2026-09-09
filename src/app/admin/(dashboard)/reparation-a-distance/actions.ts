@@ -68,8 +68,8 @@ export async function sendMailInRepairReply(repairId: string, replyMessage: stri
                   📦 Une fois votre appareil envoyé
                 </p>
                 <p style="color:#1e40af; font-size: 13px; line-height: 1.6; margin:0 0 12px;">
-                  Renseignez-nous votre numéro de suivi Chronopost via ce lien, pour qu'on sache que votre
-                  colis est en route :
+                  Renseignez-nous votre numéro de suivi (Chronopost ou Colissimo recommandé) via ce lien,
+                  pour qu'on sache que votre colis est en route :
                 </p>
                 <div style="text-align:center;">
                   <a href="${SITE_URL}/reparation-a-distance/suivi/${repair.id}" style="display:inline-block; background:#1e3a8a; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Indiquer mon numéro de suivi</a>
@@ -188,12 +188,14 @@ export async function sendMailInRepairPaymentLink(repairId: string, priceEuros: 
   return { ok: true, url: session.url };
 }
 
-// Infos logistiques internes : suivi Chronopost aller (envoyé par le client), suivi Chronopost
-// retour (une fois réparé et payé), transporteur retour, et note interne jamais visible du client.
+// Infos logistiques internes : suivi aller (envoyé par le client, Chronopost ou Colissimo
+// recommandé), suivi retour (une fois réparé et payé, toujours Chronopost), transporteur retour,
+// et note interne jamais visible du client.
 export async function updateMailInRepairLogistics(
   repairId: string,
   data: {
     inboundTrackingNumber?: string;
+    inboundCarrier?: ShippingCarrier;
     outboundTrackingNumber?: string;
     outboundCarrier?: ShippingCarrier;
     adminNote?: string;
@@ -204,6 +206,7 @@ export async function updateMailInRepairLogistics(
     where: { id: repairId },
     data: {
       inboundTrackingNumber: data.inboundTrackingNumber || undefined,
+      inboundCarrier: data.inboundCarrier || undefined,
       outboundTrackingNumber: data.outboundTrackingNumber || undefined,
       outboundCarrier: data.outboundCarrier || undefined,
       adminNote: data.adminNote,
