@@ -2,6 +2,14 @@ import AdminSidebar from '@/components/admin/AdminSidebar';
 
 export const metadata = { title: 'Administration | ReparMonPhone' };
 
+// Force TOUTES les pages admin à se recalculer à chaque requête, jamais en statique. L'authentification
+// admin est vérifiée dans middleware.ts (avant même d'atteindre la page), donc les pages admin
+// elles-mêmes n'appellent aucune API dynamique (cookies(), etc.) — sans cette ligne, Next.js les
+// traite comme statiques et les fige au moment du build (chiffres du dashboard, statistiques, badges
+// de notification... plus jamais à jour après un déploiement). Le trafic admin est minime, donc pas de
+// risque de reproduire la surconsommation CPU corrigée sur les pages publiques (produit/boutique).
+export const dynamic = 'force-dynamic';
+
 // Menu admin utilisable sur mobile/tablette : une case à cocher cachée (#admin-nav-toggle) pilote
 // l'ouverture du tiroir latéral en pur CSS (classes peer-checked: sur AdminSidebar et l'overlay
 // ci-dessous), sans JavaScript — pas besoin de rendre ce layout ou AdminSidebar "use client". La
