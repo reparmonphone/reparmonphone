@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
+import VisitsEvolutionChart from '@/components/admin/VisitsEvolutionChart';
 
 const VISIT_COUNTER_OFFSET = 21120;
 
@@ -120,7 +121,11 @@ export default async function AdminStatistiquesPage() {
 
   const statusBreakdown = statusBreakdownRaw.map((s) => ({ status: s.status, count: s._count.status }));
 
-  const [totalViews, todayViews, last7Views, last30Views, topPagesRaw, last7Raw] = await Promise.all([
+  // Fenêtre large (1 an) : alimente la courbe de visites configurable (1j → 1an) et la comparaison
+  // par semaine sur cette page.
+  const yearAgoStart = new Date(todayStart.getTime() - 365 * 86_400_000);
+
+  const [totalViews, todayViews, last7Views, last30Views, topPagesRaw, yearPageViews] = await Promise.all([
     prisma.pageView.count(),
     prisma.pageView.count({ where: { createdAt: { gte: todayStart } } }),
     prisma.pageView.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
@@ -132,26 +137,34 @@ export default async function AdminStatistiquesPage() {
       take: 10,
     }),
     prisma.pageView.findMany({
-      where: { createdAt: { gte: sevenDaysAgo } },
+      where: { createdAt: { gte: yearAgoStart } },
       select: { createdAt: true },
     }),
   ]);
 
-  // Répartition par jour sur les 7 derniers jours (calculée en mémoire, table légère)
-  const dayBuckets: Record<string, number> = {};
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(sevenDaysAgo.getTime() + i * 86_400_000);
-    dayBuckets[d.toISOString().slice(0, 10)] = 0;
+  // Visites par jour sur 1 an + par heure pour aujourd'hui (calculé en mémoire, table légère) —
+  // alimente VisitsEvolutionChart (période réglable + comparaison par semaine).
+  const dailyVisitsMap: Record<string, number> = {};
+  for (let i = 0; i < 366; i++) {
+    const d = new Date(yearAgoStart.getTime() + i * 86_400_000);
+    dailyVisitsMap[d.toISOString().slice(0, 10)] = 0;
   }
-  for (const v of last7Raw) {
+  const todayHourly = Array(24).fill(0);
+  for (const v of yearPageViews) {
     const key = v.createdAt.toISOString().slice(0, 10);
-    if (key in dayBuckets) dayBuckets[key]++;
+    if (key in dailyVisitsMap) dailyVisitsMap[key]++;
+    if (v.createdAt >= todayStart) todayHourly[v.createdAt.getHours()]++;
+  }
+  const dailyVisits = Object.entries(dailyVisitsMap)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, count]) => ({ date, count }));
+
+  // Répartition par jour sur les 7 derniers jours (bar chart existant, dérivée de dailyVisits)
+  const dayBuckets: Record<string, number> = {};
+  for (const d of dailyVisits.slice(-7)) {
+    dayBuckets[d.date] = d.count;
   }
   const maxDay = Math.max(1, ...Object.values(dayBuckets));
-  const dayChartData = Object.entries(dayBuckets).map(([day, count]) => ({
-    label: new Date(day).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
-    value: count,
-  }));
 
   return (
     <div className="max-w-4xl">
@@ -304,10 +317,7 @@ export default async function AdminStatistiquesPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
-        <h2 className="font-semibold mb-4">Visites — évolution (7 derniers jours)</h2>
-        <LineChart data={dayChartData} color="#0E7FDB" formatValue={(v) => v.toLocaleString('fr-FR')} />
-      </div>
+      <VisitsEvolutionChart dailyVisits={dailyVisits} todayHourly={todayHourly} />
 
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <h2 className="font-semibold p-6 pb-3">Pages les plus visitées (total)</h2>

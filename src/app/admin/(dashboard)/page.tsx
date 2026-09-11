@@ -2,9 +2,23 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
 
+// Même définition que /admin/benefice — à garder synchronisée si la formule change là-bas.
+const REVENUE_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const;
+const VAT_RATE = 0.2;
+
 export default async function AdminDashboardPage() {
-  const [productsCount, outOfStockCount, pendingOrders, newPaidOrders, pendingAppointments, unhandledMessages, revenueAgg, mailInRepairRevenueAgg] =
-    await Promise.all([
+  const [
+    productsCount,
+    outOfStockCount,
+    pendingOrders,
+    newPaidOrders,
+    pendingAppointments,
+    unhandledMessages,
+    revenueAgg,
+    mailInRepairRevenueAgg,
+    feeSettings,
+    profitOrdersRaw,
+  ] = await Promise.all([
       prisma.product.count(),
       prisma.product.count({ where: { inStock: false } }),
       // Paniers non finalisés (paiement pas encore terminé) — relancés automatiquement par email,
@@ -25,13 +39,42 @@ export default async function AdminDashboardPage() {
         where: { paidAt: { not: null } },
         _sum: { quotedPrice: true },
       }),
+      prisma.siteSetting.findMany({
+        where: { key: { in: ['fee_rate_stripe', 'fee_rate_sumup', 'fee_rate_paypal'] } },
+      }),
+      // Même calcul que /admin/benefice : CA − coût d'achat fournisseur (HT + TVA 20%) − frais de
+      // port réels (HT + TVA 20%) − frais de plateforme, pour afficher le bénéfice net sans avoir à
+      // ouvrir le sous-menu.
+      prisma.order.findMany({
+        where: { status: { in: [...REVENUE_STATUSES] } },
+        select: {
+          total: true,
+          paymentProvider: true,
+          actualShippingCost: true,
+          items: { select: { quantity: true, costPrice: true } },
+        },
+      }),
     ]);
 
   const totalRevenue = Number(revenueAgg._sum.total ?? 0);
   const mailInRepairRevenue = Number(mailInRepairRevenueAgg._sum.quotedPrice ?? 0);
 
+  const feeRates: Record<string, number> = {
+    STRIPE: Number(feeSettings.find((s) => s.key === 'fee_rate_stripe')?.value ?? 0),
+    SUMUP: Number(feeSettings.find((s) => s.key === 'fee_rate_sumup')?.value ?? 0),
+    PAYPAL: Number(feeSettings.find((s) => s.key === 'fee_rate_paypal')?.value ?? 0),
+  };
+  const netProfit = profitOrdersRaw.reduce((sum, o) => {
+    const total = Number(o.total);
+    const shippingHT = o.actualShippingCost != null ? Number(o.actualShippingCost) : 0;
+    const costHT = o.items.reduce((s, it) => s + it.quantity * (it.costPrice != null ? Number(it.costPrice) : 0), 0);
+    const fee = total * ((feeRates[o.paymentProvider] ?? 0) / 100);
+    return sum + (total - fee - costHT * (1 + VAT_RATE) - shippingHT * (1 + VAT_RATE));
+  }, 0);
+
   const cards = [
     { label: 'Chiffre d\'affaires total', value: formatPrice(totalRevenue), href: '/admin/statistiques', accent: 'bg-green-50 text-green-700' },
+    { label: '💰 Bénéfice net (total)', value: formatPrice(netProfit), href: '/admin/benefice', accent: 'bg-emerald-50 text-emerald-700' },
     { label: 'CA réparation à distance', value: formatPrice(mailInRepairRevenue), href: '/admin/reparation-a-distance', accent: 'bg-green-50 text-green-700' },
     { label: 'Produits au catalogue', value: productsCount, href: '/admin/produits', accent: 'bg-blue-50 text-blue-700' },
     { label: 'Ruptures de stock', value: outOfStockCount, href: '/admin/produits?stock=rupture', accent: 'bg-red-50 text-red-700' },
