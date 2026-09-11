@@ -42,7 +42,8 @@ export default function OrderCostsForm({
     <div id="couts" className="bg-white border border-gray-100 rounded-xl p-6 mb-4 scroll-mt-20">
       <h2 className="font-semibold mb-1">Coûts réels (admin uniquement)</h2>
       <p className="text-xs text-gray-400 mb-4">
-        Jamais visible du client — sert uniquement à calculer le bénéfice réel de cette commande.
+        Jamais visible du client — sert uniquement à calculer le bénéfice réel de cette commande. Saisie
+        HT : la TVA à 20% est ajoutée automatiquement dans le calcul du bénéfice.
       </p>
 
       <div className="space-y-2">
@@ -52,7 +53,7 @@ export default function OrderCostsForm({
               {item.quantity} × {item.label}
             </span>
             <div className="flex items-center gap-1 shrink-0">
-              <span className="text-xs text-gray-400">Coût d&apos;achat / unité</span>
+              <span className="text-xs text-gray-400">Coût d&apos;achat / unité (HT)</span>
               <input
                 type="number"
                 step="0.01"
@@ -69,7 +70,7 @@ export default function OrderCostsForm({
       </div>
 
       <div className="flex items-center justify-between gap-3 text-sm mt-4 pt-4 border-t border-gray-100">
-        <span className="text-gray-600">Frais de port réels payés (Chronopost, Colissimo...)</span>
+        <span className="text-gray-600">Frais de port réels payés HT (Chronopost, Colissimo...)</span>
         <div className="flex items-center gap-1 shrink-0">
           <input
             type="number"

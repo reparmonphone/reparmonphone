@@ -7,6 +7,10 @@ const REVENUE_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const
 
 const PROVIDER_LABELS: Record<string, string> = { STRIPE: 'Stripe', SUMUP: 'SumUp', PAYPAL: 'PayPal' };
 
+// Les coûts réels admin (coût d'achat fournisseur, frais de port réels) sont saisis HT — la TVA à
+// 20% est ajoutée ici pour obtenir le coût réel TTC utilisé dans le calcul du bénéfice.
+const VAT_RATE = 0.2;
+
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -75,15 +79,18 @@ export default async function AdminBeneficePage() {
     PAYPAL: Number(feeSettings.find((s) => s.key === 'fee_rate_paypal')?.value ?? 0),
   };
 
-  // Bénéfice net = CA (order.total) − coût d'achat fournisseur (saisi par article) − frais de port
-  // réels payés (saisis par commande) − frais de la plateforme de paiement (% configuré par moyen de
-  // paiement, appliqué au CA). Une commande est "incomplète" tant que le coût d'achat d'au moins un
-  // article ou les frais de port réels n'ont pas été renseignés — dans ce cas les champs manquants
-  // valent 0, donc le bénéfice affiché est SURESTIMÉ pour cette commande (voir bandeau d'alerte).
+  // Bénéfice net = CA (order.total) − coût d'achat fournisseur (saisi HT par article, TVA 20% ajoutée)
+  // − frais de port réels payés (saisis HT par commande, TVA 20% ajoutée) − frais de la plateforme de
+  // paiement (% configuré par moyen de paiement, appliqué au CA). Une commande est "incomplète" tant
+  // que le coût d'achat d'au moins un article ou les frais de port réels n'ont pas été renseignés —
+  // dans ce cas les champs manquants valent 0, donc le bénéfice affiché est SURESTIMÉ pour cette
+  // commande (voir bandeau d'alerte).
   const computed: ComputedOrder[] = ordersRaw.map((o) => {
     const total = Number(o.total);
-    const shipping = o.actualShippingCost != null ? Number(o.actualShippingCost) : 0;
-    const cost = o.items.reduce((s, it) => s + it.quantity * (it.costPrice != null ? Number(it.costPrice) : 0), 0);
+    const shippingHT = o.actualShippingCost != null ? Number(o.actualShippingCost) : 0;
+    const costHT = o.items.reduce((s, it) => s + it.quantity * (it.costPrice != null ? Number(it.costPrice) : 0), 0);
+    const shipping = shippingHT * (1 + VAT_RATE);
+    const cost = costHT * (1 + VAT_RATE);
     const fee = total * ((feeRates[o.paymentProvider] ?? 0) / 100);
     const isIncomplete = o.actualShippingCost == null || o.items.some((it) => it.costPrice == null);
     return {
@@ -131,7 +138,8 @@ export default async function AdminBeneficePage() {
         Calculé ainsi, par commande : chiffre d&apos;affaires − coût d&apos;achat fournisseur − frais de port réels
         payés − frais de la plateforme de paiement (taux réglables sur{' '}
         <Link href="/admin/paiements" className="text-brand hover:underline">Moyens de paiement</Link>).
-        Coûts et frais de port visibles admin uniquement, jamais montrés au client.
+        Coûts et frais de port visibles admin uniquement, jamais montrés au client, saisis HT — la TVA à
+        20% est ajoutée automatiquement pour obtenir le coût réel dans ce calcul.
       </p>
 
       {incompleteCount > 0 && (
@@ -182,11 +190,11 @@ export default async function AdminBeneficePage() {
               <td className="px-5 py-2 text-right font-medium">{formatPrice(totalStats.revenue)}</td>
             </tr>
             <tr>
-              <td className="px-5 py-2 text-gray-600">− Coût d&apos;achat fournisseur</td>
+              <td className="px-5 py-2 text-gray-600">− Coût d&apos;achat fournisseur (HT + TVA 20%)</td>
               <td className="px-5 py-2 text-right font-medium text-red-600">− {formatPrice(totalStats.cost)}</td>
             </tr>
             <tr>
-              <td className="px-5 py-2 text-gray-600">− Frais de port réels</td>
+              <td className="px-5 py-2 text-gray-600">− Frais de port réels (HT + TVA 20%)</td>
               <td className="px-5 py-2 text-right font-medium text-red-600">− {formatPrice(totalStats.shipping)}</td>
             </tr>
             <tr>
