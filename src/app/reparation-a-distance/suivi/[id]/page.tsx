@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import TrackingSubmitForm from './TrackingSubmitForm';
 import MailInRepairStepper from '@/components/MailInRepairStepper';
+import MailInRepairQuoteDecision from '@/components/MailInRepairQuoteDecision';
 
 export const metadata = {
   title: 'Renseigner mon numéro de suivi — Réparation par correspondance | ReparMonPhone',
@@ -9,8 +10,14 @@ export const metadata = {
 };
 
 export default async function SuiviMailInRepairPage({ params }: { params: { id: string } }) {
-  const repair = await prisma.mailInRepair.findUnique({ where: { id: params.id } });
+  const repair = await prisma.mailInRepair.findUnique({
+    where: { id: params.id },
+    include: { replies: { orderBy: { createdAt: 'desc' } } },
+  });
   if (!repair) notFound();
+
+  const latestQuote = repair.replies.find((r) => r.quotedEstimate != null);
+  const hasPendingQuote = !!latestQuote && repair.quoteDecision === null;
 
   // Par sécurité : ce lien n'est censé être envoyé qu'une fois la demande validée (adresse
   // communiquée). S'il est ouvert avant, on affiche un message d'attente plutôt que le formulaire.
@@ -46,6 +53,12 @@ export default async function SuiviMailInRepairPage({ params }: { params: { id: 
         </div>
       )}
 
+      {hasPendingQuote && (
+        <div className="mb-6">
+          <MailInRepairQuoteDecision repairId={repair.id} amount={Number(latestQuote!.quotedEstimate)} />
+        </div>
+      )}
+
       {repair.repairedPhotos.length > 0 && (
         <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4">
           <p className="text-sm font-semibold text-green-800 mb-2">📸 Votre appareil réparé</p>
@@ -59,11 +72,13 @@ export default async function SuiviMailInRepairPage({ params }: { params: { id: 
         </div>
       )}
 
-      <TrackingSubmitForm
-        repairId={repair.id}
-        initialTrackingNumber={repair.inboundTrackingNumber}
-        initialCarrier={repair.inboundCarrier}
-      />
+      {!hasPendingQuote && (
+        <TrackingSubmitForm
+          repairId={repair.id}
+          initialTrackingNumber={repair.inboundTrackingNumber}
+          initialCarrier={repair.inboundCarrier}
+        />
+      )}
 
       <p className="text-xs text-gray-400 text-center mt-6">
         Une fois votre appareil réceptionné, on met à jour votre statut ci-dessus. Une question ?

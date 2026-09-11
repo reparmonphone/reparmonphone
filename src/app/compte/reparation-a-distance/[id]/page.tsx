@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { prisma } from '@/lib/prisma';
 import MailInRepairStepper from '@/components/MailInRepairStepper';
+import MailInRepairQuoteDecision from '@/components/MailInRepairQuoteDecision';
 import TrackingSubmitForm from '@/app/reparation-a-distance/suivi/[id]/TrackingSubmitForm';
 
 const OUTBOUND_CARRIER_LABELS: Record<string, string> = {
@@ -21,13 +22,19 @@ export default async function MonReparationADistanceDetailPage({ params }: { par
 
   if (!user) redirect(`/compte/connexion?redirect=/compte/reparation-a-distance/${params.id}`);
 
-  const repair = await prisma.mailInRepair.findUnique({ where: { id: params.id } });
+  const repair = await prisma.mailInRepair.findUnique({
+    where: { id: params.id },
+    include: { replies: { orderBy: { createdAt: 'asc' } } },
+  });
   if (!repair) notFound();
 
   // Défense en profondeur : même si l'id (cuid) n'est pas devinable, on vérifie explicitement que
   // la demande appartient bien au client connecté avant de l'afficher dans son espace compte.
   const isOwner = repair.userId === user.id || (repair.userId === null && repair.customerEmail === user.email);
   if (!isOwner) notFound();
+
+  const latestQuote = [...repair.replies].reverse().find((r) => r.quotedEstimate != null);
+  const hasPendingQuote = !!latestQuote && repair.quoteDecision === null;
 
   return (
     <div className="max-w-xl mx-auto px-4 py-12">
@@ -56,10 +63,20 @@ export default async function MonReparationADistanceDetailPage({ params }: { par
         </div>
       )}
 
-      {repair.adminReply && (
+      {repair.replies.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <p className="text-xs text-gray-400">Notre réponse</p>
+          {repair.replies.map((reply) => (
+            <p key={reply.id} className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-lg p-3">
+              {reply.message}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {hasPendingQuote && (
         <div className="mt-6">
-          <p className="text-xs text-gray-400 mb-1">Notre réponse</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-lg p-3">{repair.adminReply}</p>
+          <MailInRepairQuoteDecision repairId={repair.id} amount={Number(latestQuote!.quotedEstimate)} />
         </div>
       )}
 
@@ -83,7 +100,7 @@ export default async function MonReparationADistanceDetailPage({ params }: { par
         </div>
       )}
 
-      {repair.repliedAt && repair.status !== 'CANCELLED' && repair.status !== 'SHIPPED_BACK' && (
+      {repair.repliedAt && repair.status !== 'CANCELLED' && repair.status !== 'SHIPPED_BACK' && !hasPendingQuote && (
         <div className="mt-6">
           <p className="text-xs text-gray-400 mb-2">
             📦 Une fois votre appareil envoyé, indiquez ici votre numéro de suivi :

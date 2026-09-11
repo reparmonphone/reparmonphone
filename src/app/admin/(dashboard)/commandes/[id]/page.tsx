@@ -6,6 +6,7 @@ import OrderRowActions from '../OrderRowActions';
 import ReviewReminderButton from './ReviewReminderButton';
 import TrackingForm from './TrackingForm';
 import InvoiceActions from '@/components/InvoiceActions';
+import OrderCostsForm from './OrderCostsForm';
 
 export default async function AdminOrderDetailPage({ params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
@@ -100,6 +101,17 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
         <h2 className="font-semibold mb-3">Facture</h2>
         <InvoiceActions orderId={order.id} allowCustomEmail />
       </div>
+
+      <OrderCostsForm
+        orderId={order.id}
+        items={order.items.map((item) => ({
+          id: item.id,
+          label: item.product.title,
+          quantity: item.quantity,
+          costPrice: item.costPrice != null ? Number(item.costPrice) : null,
+        }))}
+        actualShippingCost={order.actualShippingCost != null ? Number(order.actualShippingCost) : null}
+      />
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 mb-4">
         <h2 className="font-semibold mb-3">Statut de la commande</h2>

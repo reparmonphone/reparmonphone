@@ -18,6 +18,7 @@ const NAV: NavItem[] = [
   { href: '/admin/paiements', label: '💳 Moyens de paiement' },
   { href: '/admin/codes-promo', label: '🏷️ Codes promo' },
   { href: '/admin/statistiques', label: '📈 Statistiques' },
+  { href: '/admin/benefice', label: '💰 Bénéfice' },
   { href: '/admin/seo', label: '🔍 SEO & Référencement' },
   { href: '/admin/rdv', label: '📅 Rendez-vous', badgeKey: 'appointments' },
   { href: '/admin/reparation-a-distance', label: '📮 Réparation par correspondance', badgeKey: 'mailInRepairs' },

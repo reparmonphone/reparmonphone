@@ -18,8 +18,15 @@ export async function updateMailInRepairStatus(repairId: string, status: MailInR
 }
 
 // Réponse libre envoyée au client — c'est ICI que l'adresse d'envoi doit être communiquée une fois
-// la demande validée (jamais avant, voir la page publique /reparation-a-distance).
-export async function sendMailInRepairReply(repairId: string, replyMessage: string) {
+// la demande validée (jamais avant, voir la page publique /reparation-a-distance). Chaque envoi crée
+// un nouveau message dans l'historique (`replies`) au lieu d'écraser le précédent. Si `quotedEstimate`
+// est renseigné, ce message devient un DEVIS : le client doit l'accepter ou le refuser sur sa page de
+// suivi avant de pouvoir envoyer son appareil (voir respondToMailInRepairQuote, dans quoteActions.ts).
+export async function sendMailInRepairReply(
+  repairId: string,
+  replyMessage: string,
+  quotedEstimate?: number | null
+) {
   await requireAdminUser();
 
   if (!replyMessage.trim()) {
@@ -29,16 +36,51 @@ export async function sendMailInRepairReply(repairId: string, replyMessage: stri
   const repair = await prisma.mailInRepair.findUnique({ where: { id: repairId } });
   if (!repair) return { error: 'Demande introuvable.' };
 
-  await prisma.mailInRepair.update({
-    where: { id: repairId },
-    data: {
-      adminReply: replyMessage,
-      repliedAt: new Date(),
-      // Si la demande était encore au statut initial, une réponse envoyée signifie qu'on attend
-      // maintenant que le client nous envoie l'appareil (à l'adresse tout juste communiquée).
-      ...(repair.status === 'REQUESTED' ? { status: 'AWAITING_DEVICE' as const } : {}),
-    },
-  });
+  const hasQuote = quotedEstimate != null && quotedEstimate > 0;
+
+  await prisma.$transaction([
+    prisma.mailInRepairReply.create({
+      data: { mailInRepairId: repairId, message: replyMessage, quotedEstimate: hasQuote ? quotedEstimate : null },
+    }),
+    prisma.mailInRepair.update({
+      where: { id: repairId },
+      data: {
+        adminReply: replyMessage,
+        repliedAt: new Date(),
+        // Un devis exige une décision du client avant de passer "en attente de l'appareil" — sans
+        // devis, on garde le comportement historique (passage immédiat dès la première réponse).
+        ...(repair.status === 'REQUESTED' && !hasQuote ? { status: 'AWAITING_DEVICE' as const } : {}),
+        // Nouveau devis = nouvelle décision à prendre, même si un devis précédent avait déjà été tranché.
+        ...(hasQuote ? { quoteDecision: null, quoteDecisionAt: null } : {}),
+      },
+    }),
+  ]);
+
+  const trackingUrl = `${SITE_URL}/reparation-a-distance/suivi/${repair.id}`;
+
+  const quoteBlock = hasQuote
+    ? `
+      <div style="background:#f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0; text-align:center;">
+        <p style="color:#166534; font-size: 13px; margin:0 0 6px; font-weight:600;">💶 Devis proposé</p>
+        <p style="color:#111827; font-size: 22px; font-weight: 700; margin:0 0 12px;">${quotedEstimate!.toFixed(2)} €</p>
+        <p style="color:#166534; font-size: 12px; margin:0 0 14px;">Renvoi Chronopost 24h inclus — rien à payer en plus.</p>
+        <a href="${trackingUrl}" style="display:inline-block; background:#16a34a; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Accepter ou refuser ce devis</a>
+      </div>
+    `
+    : `
+      <div style="background:#eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin: 20px 0;">
+        <p style="color:#1e3a8a; font-size: 14px; line-height: 1.6; margin:0 0 10px; font-weight:600;">
+          📦 Une fois votre appareil envoyé
+        </p>
+        <p style="color:#1e40af; font-size: 13px; line-height: 1.6; margin:0 0 12px;">
+          Renseignez-nous votre numéro de suivi (Chronopost ou Colissimo recommandé) via ce lien,
+          pour qu'on sache que votre colis est en route :
+        </p>
+        <div style="text-align:center;">
+          <a href="${trackingUrl}" style="display:inline-block; background:#1e3a8a; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Indiquer mon numéro de suivi</a>
+        </div>
+      </div>
+    `;
 
   const resend = getResendClient();
   if (resend) {
@@ -47,7 +89,9 @@ export async function sendMailInRepairReply(repairId: string, replyMessage: stri
         from: FROM,
         to: repair.customerEmail,
         replyTo: 'contact@reparmonphone.fr',
-        subject: `Réponse à votre demande de réparation par correspondance — ReparMonPhone`,
+        subject: hasQuote
+          ? `Votre devis de réparation par correspondance — ReparMonPhone`
+          : `Réponse à votre demande de réparation par correspondance — ReparMonPhone`,
         html: `
           <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto;">
             <div style="background:#1e3a8a; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
@@ -63,18 +107,7 @@ export async function sendMailInRepairReply(repairId: string, replyMessage: stri
               <p style="color:#6b7280; font-size: 13px; margin-top: 20px;">
                 Rappel de votre demande initiale : <strong>${repair.deviceBrand} ${repair.deviceModel}</strong>.
               </p>
-              <div style="background:#eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin: 20px 0;">
-                <p style="color:#1e3a8a; font-size: 14px; line-height: 1.6; margin:0 0 10px; font-weight:600;">
-                  📦 Une fois votre appareil envoyé
-                </p>
-                <p style="color:#1e40af; font-size: 13px; line-height: 1.6; margin:0 0 12px;">
-                  Renseignez-nous votre numéro de suivi (Chronopost ou Colissimo recommandé) via ce lien,
-                  pour qu'on sache que votre colis est en route :
-                </p>
-                <div style="text-align:center;">
-                  <a href="${SITE_URL}/reparation-a-distance/suivi/${repair.id}" style="display:inline-block; background:#1e3a8a; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Indiquer mon numéro de suivi</a>
-                </div>
-              </div>
+              ${quoteBlock}
               <p style="color:#374151; font-size: 14px; margin-top: 20px;">
                 Vous pouvez répondre directement à cet email si vous avez une question.
               </p>
@@ -93,6 +126,8 @@ export async function sendMailInRepairReply(repairId: string, replyMessage: stri
 
   revalidatePath(`/admin/reparation-a-distance/${repairId}`);
   revalidatePath('/admin/reparation-a-distance');
+  revalidatePath(`/reparation-a-distance/suivi/${repairId}`);
+  revalidatePath(`/compte/reparation-a-distance/${repairId}`);
 
   return { ok: true };
 }

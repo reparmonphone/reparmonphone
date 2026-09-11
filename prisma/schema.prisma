@@ -211,6 +211,11 @@ model Order {
   deliveredAt    DateTime? // date à laquelle la commande est passée au statut "Livrée"
   reviewReminderSentAt DateTime? // relance "laisse un avis" déjà envoyée pour cette commande
 
+  // Coût réel d'expédition payé par l'admin (Chronopost/Colissimo...) — DIFFÉRENT de shippingCost
+  // (ce que le CLIENT a payé). Saisi manuellement par l'admin pour le calcul du bénéfice, jamais
+  // montré au client. Null tant que non renseigné.
+  actualShippingCost Decimal? @db.Decimal(10, 2)
+
   items  OrderItem[]
   claims Claim[]
 
@@ -229,6 +234,11 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id])
   quantity  Int
   unitPrice Decimal @db.Decimal(10, 2)
+
+  // Prix d'achat réellement payé au fournisseur pour CETTE commande (prix pro, peut varier d'une
+  // commande à l'autre) — saisi manuellement par l'admin, jamais montré au client, utilisé uniquement
+  // pour calculer le bénéfice (page /admin/benefice). Null tant que non renseigné.
+  costPrice Decimal? @db.Decimal(10, 2)
 
   @@map("order_items")
 }
@@ -314,6 +324,11 @@ model Appointment {
 // l'appareil qu'une fois le paiement reçu (voir sendMailInRepairPaymentLink côté admin) — le prix
 // envoyé au client inclut toujours les frais de renvoi Chronopost, jamais facturés séparément.
 
+enum MailInRepairQuoteDecision {
+  ACCEPTED
+  DECLINED
+}
+
 enum MailInRepairStatus {
   REQUESTED        // demande reçue, en attente de réponse
   AWAITING_DEVICE  // réponse/estimation envoyée, on attend que le client envoie l'appareil
@@ -337,8 +352,14 @@ model MailInRepair {
 
   status           MailInRepairStatus @default(REQUESTED)
 
-  adminReply       String?            @db.Text // dernière réponse libre envoyée au client (estimation, adresse et instructions d'envoi...)
+  adminReply       String?            @db.Text // dernière réponse libre envoyée au client (mise en cache — l'historique complet est dans `replies`)
   repliedAt        DateTime?
+  replies          MailInRepairReply[] // historique complet des messages envoyés au client (un message peut inclure un devis, voir quotedEstimate)
+
+  // Décision du client sur le DERNIER devis envoyé (celui de replies dont quotedEstimate n'est pas
+  // null) — réinitialisée à null à chaque nouveau devis envoyé, tant que le client n'a pas répondu.
+  quoteDecision    MailInRepairQuoteDecision?
+  quoteDecisionAt  DateTime?
 
   quotedPrice      Decimal?           @db.Decimal(10, 2) // prix final confirmé après diagnostic (pièce + main d'œuvre + renvoi Chronopost inclus)
   stripeSessionId  String?            @unique
@@ -358,6 +379,23 @@ model MailInRepair {
 
   @@index([userId])
   @@map("mail_in_repairs")
+}
+
+// Historique des messages envoyés au client pour une demande de réparation par correspondance — avant
+// ce modèle, chaque nouvelle réponse écrasait la précédente (un seul champ `adminReply`), donc les
+// messages précédents disparaissaient. Un message avec quotedEstimate renseigné est un DEVIS : le
+// client doit l'accepter ou le refuser (voir MailInRepair.quoteDecision) avant de pouvoir envoyer son
+// appareil, sauf si aucun devis n'a jamais été envoyé sur la demande (flux inchangé dans ce cas).
+model MailInRepairReply {
+  id             String       @id @default(cuid())
+  mailInRepairId String
+  mailInRepair   MailInRepair @relation(fields: [mailInRepairId], references: [id], onDelete: Cascade)
+  message        String       @db.Text
+  quotedEstimate Decimal?     @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+
+  @@index([mailInRepairId])
+  @@map("mail_in_repair_replies")
 }
 
 // ---------- Zones de livraison / déplacement à supplément ----------

@@ -8,8 +8,13 @@ import MailInRepairLogisticsForm from './MailInRepairLogisticsForm';
 import MailInRepairPhotosForm from './MailInRepairPhotosForm';
 
 export default async function AdminMailInRepairDetailPage({ params }: { params: { id: string } }) {
-  const repair = await prisma.mailInRepair.findUnique({ where: { id: params.id } });
+  const repair = await prisma.mailInRepair.findUnique({
+    where: { id: params.id },
+    include: { replies: { orderBy: { createdAt: 'asc' } } },
+  });
   if (!repair) notFound();
+
+  const latestQuoteReply = [...repair.replies].reverse().find((r) => r.quotedEstimate != null);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -69,6 +74,24 @@ export default async function AdminMailInRepairDetailPage({ params }: { params: 
           <MailInRepairStatusSelect repairId={repair.id} currentStatus={repair.status} />
         </div>
 
+        {latestQuoteReply && (
+          <div className="mb-4">
+            <p className="text-xs text-gray-400 mb-1">Devis</p>
+            <p className="text-sm text-gray-700">
+              {Number(latestQuoteReply.quotedEstimate).toFixed(2)} €{' — '}
+              {repair.quoteDecision === 'ACCEPTED' && (
+                <span className="text-green-700 font-semibold">✓ Accepté par le client</span>
+              )}
+              {repair.quoteDecision === 'DECLINED' && (
+                <span className="text-red-600 font-semibold">✗ Refusé par le client</span>
+              )}
+              {!repair.quoteDecision && (
+                <span className="text-amber-600 font-semibold">En attente de la décision du client</span>
+              )}
+            </p>
+          </div>
+        )}
+
         <div>
           <p className="text-xs text-gray-400 mb-1">
             Lien de suivi client (envoyé automatiquement dans l'email de réponse ci-dessous — utile à
@@ -82,8 +105,12 @@ export default async function AdminMailInRepairDetailPage({ params }: { params: 
 
       <MailInRepairReplyForm
         repairId={repair.id}
-        initialReply={repair.adminReply}
-        initialRepliedAt={repair.repliedAt}
+        replies={repair.replies.map((reply) => ({
+          id: reply.id,
+          message: reply.message,
+          quotedEstimate: reply.quotedEstimate != null ? Number(reply.quotedEstimate) : null,
+          createdAt: reply.createdAt,
+        }))}
       />
 
       <MailInRepairPaymentForm

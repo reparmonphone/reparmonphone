@@ -84,3 +84,35 @@ export async function deleteOrder(orderId: string) {
   revalidatePath('/admin/commandes');
   return { ok: true };
 }
+
+// Coûts réels de la commande (prix d'achat fournisseur par article + frais de port réellement payés)
+// — champs admin uniquement, jamais exposés au client, saisis à la main car le prix d'achat pro varie
+// d'une commande à l'autre. Utilisés uniquement par la page /admin/benefice pour calculer le bénéfice.
+export async function updateOrderCosts(
+  orderId: string,
+  data: { items: { id: string; costPrice: number | null }[]; actualShippingCost: number | null }
+) {
+  await requireAdminUser();
+
+  // Sécurité : Prisma n'accepte que l'id comme clé unique dans update(), donc on vérifie ici que
+  // chaque article appartient bien à CETTE commande avant de le modifier (empêche un id d'article
+  // forgé, d'une autre commande, d'être modifié par erreur).
+  const ownedIds = new Set(
+    (await prisma.orderItem.findMany({ where: { orderId }, select: { id: true } })).map((i) => i.id)
+  );
+  const validItems = data.items.filter((item) => ownedIds.has(item.id));
+
+  await prisma.$transaction([
+    ...validItems.map((item) =>
+      prisma.orderItem.update({ where: { id: item.id }, data: { costPrice: item.costPrice } })
+    ),
+    prisma.order.update({
+      where: { id: orderId },
+      data: { actualShippingCost: data.actualShippingCost },
+    }),
+  ]);
+
+  revalidatePath(`/admin/commandes/${orderId}`);
+  revalidatePath('/admin/benefice');
+  return { ok: true };
+}
