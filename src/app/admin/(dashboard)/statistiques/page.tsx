@@ -91,6 +91,10 @@ export default async function AdminStatistiquesPage() {
     if (key in monthBuckets) monthBuckets[key] += Number(o.total);
   }
   const maxMonth = Math.max(1, ...Object.values(monthBuckets));
+  const monthChartData = Object.entries(monthBuckets).map(([month, revenue]) => ({
+    label: new Date(`${month}-01`).toLocaleDateString('fr-FR', { month: 'short' }),
+    value: revenue,
+  }));
 
   // Chiffre d'affaires par produit, calculé correctement (quantité × prix unitaire) en mémoire
   const revenueByProduct = new Map<string, { quantity: number; revenue: number }>();
@@ -144,6 +148,10 @@ export default async function AdminStatistiquesPage() {
     if (key in dayBuckets) dayBuckets[key]++;
   }
   const maxDay = Math.max(1, ...Object.values(dayBuckets));
+  const dayChartData = Object.entries(dayBuckets).map(([day, count]) => ({
+    label: new Date(day).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+    value: count,
+  }));
 
   return (
     <div className="max-w-4xl">
@@ -195,6 +203,11 @@ export default async function AdminStatistiquesPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
+        <h2 className="font-semibold mb-4">Chiffre d&apos;affaires — évolution (12 derniers mois)</h2>
+        <LineChart data={monthChartData} color="#16A34A" formatValue={formatPrice} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -291,6 +304,11 @@ export default async function AdminStatistiquesPage() {
         </div>
       </div>
 
+      <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
+        <h2 className="font-semibold mb-4">Visites — évolution (7 derniers jours)</h2>
+        <LineChart data={dayChartData} color="#0E7FDB" formatValue={(v) => v.toLocaleString('fr-FR')} />
+      </div>
+
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <h2 className="font-semibold p-6 pb-3">Pages les plus visitées (total)</h2>
         <table className="w-full text-sm">
@@ -319,5 +337,71 @@ function StatCard({ label, value, highlight }: { label: string; value: string; h
       <p className={`text-xs ${highlight ? 'text-white/80' : 'text-gray-400'}`}>{label}</p>
       <p className="text-2xl font-extrabold mt-1">{value}</p>
     </div>
+  );
+}
+
+// Courbe en SVG pur (pas de librairie de graphiques) : une seule série, donc pas besoin de légende (le
+// titre de la carte suffit à l'identifier) — seuls le premier point, le dernier et le maximum sont
+// étiquetés pour rester lisible, plutôt qu'un chiffre sur chaque point. viewBox fixe + largeur 100% =
+// le graphique s'adapte à la largeur de la carte sans déformer les points (cercles).
+function LineChart({
+  data,
+  color,
+  formatValue,
+}: {
+  data: { label: string; value: number }[];
+  color: string;
+  formatValue: (v: number) => string;
+}) {
+  const width = 600;
+  const height = 160;
+  const padX = 6;
+  const topPad = 22;
+  const max = Math.max(1, ...data.map((d) => d.value));
+
+  const stepX = data.length > 1 ? (width - padX * 2) / (data.length - 1) : 0;
+  const points = data.map((d, i) => ({
+    ...d,
+    x: padX + i * stepX,
+    y: topPad + (height - topPad) * (1 - d.value / max),
+  }));
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${height} L ${points[0].x.toFixed(1)} ${height} Z`;
+
+  const maxIndex = points.reduce((best, p, i) => (p.value > points[best].value ? i : best), 0);
+  const labeledIndexes = new Set([0, points.length - 1, maxIndex]);
+  const gradientId = `lc-${color.replace('#', '')}`;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height + 20}`} className="w-full h-auto">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {points.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r={i === points.length - 1 ? 4 : 3} fill="white" stroke={color} strokeWidth="2" />
+          {labeledIndexes.has(i) && p.value > 0 && (
+            <text
+              x={p.x}
+              y={Math.max(9, p.y - 8)}
+              textAnchor={i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'}
+              fontSize="9"
+              className="fill-gray-500"
+            >
+              {formatValue(p.value)}
+            </text>
+          )}
+          <text x={p.x} y={height + 16} textAnchor="middle" fontSize="9" className="fill-gray-400">
+            {p.label}
+          </text>
+        </g>
+      ))}
+    </svg>
   );
 }
