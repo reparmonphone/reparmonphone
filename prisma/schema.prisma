@@ -117,12 +117,89 @@ model Product {
   avgRating   Float? // ex: 4.8
   reviewCount Int    @default(0)
 
+  // ---------- Suivi fournisseur (pieces2mobile.com) ----------
+  // Référence catalogue du fournisseur (colonne "Reference_SKU" de son export CSV), retrouvée une
+  // fois par correspondance de titre (voir scripts/lib/matchSupplier.js) puis figée : sert de clé de
+  // jointure rapide et fiable pour scripts/weekly-fournisseur-check.js, semaine après semaine.
+  supplierSku            String?
+  // Dernier prix TTC connu chez le fournisseur pour ce SKU — sert de référence pour détecter une
+  // hausse/baisse à la prochaine vérification hebdomadaire (voir scripts/weekly-fournisseur-check.js
+  // et /admin/fournisseur). Mis à jour à CHAQUE vérification, que le prix public ait changé ou non.
+  supplierPrice          Decimal?  @db.Decimal(10, 2)
+  supplierPriceCheckedAt DateTime?
+
+  supplierCheckItems SupplierCheckItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([modelId])
   @@index([pieceType])
+  @@index([supplierSku])
   @@map("products")
+}
+
+// ---------- Vérification hebdomadaire fournisseur (pieces2mobile.com) ----------
+// Krys récupère chaque semaine un export CSV du catalogue fournisseur (titre, référence, prix,
+// disponibilité) et lance scripts/weekly-fournisseur-check.js dessus. Le script compare chaque
+// produit rattaché (via Product.supplierSku) au prix/stock connu la fois précédente, et :
+//   - corrige IMMÉDIATEMENT le stock (rupture ↔ en stock) s'il a changé chez le fournisseur ;
+//   - corrige IMMÉDIATEMENT le prix public si le fournisseur a AUGMENTÉ son prix (même montant en €) ;
+//   - NE TOUCHE PAS au prix public si le fournisseur a BAISSÉ son prix — c'est à Krys de décider
+//     depuis /admin/fournisseur (voir SupplierCheckItem.reviewed).
+// Chaque exécution crée un SupplierCheckRun avec le détail des changements (SupplierCheckItem), pour
+// que /admin/fournisseur puisse afficher "qu'est-ce qui a changé cette semaine".
+
+enum SupplierCheckItemType {
+  PRIX_BAISSE   // le fournisseur a baissé son prix — prix public inchangé, en attente de décision
+  PRIX_HAUSSE   // le fournisseur a augmenté son prix — prix public déjà corrigé du même montant
+  RETOUR_STOCK  // redevenu disponible chez le fournisseur — stock déjà remis à "en stock"
+  RUPTURE_STOCK // passé en rupture chez le fournisseur — stock déjà remis à "rupture"
+}
+
+model SupplierCheckRun {
+  id            String   @id @default(cuid())
+  sourceFile    String? // nom du fichier CSV fournisseur utilisé pour cette vérification
+  totalCompared Int      @default(0) // nb de produits rapprochés d'une fiche fournisseur ce run-là
+  newlyMatched  Int      @default(0) // nb de produits pour lesquels un SKU fournisseur a été trouvé pour la première fois
+  createdAt     DateTime @default(now())
+
+  items SupplierCheckItem[]
+
+  @@map("supplier_check_runs")
+}
+
+model SupplierCheckItem {
+  id      String                @id @default(cuid())
+  runId   String
+  run     SupplierCheckRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  productId String
+  product Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type    SupplierCheckItemType
+
+  // Prix PUBLIC (ce que voit le client) avant/après ce run — identiques pour PRIX_BAISSE (non touché)
+  oldPrice Decimal? @db.Decimal(10, 2)
+  newPrice Decimal? @db.Decimal(10, 2)
+
+  // Prix FOURNISSEUR avant/après (ce qui a déclenché l'écart)
+  oldSupplierPrice Decimal? @db.Decimal(10, 2)
+  newSupplierPrice Decimal? @db.Decimal(10, 2)
+
+  oldStock Boolean?
+  newStock Boolean?
+
+  applied  Boolean @default(false) // true = correction déjà appliquée en base (toujours le cas sauf PRIX_BAISSE)
+  // Pour un PRIX_BAISSE uniquement : Krys a traité la ligne depuis /admin/fournisseur (appliqué la
+  // baisse ou choisi de garder son prix actuel). Les autres types n'ont rien à traiter, donc restent
+  // à true par défaut (voir défaut ci-dessous appliqué côté script).
+  reviewed Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([productId])
+  @@index([type, reviewed])
+  @@map("supplier_check_items")
 }
 
 // ---------- Alerte "de retour en stock" ----------
