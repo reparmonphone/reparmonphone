@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import TopUtilityBar from '@/components/TopUtilityBar';
 import VerifiedReviewsFloatingBadge from '@/components/VerifiedReviewsFloatingBadge';
 import HelpWidget from '@/components/HelpWidget';
+import GoogleMerchantBadge from '@/components/GoogleMerchantBadge';
 import TrackVisit from '@/components/TrackVisit';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import ManageCookiesLink from '@/components/ManageCookiesLink';
@@ -192,6 +193,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </footer>
         <VerifiedReviewsFloatingBadge />
         <HelpWidget />
+        <GoogleMerchantBadge />
         <TrackVisit />
         <CookieConsentBanner />
         <SmartlookLoader />
