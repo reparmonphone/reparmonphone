@@ -2,6 +2,11 @@ import { prisma } from '@/lib/prisma';
 import PriceDecreaseRow from './PriceDecreaseRow';
 import SupplierCsvUploadForm from './SupplierCsvUploadForm';
 
+// Le bouton "Lancer la vérification" (SupplierCsvUploadForm) peut, sur un très gros catalogue,
+// prendre plus que les ~10s par défaut d'une fonction serverless — on relève la limite par
+// sécurité (sans effet si l'hébergeur plafonne plus bas, ex. Vercel Hobby).
+export const maxDuration = 60;
+
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(d);
 }

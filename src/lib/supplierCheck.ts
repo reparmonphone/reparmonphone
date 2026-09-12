@@ -4,7 +4,16 @@
 // quel pour un usage en ligne de commande — les deux chemins écrivent dans les mêmes tables
 // (SupplierCheckRun / SupplierCheckItem / Product.supplierSku), donc peu importe lequel est utilisé
 // une semaine donnée, l'historique reste cohérent sur /admin/fournisseur.
+//
+// IMPORTANT différence avec le script CLI : ici, on tourne dans une requête HTTP (une Server
+// Action), qui a un temps d'exécution limité (contrairement à un `node ...` lancé à la main, qui
+// peut tourner aussi longtemps qu'il faut). Avec ~10 000 produits déjà rattachés à un SKU, faire
+// UNE requête Prisma product.update() PAR PRODUIT (comme le fait le script CLI, où ce n'est pas un
+// problème) prend plusieurs minutes et fait planter la page (timeout). On regroupe donc TOUTES les
+// écritures en quelques requêtes SQL "bulk" (UPDATE ... FROM (VALUES ...)) au lieu d'une par
+// produit — même résultat, mais des dizaines de fois plus rapide.
 import { parse } from 'csv-parse/sync';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { buildSupplierIndex, findBestMatch, SupplierRow } from '@/lib/matchSupplier';
 
@@ -32,6 +41,53 @@ function decodeSmart(buffer: Buffer): string {
 
 function isInStock(disponibilite: string): boolean {
   return /en stock/i.test((disponibilite || '').trim());
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+const CHUNK_SIZE = 1000;
+
+// Lignes où quelque chose a réellement changé (stock et/ou prix) — on écrit aussi le prix et le
+// stock, en plus du SKU/prix fournisseur "de suivi".
+type FullUpdateRow = { id: string; sku: string; supplierPrice: number; price: number; inStock: boolean };
+// Lignes sans changement — on ne touche qu'au SKU/prix fournisseur "de suivi" (référence pour la
+// comparaison de la semaine prochaine), jamais au prix public ni au stock.
+type RefreshRow = { id: string; sku: string; supplierPrice: number };
+
+async function bulkFullUpdate(rows: FullUpdateRow[]) {
+  for (const part of chunk(rows, CHUNK_SIZE)) {
+    const values = Prisma.join(
+      part.map((r) => Prisma.sql`(${r.id}::text, ${r.sku}::text, ${r.supplierPrice}::numeric, ${r.price}::numeric, ${r.inStock}::boolean)`)
+    );
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE products AS p
+      SET "supplierSku" = v.sku,
+          "supplierPrice" = v.supplier_price,
+          "supplierPriceCheckedAt" = NOW(),
+          "price" = v.price,
+          "inStock" = v.in_stock
+      FROM (VALUES ${values}) AS v(id, sku, supplier_price, price, in_stock)
+      WHERE p.id = v.id
+    `);
+  }
+}
+
+async function bulkRefresh(rows: RefreshRow[]) {
+  for (const part of chunk(rows, CHUNK_SIZE)) {
+    const values = Prisma.join(part.map((r) => Prisma.sql`(${r.id}::text, ${r.sku}::text, ${r.supplierPrice}::numeric)`));
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE products AS p
+      SET "supplierSku" = v.sku,
+          "supplierPrice" = v.supplier_price,
+          "supplierPriceCheckedAt" = NOW()
+      FROM (VALUES ${values}) AS v(id, sku, supplier_price)
+      WHERE p.id = v.id
+    `);
+  }
 }
 
 export async function runSupplierComparison(fileBuffer: Buffer, sourceFileName: string): Promise<SupplierCheckSummary> {
@@ -102,7 +158,8 @@ export async function runSupplierComparison(fileBuffer: Buffer, sourceFileName: 
     reviewed: boolean;
   };
   const items: Item[] = [];
-  const productUpdates: { id: string; data: Record<string, unknown> }[] = [];
+  const fullUpdates: FullUpdateRow[] = [];
+  const refreshUpdates: RefreshRow[] = [];
   let comparedCount = 0;
   let unchangedCount = 0;
   let notFoundInCsv = 0;
@@ -119,31 +176,27 @@ export async function runSupplierComparison(fileBuffer: Buffer, sourceFileName: 
     const oldSupplierPrice = p.supplierPrice != null ? Number(p.supplierPrice) : null;
     const newStock = isInStock(supplierRow.disponibilite);
     const oldStock = p.inStock;
+    const currentPublicPrice = Number(p.price);
 
-    const data: Record<string, unknown> = {
-      supplierSku: p.supplierSku,
-      supplierPrice: newSupplierPrice,
-      supplierPriceCheckedAt: new Date(),
-    };
     let changed = false;
+    let finalStock = oldStock;
+    let finalPrice = currentPublicPrice;
 
     if (newStock !== oldStock) {
-      data.inStock = newStock;
       changed = true;
+      finalStock = newStock;
       items.push({ productId: p.id, type: newStock ? 'RETOUR_STOCK' : 'RUPTURE_STOCK', oldStock, newStock, applied: true, reviewed: true });
     }
 
     if (oldSupplierPrice != null) {
       const delta = Math.round((newSupplierPrice - oldSupplierPrice) * 100) / 100;
       if (Math.abs(delta) >= 0.01) {
-        const currentPublicPrice = Number(p.price);
         if (delta > 0) {
-          const newPublicPrice = Math.round((currentPublicPrice + delta) * 100) / 100;
-          data.price = newPublicPrice;
+          finalPrice = Math.round((currentPublicPrice + delta) * 100) / 100;
           changed = true;
           items.push({
             productId: p.id, type: 'PRIX_HAUSSE',
-            oldPrice: currentPublicPrice, newPrice: newPublicPrice,
+            oldPrice: currentPublicPrice, newPrice: finalPrice,
             oldSupplierPrice, newSupplierPrice, applied: true, reviewed: true,
           });
         } else {
@@ -156,13 +209,18 @@ export async function runSupplierComparison(fileBuffer: Buffer, sourceFileName: 
       }
     }
 
-    if (!changed) unchangedCount++;
-    productUpdates.push({ id: p.id, data });
+    if (changed) {
+      fullUpdates.push({ id: p.id, sku: p.supplierSku as string, supplierPrice: newSupplierPrice, price: finalPrice, inStock: finalStock });
+    } else {
+      unchangedCount++;
+      refreshUpdates.push({ id: p.id, sku: p.supplierSku as string, supplierPrice: newSupplierPrice });
+    }
   }
 
-  for (const u of productUpdates) {
-    await prisma.product.update({ where: { id: u.id }, data: u.data });
-  }
+  // Écritures groupées (quelques requêtes SQL au lieu d'une par produit — voir commentaire en haut
+  // du fichier) : d'abord les changements réels, puis le simple rafraîchissement du prix de suivi.
+  await bulkFullUpdate(fullUpdates);
+  await bulkRefresh(refreshUpdates);
 
   const run = await prisma.supplierCheckRun.create({
     data: { sourceFile: sourceFileName, totalCompared: comparedCount, newlyMatched },
