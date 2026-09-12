@@ -4,3 +4,13 @@ node_modules
 .env.local
 *.log
 .DS_Store
+
+# Fichiers de travail / exports bruts fournisseurs - jamais en ligne
+Claude outputs/
+scripts/Xiaomi.csv
+scripts/Xiaomi1.csv
+scripts/Accessoires Produits.csv
+scripts/fournisseur_catalogue_merged_1.csv
+scripts/price-check-list.csv
+scripts/produits-reparmonphone-*.csv
+scripts/xiaomi-fournisseur-*.csv
