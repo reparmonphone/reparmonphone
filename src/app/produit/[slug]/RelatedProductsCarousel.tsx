@@ -47,7 +47,7 @@ export default function RelatedProductsCarousel({ products }: { products: Relate
               <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">📱</div>
             )}
             {!p.inStock && (
-              <span className="absolute top-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded">Rupture</span>
+              <span className="absolute top-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap">Rupture — 🔔 Alerte</span>
             )}
           </div>
           <p className="text-sm text-gray-800 line-clamp-2 mb-1 min-h-[2.5em]">{p.title}</p>
