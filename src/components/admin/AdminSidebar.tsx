@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import LogoutButton from './LogoutButton';
 
-type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' | 'claims' | 'mailInRepairs' };
+type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' | 'claims' | 'mailInRepairs' | 'stockAlerts' };
 
 const NAV: NavItem[] = [
   { href: '/admin', label: '📊 Tableau de bord', exact: true },
   { href: '/admin/produits', label: '📦 Produits & stock' },
+  { href: '/admin/alertes-stock', label: '🔔 Alertes stock', badgeKey: 'stockAlerts' },
   { href: '/admin/guides', label: '🔧 Guides de réparation' },
   { href: '/admin/gammes', label: '🗂️ Marques, gammes & modèles' },
   { href: '/admin/menu', label: '📋 Menu du header' },
@@ -45,13 +46,15 @@ export default async function AdminSidebar() {
   // (paiement non terminé, relancé automatiquement par email) et pas à une vraie commande reçue :
   // avec "PENDING" ici, le badge ne s'allumait quasiment jamais pour une commande réellement payée,
   // ce qui donnait l'impression qu'aucune notification n'apparaissait pour les nouvelles commandes.
-  const [newOrders, requestedAppointments, unhandledMessages, openClaims, newMailInRepairs] = await Promise.all([
-    prisma.order.count({ where: { status: 'PAID' } }),
-    prisma.appointment.count({ where: { status: 'REQUESTED' } }),
-    prisma.contactMessage.count({ where: { handled: false } }),
-    prisma.claim.count({ where: { status: 'OPEN' } }),
-    prisma.mailInRepair.count({ where: { status: 'REQUESTED' } }),
-  ]);
+  const [newOrders, requestedAppointments, unhandledMessages, openClaims, newMailInRepairs, pendingStockAlerts] =
+    await Promise.all([
+      prisma.order.count({ where: { status: 'PAID' } }),
+      prisma.appointment.count({ where: { status: 'REQUESTED' } }),
+      prisma.contactMessage.count({ where: { handled: false } }),
+      prisma.claim.count({ where: { status: 'OPEN' } }),
+      prisma.mailInRepair.count({ where: { status: 'REQUESTED' } }),
+      prisma.stockNotification.count({ where: { notifiedAt: null } }),
+    ]);
 
   const badgeCounts: Record<string, number> = {
     orders: newOrders,
@@ -59,6 +62,7 @@ export default async function AdminSidebar() {
     messages: unhandledMessages,
     claims: openClaims,
     mailInRepairs: newMailInRepairs,
+    stockAlerts: pendingStockAlerts,
   };
 
   return (

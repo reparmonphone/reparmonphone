@@ -6,6 +6,7 @@ import { formatPrice } from '@/lib/format';
 import { PIECE_TYPE_LABELS, withDeliveryMention } from '@/lib/seoText';
 import { findScreenProtectorSuggestions } from '@/lib/screenProtectorSuggestion';
 import AddToCartButton from './AddToCartButton';
+import StockNotifyForm from './StockNotifyForm';
 import ProductGallery from './ProductGallery';
 import RelatedProducts from './RelatedProducts';
 import ProductStars from '@/components/ProductStars';
@@ -174,7 +175,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
             {product.quality && <span className="bg-gray-100 px-3 py-1 rounded-full">{product.quality}</span>}
             {product.condition && <span className="bg-gray-100 px-3 py-1 rounded-full">{product.condition}</span>}
             <span className={`px-3 py-1 rounded-full ${product.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {product.inStock ? 'En stock' : 'Rupture de stock'}
+              {product.inStock ? 'En stock' : '⚠️ Alerte Stock — Rupture'}
             </span>
           </div>
 
@@ -194,6 +195,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
             </div>
             <ShareButton title={product.title} url={`${SITE_URL}/produit/${product.slug}`} />
           </div>
+
+          {!product.inStock && <StockNotifyForm productId={product.id} />}
 
           <div className="mt-3">
             <ProductStars rating={product.avgRating} count={product.reviewCount} />

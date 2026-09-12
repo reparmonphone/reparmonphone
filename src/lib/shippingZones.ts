@@ -20,6 +20,15 @@ export type ShippingZoneRateData = {
   price: number;
 };
 
+// Réglage "livraison gratuite à partir de X€", configurable depuis /admin/livraison (stocké en base
+// via SiteSetting — voir src/lib/freeShipping.ts). Défini ici (et pas dans freeShipping.ts, qui importe
+// Prisma) pour que ce fichier reste un module pur sans dépendance, utilisable tel quel côté client
+// (PanierClient.tsx) comme côté serveur (routes de paiement).
+export type FreeShippingConfig = {
+  enabled: boolean;
+  threshold: number; // en euros, ex: 250
+};
+
 function normalizePostalCode(postalCode: string | null | undefined): string {
   return (postalCode ?? '').replace(/\s+/g, '').toUpperCase();
 }
@@ -44,20 +53,39 @@ export function findShippingZone(zones: ShippingZoneData[], postalCode: string |
 }
 
 // Calcule le prix effectif d'une option de livraison pour un code postal donné : le tarif de zone
-// spécifique s'il existe, sinon le tarif de base (France métropolitaine).
+// spécifique s'il existe, sinon le tarif de base (France métropolitaine) — puis applique la livraison
+// gratuite si elle est activée, que le sous-total atteint le seuil, ET que la destination est la France
+// métropolitaine (zone === null). Volontairement jamais appliquée à l'Outre-mer/Corse, même si ces
+// zones ont leur propre tarif de base, pour ne jamais offrir un transport à tarif spécial déjà réduit —
+// voir demande de Krys du 12/09/2026 ("en france metropolitaine").
 export function resolveShippingPrice(
   option: { id: string; price: number },
   zones: ShippingZoneData[],
   rates: ShippingZoneRateData[],
-  postalCode: string | null | undefined
-): { price: number; zone: ShippingZoneData | null } {
+  postalCode: string | null | undefined,
+  freeShipping?: { config: FreeShippingConfig; subtotal: number }
+): { price: number; zone: ShippingZoneData | null; freeShippingApplied: boolean } {
   const zone = findShippingZone(zones, postalCode);
-  if (!zone) return { price: option.price, zone: null };
 
-  const rate = rates.find((r) => r.shippingOptionId === option.id && r.zoneId === zone.id);
-  if (!rate) return { price: option.price, zone };
+  let price: number;
+  if (!zone) {
+    price = option.price;
+  } else {
+    const rate = rates.find((r) => r.shippingOptionId === option.id && r.zoneId === zone.id);
+    price = rate ? rate.price : option.price;
+  }
 
-  return { price: rate.price, zone };
+  let freeShippingApplied = false;
+  if (
+    !zone &&
+    freeShipping?.config.enabled &&
+    freeShipping.subtotal >= freeShipping.config.threshold
+  ) {
+    price = 0;
+    freeShippingApplied = true;
+  }
+
+  return { price, zone, freeShippingApplied };
 }
 
 export type ShippingOptionZoneLinkData = {

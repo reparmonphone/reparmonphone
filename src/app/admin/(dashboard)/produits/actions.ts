@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { pingIndexNow } from '@/lib/indexnow';
+import { notifyBackInStock } from '@/lib/stockNotifications';
 
 function slugify(s: string) {
   return s
@@ -44,6 +45,10 @@ export async function updateProduct(
 ) {
   await requireAdminUser();
 
+  // Lu AVANT la mise à jour pour détecter une remise en stock (rupture -> disponible) et déclencher
+  // les emails "Alerte Stock" — voir plus bas.
+  const before = await prisma.product.findUnique({ where: { id: productId }, select: { inStock: true } });
+
   await prisma.product.update({
     where: { id: productId },
     data: {
@@ -69,6 +74,10 @@ export async function updateProduct(
   const updated = await prisma.product.findUnique({ where: { id: productId }, select: { slug: true } });
   if (updated) {
     pingIndexNow([`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr'}/produit/${updated.slug}`]);
+  }
+
+  if (data.inStock && before && !before.inStock) {
+    await notifyBackInStock(productId);
   }
 }
 
@@ -99,9 +108,16 @@ export async function deleteProduct(productId: string) {
 
 export async function toggleStock(productId: string, inStock: boolean) {
   await requireAdminUser();
+  const before = await prisma.product.findUnique({ where: { id: productId }, select: { inStock: true } });
   await prisma.product.update({ where: { id: productId }, data: { inStock } });
   revalidatePath('/admin/produits');
   revalidatePath('/boutique');
+
+  // Remise en stock (rupture -> disponible) : on prévient automatiquement tous les clients inscrits
+  // sur "Alerte Stock" pour ce produit — voir src/lib/stockNotifications.ts.
+  if (inStock && before && !before.inStock) {
+    await notifyBackInStock(productId);
+  }
 }
 
 // Modification rapide du prix depuis la liste (sans ouvrir la fiche complète)

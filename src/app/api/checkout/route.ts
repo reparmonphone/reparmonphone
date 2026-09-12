@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
 import { DOMTOM_STRIPE_COUNTRY_CODES } from '@/lib/shippingCountryCodes';
+import { getFreeShippingConfig } from '@/lib/freeShipping';
 
 export async function POST(req: NextRequest) {
   const { items, shippingOptionId, promoCode, customer } = await req.json();
@@ -12,6 +13,22 @@ export async function POST(req: NextRequest) {
   if (!items || items.length === 0) {
     return NextResponse.json({ error: 'Panier vide' }, { status: 400 });
   }
+
+  // Recalcul des prix côté serveur (ne jamais faire confiance au panier client) — fait AVANT le calcul
+  // du tarif de livraison, car le seuil de livraison gratuite dépend du sous-total réel.
+  const productIds = items.map((i: { productId: string }) => i.productId);
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+
+  const orderItemsData = items.map((item: { productId: string; quantity: number }) => {
+    const product = products.find((p: { id: string }) => p.id === item.productId);
+    if (!product) throw new Error(`Produit introuvable: ${item.productId}`);
+    return { product, quantity: item.quantity };
+  });
+
+  const subtotal = orderItemsData.reduce(
+    (sum: number, i: { product: { price: unknown }; quantity: number }) => sum + Number(i.product.price) * i.quantity,
+    0
+  );
 
   const shippingOption = shippingOptionId
     ? await prisma.shippingOption.findUnique({ where: { id: shippingOptionId } })
@@ -23,10 +40,11 @@ export async function POST(req: NextRequest) {
   const effectiveZip = customer?.shipDifferent ? customer?.shipAddressZip : customer?.addressZip;
   let shippingCost = 0;
   if (shippingOption) {
-    const [zones, rates, optionZoneLinks] = await Promise.all([
+    const [zones, rates, optionZoneLinks, freeShippingConfig] = await Promise.all([
       prisma.shippingZone.findMany(),
       prisma.shippingZoneRate.findMany({ where: { shippingOptionId: shippingOption.id } }),
       prisma.shippingOptionZone.findMany({ where: { shippingOptionId: shippingOption.id } }),
+      getFreeShippingConfig(),
     ]);
     const zoneList = zones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes }));
     const zone = findShippingZone(zoneList, effectiveZip);
@@ -42,25 +60,11 @@ export async function POST(req: NextRequest) {
       { id: shippingOption.id, price: Number(shippingOption.price) },
       zoneList,
       rates.map((r) => ({ shippingOptionId: r.shippingOptionId, zoneId: r.zoneId, price: Number(r.price) })),
-      effectiveZip
+      effectiveZip,
+      { config: freeShippingConfig, subtotal }
     );
     shippingCost = resolved.price;
   }
-
-  // Recalcul des prix côté serveur (ne jamais faire confiance au panier client)
-  const productIds = items.map((i: { productId: string }) => i.productId);
-  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
-
-  const orderItemsData = items.map((item: { productId: string; quantity: number }) => {
-    const product = products.find((p: { id: string }) => p.id === item.productId);
-    if (!product) throw new Error(`Produit introuvable: ${item.productId}`);
-    return { product, quantity: item.quantity };
-  });
-
-  const subtotal = orderItemsData.reduce(
-    (sum: number, i: { product: { price: unknown }; quantity: number }) => sum + Number(i.product.price) * i.quantity,
-    0
-  );
 
   // Revalidation du code promo côté serveur — ne jamais faire confiance à la réduction affichée côté client
   let discountAmount = 0;

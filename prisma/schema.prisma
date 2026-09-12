@@ -111,6 +111,7 @@ model Product {
   orderItems OrderItem[]
   reviews    ProductReview[]
   favorites  Favorite[]
+  stockNotifications StockNotification[]
 
   // Champs mis en cache pour affichage rapide (étiquettes produit, listes) sans recalculer à chaque fois
   avgRating   Float? // ex: 4.8
@@ -122,6 +123,26 @@ model Product {
   @@index([modelId])
   @@index([pieceType])
   @@map("products")
+}
+
+// ---------- Alerte "de retour en stock" ----------
+// Un client (connecté ou non) s'inscrit sur la fiche d'un produit en rupture pour être prévenu par
+// email dès qu'il redevient disponible. Sert aussi côté admin (page /admin/alertes-stock) à savoir
+// quels produits en rupture intéressent le plus de monde, pour prioriser les réappros fournisseur.
+model StockNotification {
+  id         String    @id @default(cuid())
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  email      String
+  userId     String?   // uuid Supabase Auth si le client était connecté au moment de l'inscription
+  notifiedAt DateTime? // renseigné dès que l'email "de retour en stock" a été envoyé (un seul envoi
+  // par inscription — si le client se réinscrit après coup, ce champ est remis à zéro, voir
+  // src/app/api/stock-notifications/route.ts)
+  createdAt  DateTime  @default(now())
+
+  @@unique([productId, email])
+  @@index([productId])
+  @@map("stock_notifications")
 }
 
 // ---------- Avis produits (différents des avis Google/Facebook de l'entreprise) ----------

@@ -4,6 +4,7 @@ import { createPaypalOrder } from '@/lib/paypal';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
+import { getFreeShippingConfig } from '@/lib/freeShipping';
 
 export async function POST(req: NextRequest) {
   const { items, shippingOptionId, customer, promoCode } = await req.json();
@@ -15,6 +16,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Coordonnées et adresse obligatoires pour un paiement PayPal.' }, { status: 400 });
   }
 
+  // Recalcul des prix côté serveur (ne jamais faire confiance au panier client) — fait AVANT le calcul
+  // du tarif de livraison, car le seuil de livraison gratuite dépend du sous-total réel.
+  const productIds = items.map((i: { productId: string }) => i.productId);
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+
+  const orderItemsData = items.map((item: { productId: string; quantity: number }) => {
+    const product = products.find((p: { id: string }) => p.id === item.productId);
+    if (!product) throw new Error(`Produit introuvable: ${item.productId}`);
+    return { product, quantity: item.quantity };
+  });
+
+  const subtotal = orderItemsData.reduce(
+    (sum: number, i: { product: { price: unknown }; quantity: number }) => sum + Number(i.product.price) * i.quantity,
+    0
+  );
+
   const shippingOption = shippingOptionId
     ? await prisma.shippingOption.findUnique({ where: { id: shippingOptionId } })
     : null;
@@ -22,10 +39,11 @@ export async function POST(req: NextRequest) {
   const effectiveZipForShipping = customer.shipDifferent ? customer.shipAddressZip : customer.addressZip;
   let shippingCost = 0;
   if (shippingOption) {
-    const [zones, rates, optionZoneLinks] = await Promise.all([
+    const [zones, rates, optionZoneLinks, freeShippingConfig] = await Promise.all([
       prisma.shippingZone.findMany(),
       prisma.shippingZoneRate.findMany({ where: { shippingOptionId: shippingOption.id } }),
       prisma.shippingOptionZone.findMany({ where: { shippingOptionId: shippingOption.id } }),
+      getFreeShippingConfig(),
     ]);
     const zoneList = zones.map((z) => ({ id: z.id, name: z.name, postalPrefixes: z.postalPrefixes }));
     const zone = findShippingZone(zoneList, effectiveZipForShipping);
@@ -41,24 +59,12 @@ export async function POST(req: NextRequest) {
       { id: shippingOption.id, price: Number(shippingOption.price) },
       zoneList,
       rates.map((r) => ({ shippingOptionId: r.shippingOptionId, zoneId: r.zoneId, price: Number(r.price) })),
-      effectiveZipForShipping
+      effectiveZipForShipping,
+      { config: freeShippingConfig, subtotal }
     );
     shippingCost = resolved.price;
   }
 
-  const productIds = items.map((i: { productId: string }) => i.productId);
-  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
-
-  const orderItemsData = items.map((item: { productId: string; quantity: number }) => {
-    const product = products.find((p: { id: string }) => p.id === item.productId);
-    if (!product) throw new Error(`Produit introuvable: ${item.productId}`);
-    return { product, quantity: item.quantity };
-  });
-
-  const subtotal = orderItemsData.reduce(
-    (sum: number, i: { product: { price: unknown }; quantity: number }) => sum + Number(i.product.price) * i.quantity,
-    0
-  );
   // Revalidation du code promo côté serveur
   let discountAmount = 0;
   let appliedPromoCode: string | undefined;

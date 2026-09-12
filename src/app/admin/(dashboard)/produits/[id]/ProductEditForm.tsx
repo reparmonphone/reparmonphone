@@ -30,7 +30,17 @@ type Product = {
   quality: string | null;
 };
 
-export default function ProductEditForm({ product, brands }: { product: Product; brands: BrandOpt[] }) {
+export default function ProductEditForm({
+  product,
+  brands,
+  pendingNotifications,
+}: {
+  product: Product;
+  brands: BrandOpt[];
+  // Nombre de clients inscrits sur "Alerte Stock" pour ce produit, pas encore notifiés — voir
+  // /admin/alertes-stock pour la liste complète tous produits confondus.
+  pendingNotifications: number;
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -249,6 +259,12 @@ export default function ProductEditForm({ product, brands }: { product: Product;
           <input type="checkbox" checked={inStock} onChange={(e) => setInStock(e.target.checked)} />
           Produit disponible à la vente
         </label>
+        {pendingNotifications > 0 && (
+          <p className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
+            🔔 {pendingNotifications} client{pendingNotifications > 1 ? 's' : ''} en attente d&apos;une alerte stock
+            pour ce produit. {!inStock && "Coche \"Produit disponible à la vente\" et enregistre pour les prévenir automatiquement par email."}
+          </p>
+        )}
       </div>
 
       {/* Descriptions */}

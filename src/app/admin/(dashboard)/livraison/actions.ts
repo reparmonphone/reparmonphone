@@ -173,3 +173,28 @@ export async function setShippingZoneRate(shippingOptionId: string, zoneId: stri
   revalidateAll();
   return { ok: true };
 }
+
+// ---------- Livraison gratuite à partir d'un montant (France métropolitaine) ----------
+// Stocké en SiteSetting (comme les interrupteurs de moyens de paiement) — voir src/lib/freeShipping.ts
+// pour la lecture, et src/lib/shippingZones.ts::resolveShippingPrice pour l'application du seuil.
+
+export async function setFreeShippingSettings(data: { enabled: boolean; threshold: number }) {
+  await requireAdminUser();
+  if (!Number.isFinite(data.threshold) || data.threshold < 0) {
+    return { error: 'Le montant doit être un nombre positif.' };
+  }
+  await prisma.$transaction([
+    prisma.siteSetting.upsert({
+      where: { key: 'free_shipping_enabled' },
+      update: { value: data.enabled ? 'true' : 'false' },
+      create: { key: 'free_shipping_enabled', value: data.enabled ? 'true' : 'false' },
+    }),
+    prisma.siteSetting.upsert({
+      where: { key: 'free_shipping_threshold' },
+      update: { value: String(data.threshold) },
+      create: { key: 'free_shipping_threshold', value: String(data.threshold) },
+    }),
+  ]);
+  revalidateAll();
+  return { ok: true };
+}

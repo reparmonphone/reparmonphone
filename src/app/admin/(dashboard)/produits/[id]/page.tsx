@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import ProductEditForm from './ProductEditForm';
 
 export default async function AdminProductEditPage({ params }: { params: { id: string } }) {
-  const [product, brands] = await Promise.all([
+  const [product, brands, pendingNotifications] = await Promise.all([
     prisma.product.findUnique({
       where: { id: params.id },
       include: { model: { include: { productLine: { include: { brand: true } } } } },
@@ -18,6 +18,7 @@ export default async function AdminProductEditPage({ params }: { params: { id: s
         },
       },
     }),
+    prisma.stockNotification.count({ where: { productId: params.id, notifiedAt: null } }),
   ]);
 
   if (!product) notFound();
@@ -35,6 +36,7 @@ export default async function AdminProductEditPage({ params }: { params: { id: s
 
       <ProductEditForm
         brands={brands}
+        pendingNotifications={pendingNotifications}
         product={{
           id: product.id,
           title: product.title,

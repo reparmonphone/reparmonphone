@@ -13,6 +13,7 @@ import {
   type ShippingZoneData,
   type ShippingZoneRateData,
   type ShippingOptionZoneLinkData,
+  type FreeShippingConfig,
 } from '@/lib/shippingZones';
 
 type ShippingOption = { id: string; label: string; description: string | null; price: number; availableMetropole: boolean };
@@ -31,6 +32,7 @@ export default function PanierClient({
   shippingZones,
   shippingZoneRates,
   shippingOptionZoneLinks,
+  freeShipping,
   paymentMethods,
   initialCustomer,
 }: {
@@ -38,6 +40,7 @@ export default function PanierClient({
   shippingZones: ShippingZoneData[];
   shippingZoneRates: ShippingZoneRateData[];
   shippingOptionZoneLinks: ShippingOptionZoneLinkData[];
+  freeShipping: FreeShippingConfig;
   paymentMethods: PaymentMethods;
   initialCustomer: InitialCustomer;
 }) {
@@ -94,12 +97,17 @@ export default function PanierClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveZip, availableShippingOptions.map((o) => o.id).join(',')]);
 
-  const { price: shippingCost } = shipping
-    ? resolveShippingPrice(shipping, shippingZones, shippingZoneRates, effectiveZip)
-    : { price: 0 };
   const subtotal = totalPrice();
+  const { price: shippingCost, freeShippingApplied } = shipping
+    ? resolveShippingPrice(shipping, shippingZones, shippingZoneRates, effectiveZip, { config: freeShipping, subtotal })
+    : { price: 0, freeShippingApplied: false };
   const discount = appliedPromo?.discount ?? 0;
   const total = Math.max(0, subtotal + shippingCost - discount);
+
+  // Message d'incitation "plus que X€ pour la livraison gratuite" — uniquement pertinent pour la
+  // France métropolitaine (zone === null) et si le réglage est actif (voir /admin/livraison).
+  const remainingForFreeShipping = Math.max(0, freeShipping.threshold - subtotal);
+  const showFreeShippingNudge = freeShipping.enabled && !zone && remainingForFreeShipping > 0;
 
   async function applyPromoCode() {
     if (!promoInput.trim()) return;
@@ -334,7 +342,13 @@ export default function PanierClient({
                 <>
                   <div className="space-y-2">
                     {availableShippingOptions.map((opt) => {
-                      const { price: optPrice } = resolveShippingPrice(opt, shippingZones, shippingZoneRates, effectiveZip);
+                      const { price: optPrice, freeShippingApplied: optFree } = resolveShippingPrice(
+                        opt,
+                        shippingZones,
+                        shippingZoneRates,
+                        effectiveZip,
+                        { config: freeShipping, subtotal }
+                      );
                       return (
                         <label key={opt.id} className="flex items-start gap-2 text-sm cursor-pointer">
                           <input type="radio" name="shipping" checked={shippingId === opt.id} onChange={() => setShippingId(opt.id)} className="mt-0.5" />
@@ -342,7 +356,9 @@ export default function PanierClient({
                             {opt.label}
                             {opt.description && <span className="block text-xs text-gray-400">{opt.description}</span>}
                           </span>
-                          <span className="font-medium shrink-0">{formatPrice(optPrice)}</span>
+                          <span className="font-medium shrink-0">
+                            {optFree ? <span className="text-green-600">Offerte</span> : formatPrice(optPrice)}
+                          </span>
                         </label>
                       );
                     })}
@@ -350,6 +366,16 @@ export default function PanierClient({
                   {zone && (
                     <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
                       📍 Tarif {zone.name} appliqué selon le code postal saisi.
+                    </p>
+                  )}
+                  {freeShippingApplied && (
+                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 mt-2">
+                      🎉 Livraison offerte — commande de {formatPrice(freeShipping.threshold)} ou plus en France métropolitaine.
+                    </p>
+                  )}
+                  {showFreeShippingNudge && (
+                    <p className="text-xs text-brand-dark bg-brand-light border border-brand/20 rounded-lg px-2.5 py-1.5 mt-2">
+                      🚚 Plus que {formatPrice(remainingForFreeShipping)} d&apos;achat pour la livraison gratuite !
                     </p>
                   )}
                 </>

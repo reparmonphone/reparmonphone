@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { getFreeShippingConfig } from '@/lib/freeShipping';
 import PanierClient from './PanierClient';
 
 export default async function PanierPage() {
@@ -9,11 +10,12 @@ export default async function PanierPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [shippingOptions, shippingZones, shippingZoneRates, shippingOptionZoneLinks] = await Promise.all([
+  const [shippingOptions, shippingZones, shippingZoneRates, shippingOptionZoneLinks, freeShipping] = await Promise.all([
     prisma.shippingOption.findMany({ where: { active: true }, orderBy: { order: 'asc' } }),
     prisma.shippingZone.findMany({ orderBy: { order: 'asc' } }),
     prisma.shippingZoneRate.findMany(),
     prisma.shippingOptionZone.findMany(),
+    getFreeShippingConfig(),
   ]);
 
   const paymentSettings = await prisma.siteSetting.findMany({
@@ -64,6 +66,7 @@ export default async function PanierPage() {
         shippingOptionId: l.shippingOptionId,
         zoneId: l.zoneId,
       }))}
+      freeShipping={freeShipping}
       paymentMethods={{
         stripe: isEnabled('payment_stripe_enabled'),
         sumup: isEnabled('payment_sumup_enabled'),
