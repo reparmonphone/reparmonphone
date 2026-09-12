@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import PriceDecreaseRow from './PriceDecreaseRow';
+import SupplierCsvUploadForm from './SupplierCsvUploadForm';
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(d);
@@ -41,11 +42,14 @@ export default async function AdminFournisseurPage() {
     <div>
       <h1 className="text-2xl font-bold mb-1">📊 Comparaison fournisseur</h1>
       <p className="text-gray-500 mb-6">
-        Compare chaque semaine ton catalogue au prix et au stock de pieces2mobile.com. Le stock et les hausses de
-        prix fournisseur sont corrigés automatiquement dès que tu lances{' '}
-        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">node scripts/weekly-fournisseur-check.js</code>{' '}
-        avec un export CSV frais — seules les baisses de prix attendent ta décision, ci-dessous.
+        Compare ton catalogue au prix et au stock de pieces2mobile.com. Le stock et les hausses de prix fournisseur
+        sont corrigés automatiquement à chaque vérification — seules les baisses de prix attendent ta décision,
+        ci-dessous. Dépose un export CSV frais avec le bouton ci-dessous (ou en ligne de commande avec{' '}
+        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">node scripts/weekly-fournisseur-check.js</code>, ça
+        revient au même).
       </p>
+
+      <SupplierCsvUploadForm />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white border border-gray-100 rounded-xl p-4">

@@ -3,6 +3,35 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
+import { runSupplierComparison, SupplierCheckSummary } from '@/lib/supplierCheck';
+
+// Lancée par le bouton "Lancer la vérification" de /admin/fournisseur (voir
+// SupplierCsvUploadForm.tsx) : fait exactement ce que fait scripts/weekly-fournisseur-check.js en
+// ligne de commande, mais directement depuis un CSV déposé dans le navigateur — plus besoin
+// d'ouvrir PowerShell chaque semaine. Le fichier n'est jamais enregistré sur le serveur, juste lu
+// en mémoire le temps de la comparaison.
+export async function runSupplierCheckAction(formData: FormData): Promise<{ ok: true; summary: SupplierCheckSummary } | { error: string }> {
+  await requireAdminUser();
+
+  const file = formData.get('csv');
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: 'Aucun fichier CSV reçu.' };
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    return { error: 'Fichier trop volumineux (max 25 Mo).' };
+  }
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const summary = await runSupplierComparison(buffer, file.name);
+    revalidatePath('/admin/fournisseur');
+    revalidatePath('/admin/produits');
+    return { ok: true, summary };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Erreur inconnue pendant la vérification.';
+    return { error: message };
+  }
+}
 
 // Une baisse de prix fournisseur n'est JAMAIS appliquée automatiquement (voir
 // scripts/weekly-fournisseur-check.js) — c'est Krys qui décide ici, produit par produit, si elle
