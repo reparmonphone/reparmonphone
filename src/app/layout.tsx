@@ -10,6 +10,7 @@ import TrackVisit from '@/components/TrackVisit';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import ManageCookiesLink from '@/components/ManageCookiesLink';
 import SmartlookLoader from '@/components/SmartlookLoader';
+import GoogleTagManagerLoader from '@/components/GoogleTagManagerLoader';
 import JsonLd from '@/components/JsonLd';
 import { prisma } from '@/lib/prisma';
 import { getSiteMeta } from '@/lib/siteMeta';
@@ -118,6 +119,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="fr">
       <body className="bg-white text-gray-900 antialiased">
+        {/* Google Tag Manager (noscript) — le conteneur lui-même (GoogleTagManagerLoader, plus bas)
+            n'est chargé qu'après consentement "statistiques" ; ce repli n'a d'effet que pour les
+            visiteurs sans JavaScript, voir GoogleTagManagerLoader.tsx pour la logique de consentement. */}
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-5GK7DCQ9"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
         <JsonLd data={localBusinessSchema} />
         <TopUtilityBar />
         <Header menuTree={menuTree} menuItems={menuItems} />
@@ -197,6 +209,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <TrackVisit />
         <CookieConsentBanner />
         <SmartlookLoader />
+        <GoogleTagManagerLoader />
       </body>
     </html>
   );
