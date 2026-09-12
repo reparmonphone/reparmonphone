@@ -99,8 +99,16 @@ function tokenSortRatio(normA, normB) {
   return ((maxLen - dist) / maxLen) * 100;
 }
 
-const MAX_POSTINGS = 400; // un token présent dans plus de X fiches fournisseur n'aide pas à cibler
-const MAX_CANDIDATES = 60;
+// IMPORTANT : le nombre de fiches fournisseur partageant un mot (ex: "iphone" ~2300 fiches,
+// "parleur" ~370) ne dit RIEN sur sa pertinence pour CE produit précis — un mot très fréquent
+// dans tout le catalogue peut quand même être le mot le plus discriminant pour un titre donné
+// (ex: "Haut-parleur iPhone 6" : aucun des 3 mots n'est rare, mais leur COMBINAISON l'est). Filtrer
+// les candidats sur la fréquence d'un mot AVANT de compter les correspondances a fait rater des
+// centaines de produits qui avaient pourtant une fiche fournisseur strictement identique — donc ICI
+// on compte les mots partagés sur TOUS les mots du titre (aucun mot écarté pour cause de fréquence),
+// et le tri par nombre de mots partagés fait naturellement remonter le bon candidat en tête, même
+// parmi des dizaines de milliers de fiches partageant un seul mot commun.
+const MAX_CANDIDATES = 300;
 const THRESHOLD = 88;
 
 // Construit un index inversé token -> [indices] sur la liste fournisseur (tableaux de
@@ -127,12 +135,7 @@ function buildSupplierIndex(supplierRows) {
     }
   });
 
-  const discriminant = new Set();
-  for (const [t, ids] of tokenIndex.entries()) {
-    if (ids.length <= MAX_POSTINGS) discriminant.add(t);
-  }
-
-  return { prepared, tokenIndex, discriminant };
+  return { prepared, tokenIndex };
 }
 
 // Cherche la meilleure correspondance pour un titre donné dans l'index fournisseur construit
@@ -146,16 +149,8 @@ function findBestMatch(title, index) {
 
   const candCounts = new Map();
   for (const t of bTokens) {
-    if (!index.discriminant.has(t)) continue;
     for (const idx of index.tokenIndex.get(t) || []) {
       candCounts.set(idx, (candCounts.get(idx) || 0) + 1);
-    }
-  }
-  if (candCounts.size === 0) {
-    for (const t of bTokens) {
-      for (const idx of index.tokenIndex.get(t) || []) {
-        candCounts.set(idx, (candCounts.get(idx) || 0) + 1);
-      }
     }
   }
   if (candCounts.size === 0) return null;
