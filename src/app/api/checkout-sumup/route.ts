@@ -129,7 +129,10 @@ export async function POST(req: NextRequest) {
       amount: total,
       checkoutReference: order.id,
       description: `Commande ReparMonPhone #${order.id.slice(-8)}`,
-      redirectUrl: `${origin}/checkout/success`,
+      // order_id ajouté pour que la page de succès puisse identifier la commande (ex: intégration
+      // "Google Avis clients") — order.id est un identifiant cuid aléatoire non devinable, donc sans
+      // risque à exposer dans l'URL (même principe que le session_id Stripe).
+      redirectUrl: `${origin}/checkout/success?order_id=${order.id}`,
       returnUrl: `${origin}/api/webhook-sumup`,
     });
 
