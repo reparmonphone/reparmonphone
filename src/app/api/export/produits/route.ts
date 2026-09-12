@@ -23,10 +23,27 @@ export async function GET() {
     p.avgRating ? p.avgRating.toFixed(1) : '',
     p.reviewCount,
     p.slug,
+    p.supplierSku ?? '',
+    p.supplierPrice ? Number(p.supplierPrice).toFixed(2) : '',
   ]);
 
   const csv = toCsv(
-    ['Titre', 'Marque', 'Gamme', 'Modèle', 'Prix', 'Prix barré', 'En stock', 'Quantité', 'Visible boutique', 'Note moyenne', 'Nb avis', 'Slug'],
+    [
+      'Titre',
+      'Marque',
+      'Gamme',
+      'Modèle',
+      'Prix',
+      'Prix barré',
+      'En stock',
+      'Quantité',
+      'Visible boutique',
+      'Note moyenne',
+      'Nb avis',
+      'Slug',
+      'SKU_Fournisseur',
+      'Prix_Fournisseur',
+    ],
     rows
   );
 
