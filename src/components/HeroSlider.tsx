@@ -12,17 +12,17 @@ type Slide = {
 
 const SLIDES: Slide[] = [
   {
-    src: '/slider/slide-chronopost.png',
+    src: '/slider/slide-chronopost.webp',
     alt: 'Livraison Chronopost 24h dès 250€ HT, commande avant 20h',
     href: '/boutique',
   },
   {
-    src: '/slider/slide-newlife-xiaomi.png',
+    src: '/slider/slide-newlife-xiaomi.webp',
     alt: 'NewLife — téléphones reconditionnés par Xiaomi, stock limité',
     href: '/boutique?marque=xiaomi',
   },
   {
-    src: '/slider/slide-optimum.png',
+    src: '/slider/slide-optimum.webp',
     alt: 'Gamme Optimum — écrans qualité pour Samsung Galaxy et Google Pixel',
     href: '/boutique?type=ECRAN',
   },
