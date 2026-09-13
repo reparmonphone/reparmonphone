@@ -2,7 +2,12 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import LogoutButton from './LogoutButton';
 
-type NavItem = { href: string; label: string; exact?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' | 'claims' | 'mailInRepairs' | 'stockAlerts' | 'supplierPriceDrops' };
+type NavItem = { href: string; label: string; exact?: boolean; external?: boolean; badgeKey?: 'orders' | 'appointments' | 'messages' | 'claims' | 'mailInRepairs' | 'stockAlerts' | 'supplierPriceDrops' };
+
+// Lien direct vers la propriété GA4 du site (compte reparmonphone@gmail.com). Ouvre le rapport
+// "Temps réel" de Google Analytics dans un nouvel onglet — c'est là que remontent les visites et
+// les évènements e-commerce (add_to_cart, begin_checkout, purchase) envoyés via GTM-58XQM4FG.
+const GA4_REALTIME_URL = 'https://analytics.google.com/analytics/web/#/p485388651/realtime/overview';
 
 const NAV: NavItem[] = [
   { href: '/admin', label: '📊 Tableau de bord', exact: true },
@@ -20,6 +25,7 @@ const NAV: NavItem[] = [
   { href: '/admin/paiements', label: '💳 Moyens de paiement' },
   { href: '/admin/codes-promo', label: '🏷️ Codes promo' },
   { href: '/admin/statistiques', label: '📈 Statistiques' },
+  { href: GA4_REALTIME_URL, label: '📊 Google Analytics', external: true },
   { href: '/admin/benefice', label: '💰 Bénéfice' },
   { href: '/admin/seo', label: '🔍 SEO & Référencement' },
   { href: '/admin/rdv', label: '📅 Rendez-vous', badgeKey: 'appointments' },
@@ -90,16 +96,29 @@ export default async function AdminSidebar() {
       </div>
 
       <nav className="flex-1 p-3 space-y-1">
-        {NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-gray-800 transition"
-          >
-            <span>{item.label}</span>
-            {item.badgeKey && <Badge count={badgeCounts[item.badgeKey]} />}
-          </Link>
-        ))}
+        {NAV.map((item) =>
+          item.external ? (
+            <a
+              key={item.href}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-gray-800 transition"
+            >
+              <span>{item.label}</span>
+              <span className="ml-auto text-gray-500 text-xs shrink-0">↗</span>
+            </a>
+          ) : (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-gray-800 transition"
+            >
+              <span>{item.label}</span>
+              {item.badgeKey && <Badge count={badgeCounts[item.badgeKey]} />}
+            </Link>
+          )
+        )}
       </nav>
 
       <div className="p-3 border-t border-gray-800">
