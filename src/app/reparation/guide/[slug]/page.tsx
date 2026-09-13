@@ -158,9 +158,14 @@ export default async function GuideDetailPage({ params }: { params: { slug: stri
 
       <div className="mt-12 bg-gray-50 rounded-xl p-6 text-center">
         <p className="text-gray-600 mb-3">Pas envie de le faire vous-même ou besoin d&apos;aide ?</p>
-        <Link href="/rdv" className="inline-block bg-brand text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-dark transition">
-          Prendre rendez-vous en atelier
-        </Link>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Link href="/rdv" className="inline-block bg-brand text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-dark transition">
+            Prendre rendez-vous en atelier
+          </Link>
+          <Link href="/reparation-a-distance" className="inline-block bg-white border border-brand text-brand px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-light/40 transition">
+            Pas à proximité ? Réparation par correspondance
+          </Link>
+        </div>
       </div>
     </div>
   );
