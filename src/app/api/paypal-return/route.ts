@@ -38,7 +38,11 @@ export async function GET(req: NextRequest) {
         await sendOrderConfirmedEmails(order.id);
       }
 
-      return NextResponse.redirect(`${origin}/checkout/success`);
+      // order_id ajouté à l'URL (même principe que Stripe/SumUp, voir /api/checkout et
+      // /api/checkout-sumup) pour que la page de succès puisse identifier la commande : intégration
+      // "Google Avis clients" et événement GA4 "purchase" (voir src/lib/gtmEvents.ts). order.id est un
+      // identifiant cuid aléatoire non devinable, donc sans risque à exposer dans l'URL.
+      return NextResponse.redirect(`${origin}/checkout/success?order_id=${order.id}`);
     }
 
     return NextResponse.redirect(`${origin}/panier?error=paypal`);

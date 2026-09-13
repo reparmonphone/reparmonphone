@@ -9,9 +9,9 @@ declare global {
   }
 }
 
-// Même identifiant que celui fourni par Google Tag Manager (GTM-5GK7DCQ9) — à changer ici seulement
-// si Krys recrée un jour un nouveau conteneur GTM.
-const GTM_ID = 'GTM-5GK7DCQ9';
+// Même identifiant que celui du conteneur GTM de Krys, "REPAR MON PHONE" (compte reparmonphone@gmail.com)
+// — à changer ici seulement si elle recrée un jour un nouveau conteneur GTM.
+const GTM_ID = 'GTM-58XQM4FG';
 
 // Chargé seulement si le consentement "statistiques" a été donné (même règle que Smartlook, voir
 // SmartlookLoader.tsx) : GTM sert de conteneur à d'éventuelles balises de mesure/publicité, donc on

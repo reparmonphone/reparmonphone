@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { useSearchParams } from 'next/navigation';
 import { useCart } from '@/store/cart';
+import { trackPurchase, type GtmEcommerceItem } from '@/lib/gtmEvents';
 
 // Merchant Center (intégration "Google Avis clients") — identifiant du compte marchand utilisé pour
 // vendre les produits sur Google Shopping. Stable et non sensible (déjà visible publiquement dans les
@@ -12,8 +13,8 @@ import { useCart } from '@/store/cart';
 const GOOGLE_MERCHANT_ID = 5610235067;
 
 // Snippet officiel Google Avis clients : affiche, une fois la commande confirmée, une proposition
-// d'enquête de satisfaction au client. Uniquement rendu si on a pu retrouver la commande (paiement
-// Stripe ou SumUp — PayPal ne renvoie pas encore d'identifiant ici, voir /api/checkout/success-info).
+// d'enquête de satisfaction au client. Uniquement rendu si on a pu retrouver la commande (voir
+// /api/checkout/success-info).
 function GoogleCustomerReviewsOptIn({ orderId, email, createdAt }: { orderId: string; email: string; createdAt: string }) {
   // Estimation simple : date de commande + 2 jours (préparation + Chronopost 24h). Le pays de
   // livraison n'est pas encore disponible ici (adresse gérée ailleurs dans le tunnel de commande) —
@@ -61,7 +62,17 @@ function CheckoutSuccessContent() {
     fetch(`/api/checkout/success-info?${qs}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.orderId) setOrderInfo(data);
+        if (!data?.orderId) return;
+        setOrderInfo(data);
+        // Événement GA4 "purchase" — envoyé une seule fois par commande (voir l'anti-doublon dans
+        // trackPurchase), avec les vraies données de la commande (jamais celles du panier côté client).
+        trackPurchase({
+          transactionId: data.orderId,
+          value: data.total,
+          shipping: data.shippingCost,
+          coupon: data.promoCode ?? undefined,
+          items: data.items as GtmEcommerceItem[],
+        });
       })
       .catch(() => {});
   }, [sessionId, orderId]);

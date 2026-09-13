@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useCart } from '@/store/cart';
 import { formatPrice } from '@/lib/format';
 import TrustBadges from '@/components/TrustBadges';
+import { trackBeginCheckout } from '@/lib/gtmEvents';
 import {
   resolveShippingPrice,
   findShippingZone,
@@ -158,6 +159,17 @@ export default function PanierClient({
       setError('Aucune option de livraison n’est disponible pour cette destination — contacte-nous directement.');
       return;
     }
+
+    trackBeginCheckout(
+      items.map((item) => ({
+        item_id: item.productId,
+        item_name: item.title,
+        price: item.price,
+        quantity: item.quantity,
+      })),
+      total,
+      appliedPromo?.code
+    );
 
     setLoading(provider);
     setError(null);

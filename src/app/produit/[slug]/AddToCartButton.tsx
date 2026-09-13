@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { useCart } from '@/store/cart';
 import { formatPrice } from '@/lib/format';
+import { trackAddToCart } from '@/lib/gtmEvents';
 
 type ScreenProtectorSuggestion = {
   id: string;
@@ -38,6 +39,12 @@ export default function AddToCartButton({
         disabled={disabled}
         onClick={() => {
           addItem(product);
+          trackAddToCart({
+            item_id: product.productId,
+            item_name: product.title,
+            price: product.price,
+            quantity: 1,
+          });
           setAdded(true);
           setTimeout(() => setAdded(false), 1500);
           if (hasSuggestions) setShowUpsell(true);
@@ -89,6 +96,12 @@ export default function AddToCartButton({
                           title: protector.title,
                           price: protector.price,
                           imageUrl: protector.imageUrl,
+                        });
+                        trackAddToCart({
+                          item_id: protector.id,
+                          item_name: protector.title,
+                          price: protector.price,
+                          quantity: 1,
                         });
                         setAddedProtectorIds((ids) => [...ids, protector.id]);
                       }}

@@ -124,7 +124,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             visiteurs sans JavaScript, voir GoogleTagManagerLoader.tsx pour la logique de consentement. */}
         <noscript>
           <iframe
-            src="https://www.googletagmanager.com/ns.html?id=GTM-5GK7DCQ9"
+            src="https://www.googletagmanager.com/ns.html?id=GTM-58XQM4FG"
             height="0"
             width="0"
             style={{ display: 'none', visibility: 'hidden' }}
