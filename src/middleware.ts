@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import type { User } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
@@ -85,7 +86,7 @@ export async function middleware(request: NextRequest) {
   // en septembre 2026 (le mode maintenance étant désactivé la quasi-totalité du temps).
   const needsAuth = isAdminRoute || isAccountRoute || maintenanceEnabled;
 
-  let user: { app_metadata?: { role?: string } } | null = null;
+  let user: User | null = null;
 
   if (needsAuth) {
     const supabase = createServerClient(
