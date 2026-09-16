@@ -56,6 +56,9 @@ export default function ShippingZonesManager({
           tarif différent, et décoche &laquo;&nbsp;Disponible&nbsp;&raquo; dans une colonne pour retirer une
           option qui n&apos;a pas de sens pour cette destination — par exemple un transporteur Outre-mer
           spécifique que tu ne veux pas proposer à la France métropolitaine, ou l&apos;inverse.
+          Contrairement au tarif de base ci-dessus, les prix ici sont à saisir directement en TTC
+          (prix final facturé au client) — pense à ajouter toi-même les 20% de TVA si ton transporteur
+          te donne un tarif HT pour cette zone.
         </p>
       </div>
 
