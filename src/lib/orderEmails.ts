@@ -267,3 +267,64 @@ export async function sendTrackingNumberEmail(orderId: string) {
     console.error('Erreur envoi email numéro de suivi', e);
   }
 }
+
+// ---------- 4. Livraison partielle : numéro de suivi d'un envoi (colis) ----------
+// À appeler depuis shipmentActions.ts quand un numéro de suivi non vide vient d'être ajouté/modifié
+// sur un Shipment donné (commande expédiée en plusieurs colis). Liste uniquement les articles
+// inclus dans CET envoi, pas la commande entière.
+export async function sendShipmentTrackingEmail(shipmentId: string) {
+  const resend = getResendClient();
+  if (!resend) return;
+
+  const shipment = await prisma.shipment.findUnique({
+    where: { id: shipmentId },
+    include: {
+      order: true,
+      items: { include: { orderItem: { include: { product: { select: { title: true } } } } } },
+    },
+  });
+  if (!shipment || !shipment.trackingNumber) return;
+
+  const { order } = shipment;
+  const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
+  const trackingUrl = getTrackingUrl(shipment.carrier, shipment.trackingNumber, shipment.trackingUrlOverride);
+  const itemsHtml = orderItemsTableHtml(
+    shipment.items.map((si) => ({ quantity: si.quantity, unitPrice: si.orderItem.unitPrice, product: si.orderItem.product }))
+  );
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: order.customerEmail,
+      subject: `ReparMonPhone.fr - Un de vos colis est en route pour la commande #${orderRef}`,
+      html: emailWrapper(
+        '#2563eb',
+        'Un colis de votre commande est en route 📦',
+        `Commande #${orderRef} — livraison partielle`,
+        `
+          <p style="color:#374151; font-size: 14px; line-height: 1.6;">
+            Bonjour ${order.customerName}, votre commande <strong>#${orderRef}</strong> est expédiée en plusieurs colis.
+            Voici le suivi du colis contenant les articles ci-dessous${shipment.carrier ? ` (${CARRIER_LABELS[shipment.carrier] ?? shipment.carrier})` : ''} :
+          </p>
+          <div style="border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 16px 0; margin: 16px 0;">
+            ${itemsHtml}
+          </div>
+          <div style="background:#eff6ff; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center;">
+            <p style="color:#6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 6px;">Numéro de suivi</p>
+            <p style="color:#111827; font-size: 18px; font-weight: 700; margin: 0; letter-spacing: 0.03em;">${shipment.trackingNumber}</p>
+          </div>
+          ${
+            trackingUrl
+              ? `<div style="text-align:center; margin-top: 16px;"><a href="${trackingUrl}" style="display:inline-block; background:#2563eb; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Suivre ce colis</a></div>`
+              : ''
+          }
+          <p style="color:#9ca3af; font-size: 12px; margin-top: 16px;">
+            Le reste de votre commande vous sera expédié séparément dès que possible ; vous recevrez un email dédié pour chaque colis.
+          </p>
+        `
+      ),
+    });
+  } catch (e) {
+    console.error('Erreur envoi email suivi envoi partiel', e);
+  }
+}

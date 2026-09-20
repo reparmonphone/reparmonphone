@@ -314,8 +314,9 @@ model Order {
   // montré au client. Null tant que non renseigné.
   actualShippingCost Decimal? @db.Decimal(10, 2)
 
-  items  OrderItem[]
-  claims Claim[]
+  items     OrderItem[]
+  claims    Claim[]
+  shipments Shipment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -338,7 +339,45 @@ model OrderItem {
   // pour calculer le bénéfice (page /admin/benefice). Null tant que non renseigné.
   costPrice Decimal? @db.Decimal(10, 2)
 
+  shipmentItems ShipmentItem[]
+
   @@map("order_items")
+}
+
+// Livraison partielle : une commande peut être expédiée en plusieurs envois (colis) quand tous
+// les articles ne sont pas disponibles en même temps. Chaque Shipment a son propre transporteur +
+// numéro de suivi, et regroupe (via ShipmentItem) une partie des quantités de chaque OrderItem.
+// Les champs carrier/trackingNumber directement sur Order restent utilisés pour le cas simple
+// (un seul envoi, comportement historique) — les Shipment ne servent que si l'admin utilise
+// explicitement l'onglet "Livraison partielle".
+model Shipment {
+  id                  String           @id @default(cuid())
+  orderId             String
+  order               Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier             ShippingCarrier?
+  trackingNumber      String?
+  trackingUrlOverride String?
+
+  items ShipmentItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@map("shipments")
+}
+
+model ShipmentItem {
+  id          String    @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  // Quantité de CET article incluse dans CET envoi (peut être inférieure à la quantité totale de
+  // l'OrderItem si l'article est lui-même réparti sur plusieurs envois).
+  quantity    Int
+
+  @@map("shipment_items")
 }
 
 // ---------- Litiges / réclamations clients ----------

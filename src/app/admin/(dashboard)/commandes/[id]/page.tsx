@@ -7,14 +7,46 @@ import ReviewReminderButton from './ReviewReminderButton';
 import TrackingForm from './TrackingForm';
 import InvoiceActions from '@/components/InvoiceActions';
 import OrderCostsForm from './OrderCostsForm';
+import PartialShipmentsPanel from './PartialShipmentsPanel';
 
 export default async function AdminOrderDetailPage({ params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
     where: { id: params.id },
-    include: { items: { include: { product: true } } },
+    include: {
+      items: { include: { product: true } },
+      shipments: {
+        include: { items: { include: { orderItem: { include: { product: true } } } } },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
   });
 
   if (!order) notFound();
+
+  const shippedByOrderItem = new Map<string, number>();
+  for (const shipment of order.shipments) {
+    for (const si of shipment.items) {
+      shippedByOrderItem.set(si.orderItemId, (shippedByOrderItem.get(si.orderItemId) ?? 0) + si.quantity);
+    }
+  }
+  const partialShipmentItems = order.items.map((item) => ({
+    id: item.id,
+    title: item.product.title,
+    totalQuantity: item.quantity,
+    shippedQuantity: shippedByOrderItem.get(item.id) ?? 0,
+  }));
+  const partialShipments = order.shipments.map((shipment) => ({
+    id: shipment.id,
+    carrier: shipment.carrier,
+    trackingNumber: shipment.trackingNumber ?? '',
+    trackingUrlOverride: shipment.trackingUrlOverride ?? '',
+    createdAt: shipment.createdAt.toISOString(),
+    items: shipment.items.map((si) => ({
+      orderItemId: si.orderItemId,
+      title: si.orderItem.product.title,
+      quantity: si.quantity,
+    })),
+  }));
 
   return (
     <div className="max-w-2xl">
@@ -124,14 +156,25 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
         {order.status === 'DELIVERED' && <ReviewReminderButton orderId={order.id} />}
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-xl p-6">
+      <div className="bg-white border border-gray-100 rounded-xl p-6 mb-4">
         <h2 className="font-semibold mb-3">Suivi de livraison</h2>
+        <p className="text-xs text-gray-400 mb-3">
+          À utiliser quand la commande part en un seul colis. Pour une commande expédiée en plusieurs fois, utilisez plutôt la section &laquo;&nbsp;Livraison partielle&nbsp;&raquo; ci-dessous.
+        </p>
         <TrackingForm
           orderId={order.id}
           carrier={order.carrier}
           trackingNumber={order.trackingNumber ?? ''}
           trackingUrlOverride={order.trackingUrlOverride ?? ''}
         />
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-xl p-6">
+        <h2 className="font-semibold mb-1">📦 Livraison partielle</h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Quand un article n&apos;est pas disponible tout de suite : répartissez la commande en plusieurs envois, chacun avec son propre numéro de suivi, au fur et à mesure que le stock arrive.
+        </p>
+        <PartialShipmentsPanel orderId={order.id} orderItems={partialShipmentItems} shipments={partialShipments} />
       </div>
     </div>
   );

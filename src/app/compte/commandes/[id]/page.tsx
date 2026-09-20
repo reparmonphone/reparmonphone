@@ -29,7 +29,13 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
 
   const order = await prisma.order.findUnique({
     where: { id: params.id },
-    include: { items: { include: { product: true } } },
+    include: {
+      items: { include: { product: true } },
+      shipments: {
+        include: { items: { include: { orderItem: { include: { product: true } } } } },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
   });
 
   // Sécurité : la commande doit appartenir au client connecté (par userId, ou par email pour les commandes invité)
@@ -38,6 +44,9 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
   }
 
   const trackingUrl = buildTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
+  // Livraison partielle : si la commande a été répartie en plusieurs envois, on affiche le détail
+  // de chaque colis (articles + suivi) à la place du bloc de suivi unique classique.
+  const hasPartialShipments = order.shipments.length > 0;
 
   // Pour savoir, produit par produit, si le client a déjà laissé un avis (et donc masquer le formulaire)
   const existingReviews =
@@ -60,23 +69,64 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
       <p className="text-gray-500 mb-8">{new Date(order.createdAt).toLocaleString('fr-FR')}</p>
 
       {/* Suivi de livraison */}
-      {order.carrier && order.trackingNumber && (
+      {hasPartialShipments ? (
         <div className="bg-brand-light border border-brand/20 rounded-xl p-5 mb-6">
-          <h2 className="font-semibold mb-1">📦 Suivi de livraison</h2>
-          <p className="text-sm text-gray-700">
-            {CARRIER_LABELS[order.carrier]} — n° <span className="font-mono">{order.trackingNumber}</span>
-          </p>
-          {trackingUrl && (
-            <a
-              href={trackingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block mt-3 bg-brand text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition"
-            >
-              Suivre mon colis →
-            </a>
-          )}
+          <h2 className="font-semibold mb-1">📦 Votre commande est expédiée en plusieurs colis</h2>
+          <p className="text-xs text-gray-500 mb-3">Certains articles n&apos;étaient pas disponibles en même temps, votre commande vous parvient donc en {order.shipments.length} envoi{order.shipments.length > 1 ? 's' : ''}.</p>
+          <div className="space-y-3">
+            {order.shipments.map((shipment, i) => {
+              const shipmentTrackingUrl = buildTrackingUrl(shipment.carrier, shipment.trackingNumber, shipment.trackingUrlOverride);
+              return (
+                <div key={shipment.id} className="bg-white rounded-lg p-4 border border-brand/10">
+                  <p className="text-sm font-medium text-gray-800 mb-1">Colis {i + 1}</p>
+                  <ul className="text-xs text-gray-500 mb-2">
+                    {shipment.items.map((si) => (
+                      <li key={si.orderItemId}>{si.quantity} × {si.orderItem.product.title}</li>
+                    ))}
+                  </ul>
+                  {shipment.carrier && shipment.trackingNumber ? (
+                    <>
+                      <p className="text-sm text-gray-700">
+                        {CARRIER_LABELS[shipment.carrier]} — n° <span className="font-mono">{shipment.trackingNumber}</span>
+                      </p>
+                      {shipmentTrackingUrl && (
+                        <a
+                          href={shipmentTrackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block mt-2 bg-brand text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand-dark transition"
+                        >
+                          Suivre ce colis →
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-400">Numéro de suivi à venir</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
+      ) : (
+        order.carrier && order.trackingNumber && (
+          <div className="bg-brand-light border border-brand/20 rounded-xl p-5 mb-6">
+            <h2 className="font-semibold mb-1">📦 Suivi de livraison</h2>
+            <p className="text-sm text-gray-700">
+              {CARRIER_LABELS[order.carrier]} — n° <span className="font-mono">{order.trackingNumber}</span>
+            </p>
+            {trackingUrl && (
+              <a
+                href={trackingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-3 bg-brand text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition"
+              >
+                Suivre mon colis →
+              </a>
+            )}
+          </div>
+        )
       )}
 
       {/* Articles */}
