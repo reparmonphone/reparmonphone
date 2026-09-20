@@ -93,7 +93,9 @@ export async function ignorePriceDecrease(itemId: string) {
 // jamais valider la file — c'est ce qui a mélangé les lignes de Krys), seule la plus récente est
 // réellement appliquée ; les autres sont simplement retirées de la file ("reviewed") sans toucher
 // au prix, pour ne pas cumuler plusieurs baisses sur le même produit.
-export async function applyAllPendingPriceDecreases() {
+export async function applyAllPendingPriceDecreases(): Promise<
+  { ok: true; applied: number; duplicatesCleaned: number } | { error: string }
+> {
   await requireAdminUser();
 
   const pendingItems = await prisma.supplierCheckItem.findMany({
@@ -112,7 +114,8 @@ export async function applyAllPendingPriceDecreases() {
 
   const uniqueProducts = new Set(pendingItems.map((i) => i.productId)).size;
 
-  await prisma.$executeRaw`
+  try {
+    await prisma.$executeRaw`
     WITH ranked AS (
       SELECT sci.id, sci."productId",
              ROW_NUMBER() OVER (PARTITION BY sci."productId" ORDER BY sci."createdAt" DESC) AS rn
@@ -144,7 +147,11 @@ export async function applyAllPendingPriceDecreases() {
     SET reviewed = true
     FROM ranked r
     WHERE sci.id = r.id AND r.rn > 1
-  `;
+    `;
+  } catch (e) {
+    console.error('Erreur application groupée des baisses de prix fournisseur', e);
+    return { error: 'Une erreur est survenue pendant la mise à jour groupée des prix. Rien n\'a été modifié pour cette tentative, réessaie.' };
+  }
 
   revalidatePath('/admin/fournisseur');
   revalidatePath('/admin/produits');
@@ -153,7 +160,7 @@ export async function applyAllPendingPriceDecreases() {
 
 // Symétrique de applyAllPendingPriceDecreases : garde tous les prix actuels et vide la file
 // d'attente d'un coup (aucun impact sur les prix, juste marque toutes les lignes comme traitées).
-export async function ignoreAllPendingPriceDecreases() {
+export async function ignoreAllPendingPriceDecreases(): Promise<{ ok: true; count: number } | { error: string }> {
   await requireAdminUser();
 
   const result = await prisma.supplierCheckItem.updateMany({
