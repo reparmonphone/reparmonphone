@@ -21,9 +21,9 @@ export default function BulkPriceDecreaseActions({ count }: { count: number }) {
     setResult(null);
     startTransition(async () => {
       const r = await applyAllPendingPriceDecreases();
-      if (r?.error) {
+      if ('error' in r) {
         setError(r.error);
-      } else if (r) {
+      } else {
         setResult(
           `✅ ${r.applied} produit(s) mis à jour${r.duplicatesCleaned ? ` · ${r.duplicatesCleaned} ligne(s) en double nettoyée(s) sans changement de prix` : ''}.`
         );
@@ -37,9 +37,9 @@ export default function BulkPriceDecreaseActions({ count }: { count: number }) {
     setResult(null);
     startTransition(async () => {
       const r = await ignoreAllPendingPriceDecreases();
-      if (r?.error) {
+      if ('error' in r) {
         setError(r.error);
-      } else if (r) {
+      } else {
         setResult(`${r.count} ligne(s) ignorée(s), prix inchangés.`);
       }
     });
