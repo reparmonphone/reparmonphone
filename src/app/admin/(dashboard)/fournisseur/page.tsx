@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import PriceDecreaseRow from './PriceDecreaseRow';
 import SupplierCsvUploadForm from './SupplierCsvUploadForm';
+import BulkPriceDecreaseActions from './BulkPriceDecreaseActions';
 
 // Le bouton "Lancer la vérification" (SupplierCsvUploadForm) peut, sur un très gros catalogue,
 // prendre plus que les ~10s par défaut d'une fonction serverless — on relève la limite par
@@ -80,6 +81,7 @@ export default async function AdminFournisseurPage() {
       {/* --- Baisses de prix : à traiter --- */}
       <section className="mb-8">
         <h2 className="font-semibold text-gray-800 mb-3">📉 Baisses de prix fournisseur — à valider ({pendingDecreases.length})</h2>
+        <BulkPriceDecreaseActions count={pendingDecreases.length} />
         {pendingDecreases.length === 0 ? (
           <p className="text-gray-400 text-sm">Rien en attente pour le moment.</p>
         ) : (

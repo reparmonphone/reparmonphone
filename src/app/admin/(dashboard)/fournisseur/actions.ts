@@ -80,3 +80,87 @@ export async function ignorePriceDecrease(itemId: string) {
   revalidatePath('/admin/fournisseur');
   return { ok: true };
 }
+
+// Applique TOUTES les baisses de prix fournisseur en attente d'un coup, au lieu de cliquer
+// "Appliquer la baisse" ligne par ligne (utile après une resynchronisation qui a rempli la file
+// de plusieurs milliers de lignes d'un coup). Une boucle classique (2 requêtes par ligne) serait
+// bien trop lente sur ~4000+ lignes et risquerait le timeout — on fait donc UNE seule requête SQL
+// atomique qui reproduit exactement la même formule que applyPriceDecrease ci-dessus
+// (nouveau prix = prix public actuel + (nouveau prix fournisseur − ancien prix fournisseur), arrondi
+// au centime).
+//
+// Si un même produit a plusieurs lignes en attente (ex: plusieurs vérifications lancées sans
+// jamais valider la file — c'est ce qui a mélangé les lignes de Krys), seule la plus récente est
+// réellement appliquée ; les autres sont simplement retirées de la file ("reviewed") sans toucher
+// au prix, pour ne pas cumuler plusieurs baisses sur le même produit.
+export async function applyAllPendingPriceDecreases() {
+  await requireAdminUser();
+
+  const pendingItems = await prisma.supplierCheckItem.findMany({
+    where: {
+      type: 'PRIX_BAISSE',
+      reviewed: false,
+      oldSupplierPrice: { not: null },
+      newSupplierPrice: { not: null },
+    },
+    select: { productId: true },
+  });
+
+  if (pendingItems.length === 0) {
+    return { ok: true, applied: 0, duplicatesCleaned: 0 };
+  }
+
+  const uniqueProducts = new Set(pendingItems.map((i) => i.productId)).size;
+
+  await prisma.$executeRaw`
+    WITH ranked AS (
+      SELECT sci.id, sci."productId",
+             ROW_NUMBER() OVER (PARTITION BY sci."productId" ORDER BY sci."createdAt" DESC) AS rn
+      FROM supplier_check_items sci
+      WHERE sci.type = 'PRIX_BAISSE' AND sci.reviewed = false
+        AND sci."oldSupplierPrice" IS NOT NULL AND sci."newSupplierPrice" IS NOT NULL
+    ),
+    pending AS (
+      SELECT r.id AS item_id, r."productId" AS product_id,
+             ROUND(p.price + (sci."newSupplierPrice" - sci."oldSupplierPrice"), 2) AS new_price
+      FROM ranked r
+      JOIN supplier_check_items sci ON sci.id = r.id
+      JOIN products p ON p.id = r."productId"
+      WHERE r.rn = 1
+    ),
+    upd_products AS (
+      UPDATE products p
+      SET price = pending.new_price
+      FROM pending
+      WHERE p.id = pending.product_id
+    ),
+    upd_applied AS (
+      UPDATE supplier_check_items sci
+      SET "newPrice" = pending.new_price, applied = true, reviewed = true
+      FROM pending
+      WHERE sci.id = pending.item_id
+    )
+    UPDATE supplier_check_items sci
+    SET reviewed = true
+    FROM ranked r
+    WHERE sci.id = r.id AND r.rn > 1
+  `;
+
+  revalidatePath('/admin/fournisseur');
+  revalidatePath('/admin/produits');
+  return { ok: true, applied: uniqueProducts, duplicatesCleaned: pendingItems.length - uniqueProducts };
+}
+
+// Symétrique de applyAllPendingPriceDecreases : garde tous les prix actuels et vide la file
+// d'attente d'un coup (aucun impact sur les prix, juste marque toutes les lignes comme traitées).
+export async function ignoreAllPendingPriceDecreases() {
+  await requireAdminUser();
+
+  const result = await prisma.supplierCheckItem.updateMany({
+    where: { type: 'PRIX_BAISSE', reviewed: false },
+    data: { reviewed: true },
+  });
+
+  revalidatePath('/admin/fournisseur');
+  return { ok: true, count: result.count };
+}
