@@ -8,7 +8,10 @@ import { sendOrderNoteEmail } from '@/lib/orderEmails';
 // Ajoute une note visible par le client sur sa commande (ex: retard transporteur indépendant de
 // notre volonté) — envoie TOUJOURS un email au client en plus de l'afficher dans le détail de la
 // commande, conformément à la demande de Krys (une note existe précisément pour prévenir le client).
-export async function addOrderNote(orderId: string, message: string) {
+export async function addOrderNote(
+  orderId: string,
+  message: string
+): Promise<{ ok: true; note: { id: string; message: string; createdAt: string } } | { error: string }> {
   await requireAdminUser();
 
   const trimmed = message.trim();
@@ -36,7 +39,7 @@ export async function addOrderNote(orderId: string, message: string) {
 
 // Retire une note affichée par erreur — l'email éventuellement déjà envoyé ne peut pas être rappelé,
 // mais elle disparaît au moins du détail de la commande.
-export async function deleteOrderNote(noteId: string) {
+export async function deleteOrderNote(noteId: string): Promise<{ ok: true } | { error: string }> {
   await requireAdminUser();
 
   const note = await prisma.orderNote.findUnique({ where: { id: noteId } });
