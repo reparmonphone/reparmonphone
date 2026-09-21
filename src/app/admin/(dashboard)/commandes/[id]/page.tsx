@@ -8,6 +8,7 @@ import TrackingForm from './TrackingForm';
 import InvoiceActions from '@/components/InvoiceActions';
 import OrderCostsForm from './OrderCostsForm';
 import PartialShipmentsPanel from './PartialShipmentsPanel';
+import OrderNotesPanel from './OrderNotesPanel';
 
 export default async function AdminOrderDetailPage({ params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
@@ -18,6 +19,7 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
         include: { items: { include: { orderItem: { include: { product: true } } } } },
         orderBy: { createdAt: 'asc' },
       },
+      notes: { orderBy: { createdAt: 'desc' } },
     },
   });
 
@@ -52,6 +54,17 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
     <div className="max-w-2xl">
       <h1 className="text-2xl font-bold mb-1">Commande #{order.id.slice(-8)}</h1>
       <p className="text-gray-500 mb-6">{new Date(order.createdAt).toLocaleString('fr-FR')}</p>
+
+      <div className="bg-white border border-gray-100 rounded-xl p-6 mb-4">
+        <h2 className="font-semibold mb-1">✉️ Note pour le client</h2>
+        <p className="text-xs text-gray-400 mb-3">
+          Pour prévenir le client d&apos;un imprévu (retard transporteur, rupture, etc.) — envoyée par email immédiatement et affichée en permanence dans le détail de sa commande.
+        </p>
+        <OrderNotesPanel
+          orderId={order.id}
+          initialNotes={order.notes.map((n) => ({ id: n.id, message: n.message, createdAt: n.createdAt.toISOString() }))}
+        />
+      </div>
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 mb-4">
         <h2 className="font-semibold mb-3">Client</h2>

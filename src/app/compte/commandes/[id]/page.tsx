@@ -35,6 +35,7 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
         include: { items: { include: { orderItem: { include: { product: true } } } } },
         orderBy: { createdAt: 'asc' },
       },
+      notes: { orderBy: { createdAt: 'desc' } },
     },
   });
 
@@ -67,6 +68,22 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
         <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full font-medium">{STATUS_LABELS[order.status]}</span>
       </div>
       <p className="text-gray-500 mb-8">{new Date(order.createdAt).toLocaleString('fr-FR')}</p>
+
+      {/* Notes de la boutique sur cette commande (imprévus, retards...) — toujours en premier, avant
+          même le suivi de livraison, car c'est l'info la plus importante quand elle existe. */}
+      {order.notes.length > 0 && (
+        <div className="space-y-3 mb-6">
+          {order.notes.map((note) => (
+            <div key={note.id} className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+              <h2 className="font-semibold mb-1 text-amber-900">ℹ️ Information sur votre commande</h2>
+              <p className="text-sm text-gray-700 whitespace-pre-line">{note.message}</p>
+              <p className="text-xs text-gray-400 mt-2">
+                {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(note.createdAt)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Suivi de livraison */}
       {hasPartialShipments ? (

@@ -37,6 +37,18 @@ function getTrackingUrl(carrier: string | null, trackingNumber: string | null, o
   }
 }
 
+// Échappe le HTML avant d'insérer un texte saisi par l'admin (ex: une note de commande) dans un
+// email — sans ça, un caractère comme "<" ou "&" tapé dans le formulaire casserait la mise en page
+// de l'email, voire injecterait du HTML non désiré.
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function emailWrapper(headerColor: string, headerTitle: string, headerSubtitle: string, bodyHtml: string) {
   return `
     <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto;">
@@ -326,5 +338,51 @@ export async function sendShipmentTrackingEmail(shipmentId: string) {
     });
   } catch (e) {
     console.error('Erreur envoi email suivi envoi partiel', e);
+  }
+}
+
+// ---------- 5. Note ajoutée sur une commande (info libre pour le client) ----------
+// À appeler depuis noteActions.ts à chaque nouvelle OrderNote créée par l'admin — typiquement pour
+// prévenir d'un imprévu (retard transporteur, rupture surprise, etc.) : le texte est libre, saisi
+// par Krys dans l'admin, donc toujours échappé avant d'être inséré dans le HTML de l'email. Les
+// retours à la ligne du formulaire sont convertis en <br> pour rester lisibles.
+export async function sendOrderNoteEmail(orderId: string, message: string) {
+  const resend = getResendClient();
+  if (!resend) return;
+
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return;
+
+  const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
+  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: order.customerEmail,
+      subject: `ReparMonPhone.fr - Information concernant votre commande #${orderRef}`,
+      html: emailWrapper(
+        '#f59e0b',
+        'Information sur votre commande ℹ️',
+        `Commande #${orderRef}`,
+        `
+          <p style="color:#374151; font-size: 14px; line-height: 1.6;">
+            Bonjour ${order.customerName},
+          </p>
+          <div style="background:#fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 16px 0;">
+            <p style="color:#374151; font-size: 14px; line-height: 1.6; margin: 0;">${safeMessage}</p>
+          </div>
+          <p style="color:#6b7280; font-size: 13px; margin-top: 16px;">
+            Cette information est aussi visible à tout moment dans le détail de votre commande sur votre compte.
+            Pour toute question, n'hésitez pas à nous contacter.
+          </p>
+          <div style="text-align:center; margin-top: 20px;">
+            <a href="${SITE_URL}/compte/commandes/${order.id}" style="display:inline-block; background:#f59e0b; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Voir ma commande</a>
+          </div>
+        `
+      ),
+    });
+  } catch (e) {
+    console.error('Erreur envoi email note de commande', e);
   }
 }

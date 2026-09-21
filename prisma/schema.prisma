@@ -317,6 +317,7 @@ model Order {
   items     OrderItem[]
   claims    Claim[]
   shipments Shipment[]
+  notes     OrderNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -378,6 +379,23 @@ model ShipmentItem {
   quantity    Int
 
   @@map("shipment_items")
+}
+
+// Note visible par le client sur sa commande (ex: "votre colis ne partira pas aujourd'hui suite à
+// un problème de ramassage Chronopost indépendant de notre volonté"). Chaque note ajoutée par
+// l'admin déclenche un email au client (voir sendOrderNoteEmail) ET reste affichée dans le détail
+// de la commande, côté client comme côté admin — contrairement aux champs "coûts réels" ou
+// "costPrice" ailleurs dans ce fichier, une OrderNote est TOUJOURS visible par le client.
+model OrderNote {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  message   String   @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_notes")
 }
 
 // ---------- Litiges / réclamations clients ----------
