@@ -34,6 +34,41 @@ function paymentLabel(o: { paymentProvider: string; paymentBrand: string | null;
   return '💳 Stripe';
 }
 
+type OrderForTracking = {
+  carrier: string | null;
+  trackingNumber: string | null;
+  items: { quantity: number }[];
+  shipments: { carrier: string | null; trackingNumber: string | null; items: { quantity: number }[] }[];
+};
+
+// Colonne "Suivi" : une commande expédiée via "Livraison partielle" n'a jamais de carrier/trackingNumber
+// sur la commande elle-même (ces champs ne servent qu'à l'envoi classique en un seul colis) — il faut
+// regarder ses Shipment(s) pour savoir ce qui a réellement été renseigné et envoyé au client.
+function trackingSummary(o: OrderForTracking): { label: string; color: string } {
+  if (o.shipments.length === 0) {
+    if (o.carrier && o.trackingNumber) {
+      return { label: CARRIER_LABELS[o.carrier] ?? o.carrier, color: 'text-green-700' };
+    }
+    return { label: 'Non renseigné', color: 'text-gray-400' };
+  }
+
+  const totalQty = o.items.reduce((sum, i) => sum + i.quantity, 0);
+  const shippedQty = o.shipments.reduce((sum, s) => sum + s.items.reduce((n, i) => n + i.quantity, 0), 0);
+  const tracked = o.shipments.filter((s) => s.carrier && s.trackingNumber);
+
+  if (tracked.length === 0) {
+    return { label: `📦 Colis en préparation (0/${o.shipments.length})`, color: 'text-amber-600' };
+  }
+
+  const carrierLabels = Array.from(new Set(tracked.map((s) => CARRIER_LABELS[s.carrier as string] ?? s.carrier)));
+  const carriersText = carrierLabels.join(', ');
+
+  if (shippedQty >= totalQty && tracked.length === o.shipments.length) {
+    return { label: `📦 ${carriersText} (${o.shipments.length} colis)`, color: 'text-green-700' };
+  }
+  return { label: `📦 ${carriersText} (partiel, ${shippedQty}/${totalQty} articles)`, color: 'text-amber-600' };
+}
+
 export default async function AdminCommandesPage({
   searchParams,
 }: {
@@ -52,7 +87,10 @@ export default async function AdminCommandesPage({
     where,
     orderBy: { createdAt: 'desc' },
     take: 150,
-    include: { items: true },
+    include: {
+      items: true,
+      shipments: { include: { items: true } },
+    },
   });
 
   return (
@@ -128,12 +166,8 @@ export default async function AdminCommandesPage({
                       </p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs">
-                    {o.carrier && o.trackingNumber ? (
-                      <span className="text-green-700">{CARRIER_LABELS[o.carrier]}</span>
-                    ) : (
-                      <span className="text-gray-400">Non renseigné</span>
-                    )}
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">
+                    <span className={trackingSummary(o).color}>{trackingSummary(o).label}</span>
                   </td>
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                     {new Date(o.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}
