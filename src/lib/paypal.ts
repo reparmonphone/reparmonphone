@@ -63,10 +63,20 @@ export async function createPaypalOrder(params: {
       },
     }),
   });
-  const data = await res.json();
+  // Même précaution que getAccessToken() ci-dessus : si PayPal renvoie une réponse non-JSON (page
+  // d'erreur, 404...) sur la création de la commande elle-même (et pas seulement sur l'obtention du
+  // jeton), on donne un message exploitable plutôt que de planter sur .json().
+  let data: { message?: string; id?: string; links?: { rel: string; href: string }[] };
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(
+      `PayPal a renvoyé une réponse invalide (code ${res.status}) lors de la création de la commande, sur ${PAYPAL_API_BASE}.`
+    );
+  }
   if (!res.ok) throw new Error(data?.message || 'Erreur lors de la création de la commande PayPal');
 
-  const approveLink = data.links?.find((l: { rel: string }) => l.rel === 'approve')?.href;
+  const approveLink = data.links?.find((l) => l.rel === 'approve')?.href;
   if (!approveLink) throw new Error("PayPal n'a pas renvoyé de lien d'approbation");
 
   return { id: data.id as string, approveUrl: approveLink as string };
