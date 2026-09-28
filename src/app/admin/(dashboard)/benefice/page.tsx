@@ -56,7 +56,18 @@ export default async function AdminBeneficePage() {
 
   const [feeSettings, ordersRaw] = await Promise.all([
     prisma.siteSetting.findMany({
-      where: { key: { in: ['fee_rate_stripe', 'fee_rate_sumup', 'fee_rate_paypal'] } },
+      where: {
+        key: {
+          in: [
+            'fee_rate_stripe',
+            'fee_rate_sumup',
+            'fee_rate_paypal',
+            'fee_fixed_stripe',
+            'fee_fixed_sumup',
+            'fee_fixed_paypal',
+          ],
+        },
+      },
     }),
     prisma.order.findMany({
       where: { status: { in: [...REVENUE_STATUSES] } },
@@ -78,6 +89,12 @@ export default async function AdminBeneficePage() {
     SUMUP: Number(feeSettings.find((s) => s.key === 'fee_rate_sumup')?.value ?? 0),
     PAYPAL: Number(feeSettings.find((s) => s.key === 'fee_rate_paypal')?.value ?? 0),
   };
+  // Montant fixe (€) prélevé en plus du pourcentage sur chaque commande (ex : PayPal = 2,90 % + 0,35 €).
+  const feeFixed: Record<string, number> = {
+    STRIPE: Number(feeSettings.find((s) => s.key === 'fee_fixed_stripe')?.value ?? 0),
+    SUMUP: Number(feeSettings.find((s) => s.key === 'fee_fixed_sumup')?.value ?? 0),
+    PAYPAL: Number(feeSettings.find((s) => s.key === 'fee_fixed_paypal')?.value ?? 0),
+  };
 
   // Bénéfice net = CA (order.total) − coût d'achat fournisseur (saisi HT par article, TVA 20% ajoutée)
   // − frais de port réels payés (saisis HT par commande, TVA 20% ajoutée) − frais de la plateforme de
@@ -91,7 +108,7 @@ export default async function AdminBeneficePage() {
     const costHT = o.items.reduce((s, it) => s + it.quantity * (it.costPrice != null ? Number(it.costPrice) : 0), 0);
     const shipping = shippingHT * (1 + VAT_RATE);
     const cost = costHT * (1 + VAT_RATE);
-    const fee = total * ((feeRates[o.paymentProvider] ?? 0) / 100);
+    const fee = total * ((feeRates[o.paymentProvider] ?? 0) / 100) + (feeFixed[o.paymentProvider] ?? 0);
     const isIncomplete = o.actualShippingCost == null || o.items.some((it) => it.costPrice == null);
     return {
       id: o.id,
@@ -198,7 +215,7 @@ export default async function AdminBeneficePage() {
               <td className="px-5 py-2 text-right font-medium text-red-600">− {formatPrice(totalStats.shipping)}</td>
             </tr>
             <tr>
-              <td className="px-5 py-2 text-gray-600">− Frais de plateforme (Stripe/SumUp/PayPal)</td>
+              <td className="px-5 py-2 text-gray-600">− Frais de plateforme (Stripe/SumUp/PayPal, % + fixe)</td>
               <td className="px-5 py-2 text-right font-medium text-red-600">− {formatPrice(totalStats.fee)}</td>
             </tr>
             <tr>
@@ -240,7 +257,9 @@ export default async function AdminBeneficePage() {
             {(['STRIPE', 'SUMUP', 'PAYPAL'] as const).map((p) => (
               <tr key={p}>
                 <td className="px-5 py-2 text-gray-700">{PROVIDER_LABELS[p]}</td>
-                <td className="px-5 py-2 text-right font-medium">{feeRates[p]}%</td>
+                <td className="px-5 py-2 text-right font-medium">
+                  {feeRates[p]}% {feeFixed[p] > 0 && `+ ${feeFixed[p]}€`}
+                </td>
               </tr>
             ))}
           </tbody>

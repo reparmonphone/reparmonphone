@@ -13,12 +13,16 @@ export default async function AdminPaiementsPage() {
           'fee_rate_stripe',
           'fee_rate_sumup',
           'fee_rate_paypal',
+          'fee_fixed_stripe',
+          'fee_fixed_sumup',
+          'fee_fixed_paypal',
         ],
       },
     },
   });
   const isEnabled = (key: string) => settings.find((s) => s.key === key)?.value !== 'false'; // activé par défaut
   const feeRate = (provider: string) => settings.find((s) => s.key === `fee_rate_${provider}`)?.value ?? '0';
+  const feeFixed = (provider: string) => settings.find((s) => s.key === `fee_fixed_${provider}`)?.value ?? '0';
 
   return (
     <div className="max-w-xl">
@@ -37,13 +41,14 @@ export default async function AdminPaiementsPage() {
       <div className="bg-white border border-gray-100 rounded-xl p-5 mt-6">
         <h2 className="font-semibold text-gray-800 mb-1">Frais de commission</h2>
         <p className="text-sm text-gray-500 mb-3">
-          Pourcentage prélevé par chaque plateforme sur le montant de la commande. Utilisé uniquement pour
-          calculer le bénéfice réel (page &quot;Bénéfice&quot;) — n&apos;affecte jamais le prix payé par le client.
+          Pourcentage + montant fixe prélevés par chaque plateforme sur chaque transaction (ex : PayPal =
+          2,90 % + 0,35 €). Utilisé uniquement pour calculer le bénéfice réel (page &quot;Bénéfice&quot;) —
+          n&apos;affecte jamais le prix payé par le client.
         </p>
         <div className="divide-y divide-gray-100">
-          <FeeRateInput provider="stripe" label="Stripe" rate={feeRate('stripe')} />
-          <FeeRateInput provider="sumup" label="SumUp" rate={feeRate('sumup')} />
-          <FeeRateInput provider="paypal" label="PayPal" rate={feeRate('paypal')} />
+          <FeeRateInput provider="stripe" label="Stripe" rate={feeRate('stripe')} fixed={feeFixed('stripe')} />
+          <FeeRateInput provider="sumup" label="SumUp" rate={feeRate('sumup')} fixed={feeFixed('sumup')} />
+          <FeeRateInput provider="paypal" label="PayPal" rate={feeRate('paypal')} fixed={feeFixed('paypal')} />
         </div>
       </div>
     </div>

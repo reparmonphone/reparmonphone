@@ -31,3 +31,18 @@ export async function setFeeRate(provider: 'stripe' | 'sumup' | 'paypal', ratePe
   revalidatePath('/admin/benefice');
   return { ok: true };
 }
+
+// Frais fixe (en €) prélevé par la plateforme en plus du pourcentage, sur chaque transaction
+// (ex : PayPal = 2,90 % + 0,35 €). Même usage que setFeeRate : uniquement pour le calcul du bénéfice.
+export async function setFeeFixed(provider: 'stripe' | 'sumup' | 'paypal', amountEuros: string) {
+  await requireAdminUser();
+  const amount = Math.max(0, Number(amountEuros) || 0);
+  await prisma.siteSetting.upsert({
+    where: { key: `fee_fixed_${provider}` },
+    update: { value: String(amount) },
+    create: { key: `fee_fixed_${provider}`, value: String(amount) },
+  });
+  revalidatePath('/admin/paiements');
+  revalidatePath('/admin/benefice');
+  return { ok: true };
+}
