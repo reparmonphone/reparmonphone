@@ -1,9 +1,13 @@
-const PAYPAL_API_BASE =
-  process.env.PAYPAL_MODE === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+// .trim() partout ci-dessous : un copier-coller dans le champ "Value" (textarea) de Vercel embarque
+// facilement un retour à la ligne ou une espace en fin de valeur — invisible dans l'interface, mais qui
+// suffit à casser l'en-tête Basic Auth (le Client ID/Secret ne correspond plus exactement à ce que
+// PayPal attend) ou la comparaison stricte du mode (live/sandbox), avec des erreurs peu claires à la clé.
+const PAYPAL_MODE = (process.env.PAYPAL_MODE ?? '').trim().toLowerCase();
+const PAYPAL_API_BASE = PAYPAL_MODE === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
 
 async function getAccessToken() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  const clientId = process.env.PAYPAL_CLIENT_ID?.trim();
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) throw new Error('PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET manquants dans .env');
 
   const res = await fetch(`${PAYPAL_API_BASE}/v2/oauth2/token`, {
@@ -17,13 +21,15 @@ async function getAccessToken() {
   // Si les identifiants PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET sont invalides ou ne correspondent pas
   // au mode configuré (PAYPAL_MODE=live vs sandbox), PayPal peut répondre par une page vide/non-JSON
   // au lieu d'une erreur JSON classique — on l'attrape ici pour donner un message exploitable plutôt
-  // que le cryptique "Unexpected end of JSON input".
+  // que le cryptique "Unexpected end of JSON input". On inclut la base d'API utilisée (live/sandbox) et
+  // un aperçu du Client ID (4 premiers caractères seulement, jamais le secret) pour diagnostiquer sans
+  // exposer les identifiants dans les logs.
   let data: { error_description?: string; access_token?: string };
   try {
     data = await res.json();
   } catch {
     throw new Error(
-      `PayPal a renvoyé une réponse invalide (code ${res.status}) — vérifie PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET et PAYPAL_MODE dans les variables d'environnement.`
+      `PayPal a renvoyé une réponse invalide (code ${res.status}) sur ${PAYPAL_API_BASE} — vérifie PAYPAL_CLIENT_ID (commence par "${clientId.slice(0, 4)}...", ${clientId.length} caractères), PAYPAL_CLIENT_SECRET et PAYPAL_MODE ("${PAYPAL_MODE || '(vide)'}") dans les variables d'environnement.`
     );
   }
   if (!res.ok) throw new Error(data?.error_description || "Impossible d'obtenir un jeton PayPal");
