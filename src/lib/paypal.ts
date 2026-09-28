@@ -14,9 +14,21 @@ async function getAccessToken() {
     },
     body: 'grant_type=client_credentials',
   });
-  const data = await res.json();
+  // Si les identifiants PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET sont invalides ou ne correspondent pas
+  // au mode configuré (PAYPAL_MODE=live vs sandbox), PayPal peut répondre par une page vide/non-JSON
+  // au lieu d'une erreur JSON classique — on l'attrape ici pour donner un message exploitable plutôt
+  // que le cryptique "Unexpected end of JSON input".
+  let data: { error_description?: string; access_token?: string };
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(
+      `PayPal a renvoyé une réponse invalide (code ${res.status}) — vérifie PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET et PAYPAL_MODE dans les variables d'environnement.`
+    );
+  }
   if (!res.ok) throw new Error(data?.error_description || "Impossible d'obtenir un jeton PayPal");
-  return data.access_token as string;
+  if (!data.access_token) throw new Error("PayPal n'a pas renvoyé de jeton d'accès valide — vérifie la configuration de l'API PayPal.");
+  return data.access_token;
 }
 
 export async function createPaypalOrder(params: {
