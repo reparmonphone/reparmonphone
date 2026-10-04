@@ -75,3 +75,67 @@ export async function getLandingCombos(): Promise<LandingCombo[]> {
   }
   return Array.from(map.values());
 }
+
+// ─── Pages "modèle" et "modèle + pièce" ──────────────────────────────────────────────────────────────────────
+// Les recherches qui apportent le plus d'impressions sont très précises (« écran iPhone 12 Pro Max »,
+// « batterie Galaxy A52 »...). Ces pages leur répondent directement :
+//   /pieces-detachees/{marque}/{gamme}/{modele}          → toutes les pièces d'un modèle
+//   /pieces-detachees/{marque}/{gamme}/{modele}/{piece}  → une pièce pour un modèle précis
+
+// Une page modèle + pièce avec un seul produit ferait doublon avec la fiche produit elle-même (cannibalisation) :
+// elle reste accessible mais en "noindex" et hors sitemap tant qu'il n'y a pas au moins 2 références.
+export const MIN_MODEL_PIECE_PRODUCTS = 2;
+
+// Nom complet d'un modèle tel que les gens le tapent dans Google : « iPhone 12 Pro Max », « Galaxy A52 »,
+// « Redmi Note 12 »... Les noms de modèle en base sont parfois partiels (ex: « A52 » dans la gamme « Galaxy A »).
+export function modelFullName(brandName: string, lineName: string, modelName: string): string {
+  const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const lineWords = lineName.trim().split(/\s+/);
+  const m = norm(modelName);
+  let display: string;
+  if (m.startsWith(norm(lineWords[0]))) {
+    display = modelName;
+  } else if (lineWords.length > 1 && m.startsWith(norm(lineWords[lineWords.length - 1]))) {
+    display = `${lineWords.slice(0, -1).join(' ')} ${modelName}`;
+  } else {
+    display = `${lineName} ${modelName}`;
+  }
+  // Marque devant le nom (« Samsung Galaxy A52 ») sauf Apple, où « iPhone 12 » est l'usage courant.
+  if (norm(brandName) === 'apple' || norm(display).includes(norm(brandName))) return display;
+  return `${brandName} ${display}`;
+}
+
+export type ModelLandingRow = {
+  brandSlug: string;
+  lineSlug: string;
+  modelSlug: string;
+  type: PieceType;
+  count: number;
+};
+
+// Produits en boutique regroupés par modèle + type de pièce — sert au sitemap.
+export async function getModelLandingCombos(): Promise<ModelLandingRow[]> {
+  const rows = await prisma.product.findMany({
+    where: { showInBoutique: true, pieceType: { in: [...LANDING_PIECES.map((p) => p.type)] } },
+    select: {
+      pieceType: true,
+      model: { select: { slug: true, productLine: { select: { slug: true, brand: { select: { slug: true } } } } } },
+    },
+  });
+  const map = new Map<string, ModelLandingRow>();
+  for (const r of rows) {
+    const line = r.model.productLine;
+    const key = `${line.brand.slug}/${line.slug}/${r.model.slug}/${r.pieceType}`;
+    const existing = map.get(key);
+    if (existing) existing.count += 1;
+    else
+      map.set(key, {
+        brandSlug: line.brand.slug,
+        lineSlug: line.slug,
+        modelSlug: r.model.slug,
+        type: r.pieceType,
+        count: 1,
+      });
+  }
+  return Array.from(map.values());
+}

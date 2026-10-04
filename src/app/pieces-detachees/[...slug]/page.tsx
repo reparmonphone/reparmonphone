@@ -7,6 +7,7 @@ import ProductCard from '@/components/ProductCard';
 import JsonLd from '@/components/JsonLd';
 import { formatPrice } from '@/lib/format';
 import { LANDING_PIECES, landingPieceBySlug, MIN_INDEXABLE_PRODUCTS } from '@/lib/landingPages';
+import ModelLandingPage, { isModelRoute, modelMetadata } from './ModelLanding';
 
 // Page d'atterrissage "pièce + marque" (/pieces-detachees/apple/ecrans) ou "pièce + gamme"
 // (/pieces-detachees/apple/iphone/ecrans). Régénérée au plus toutes les heures.
@@ -76,6 +77,7 @@ async function load(slug: string[]) {
 }
 
 export async function generateMetadata({ params }: { params: { slug: string[] } }): Promise<Metadata> {
+  if (isModelRoute(params.slug)) return modelMetadata(params.slug);
   const data = await load(params.slug);
   if (!data) return {};
   const { brand, line, piece, count, minPrice } = data;
@@ -97,6 +99,11 @@ export async function generateMetadata({ params }: { params: { slug: string[] } 
 }
 
 export default async function LandingPage({ params }: { params: { slug: string[] } }) {
+  if (isModelRoute(params.slug)) {
+    const modelPage = await ModelLandingPage({ slug: params.slug });
+    if (!modelPage) notFound();
+    return modelPage;
+  }
   const data = await load(params.slug);
   if (!data) notFound();
   const { brand, line, piece, products, count, minPrice, models, otherPieces, lines } = data;
@@ -195,7 +202,7 @@ export default async function LandingPage({ params }: { params: { slug: string[]
             {models.map((m) => (
               <Link
                 key={`${m.productLine.slug}/${m.slug}`}
-                href={`/boutique?marque=${brand.slug}&gamme=${m.productLine.slug}&modele=${m.slug}&type=${piece.type}`}
+                href={`/pieces-detachees/${brand.slug}/${m.productLine.slug}/${m.slug}/${piece.slug}`}
                 className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 hover:bg-gray-200"
               >
                 {m.name}

@@ -97,6 +97,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     '@context': 'https://schema.org',
     '@type': 'ElectronicsStore',
     name: 'ReparMonPhone',
+    alternateName: ['Repar Mon Phone', 'Repar mon phone'],
     image: `${SITE_URL}/icon.png`,
     '@id': SITE_URL,
     url: SITE_URL,
@@ -116,6 +117,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     ],
   };
 
+  // Aide Google à associer les recherches « repar mon phone » (en trois mots) au site : nom officiel + variantes.
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'ReparMonPhone',
+    alternateName: ['Repar Mon Phone', 'Repar mon phone', 'reparmonphone.fr'],
+    url: SITE_URL,
+  };
+
   return (
     <html lang="fr">
       <body className="bg-white text-gray-900 antialiased">
@@ -131,6 +141,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           />
         </noscript>
         <JsonLd data={localBusinessSchema} />
+        <JsonLd data={websiteSchema} />
         <TopUtilityBar />
         <Header menuTree={menuTree} menuItems={menuItems} />
         <main className="min-h-screen">{children}</main>
