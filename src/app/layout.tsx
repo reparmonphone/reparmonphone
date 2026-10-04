@@ -152,6 +152,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <li><Link href="/cgv" className="hover:text-white">Conditions Générales de Vente</Link></li>
                   <li><Link href="/livraison-retours" className="hover:text-white">Livraison &amp; Retours</Link></li>
                   <li><Link href="/livraison" className="hover:text-white">Livraison partout en France</Link></li>
+                  <li><Link href="/pieces-detachees" className="hover:text-white">Pièces détachées par marque</Link></li>
                   <li><Link href="/confidentialite" className="hover:text-white">Politique de confidentialité</Link></li>
                   <li><ManageCookiesLink /></li>
                   <li><Link href="/a-propos" className="hover:text-white">À propos de nous</Link></li>

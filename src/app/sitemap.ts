@@ -1,6 +1,7 @@
 import { MetadataRoute } from 'next';
 import { prisma } from '@/lib/prisma';
 import { PREFECTURES } from '@/data/prefectures';
+import { getLandingCombos, landingPieceByType, MIN_INDEXABLE_PRODUCTS } from '@/lib/landingPages';
 
 // Sans ça, ce fichier n'est généré QU'UNE SEULE FOIS, au moment du build — un produit ajouté, une
 // gamme réorganisée ou un modèle renommé depuis l'admin (donc SANS nouveau déploiement du code) ne
@@ -17,7 +18,8 @@ const EXCLUDED_PAGE_SLUGS = ['maintenance'];
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
-  const [products, brands, lines, collections, pages, repairGuides] = await Promise.all([
+  const [landingCombos, products, brands, lines, collections, pages, repairGuides] = await Promise.all([
+    getLandingCombos(),
     prisma.product.findMany({ where: { showInBoutique: true }, select: { slug: true, updatedAt: true, imageUrl: true } }),
     prisma.brand.findMany({ select: { slug: true } }),
     // Pages de gamme (ex: /marque/samsung/galaxy-a, /marque/apple/iphone) : ce sont des pages d'atterrissage
@@ -69,6 +71,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
+  // Pages d'atterrissage "pièce + marque" et "pièce + gamme" (/pieces-detachees/...), uniquement celles qui
+  // ont assez de produits pour être indexables (voir MIN_INDEXABLE_PRODUCTS dans src/lib/landingPages.ts).
+  const brandTotals = new Map<string, number>();
+  for (const c of landingCombos) {
+    const k = `${c.brandSlug}/${c.type}`;
+    brandTotals.set(k, (brandTotals.get(k) ?? 0) + c.count);
+  }
+  const landingRoutes: MetadataRoute.Sitemap = [
+    { url: `${base}/pieces-detachees`, changeFrequency: 'weekly', priority: 0.8 },
+    ...Array.from(brandTotals.entries()).flatMap(([k, total]) => {
+      if (total < MIN_INDEXABLE_PRODUCTS) return [];
+      const [brandSlug, type] = k.split('/');
+      const piece = landingPieceByType(type as Parameters<typeof landingPieceByType>[0]);
+      return piece
+        ? [{ url: `${base}/pieces-detachees/${brandSlug}/${piece.slug}`, changeFrequency: 'weekly' as const, priority: 0.8 }]
+        : [];
+    }),
+    ...landingCombos
+      .filter((c) => c.count >= MIN_INDEXABLE_PRODUCTS)
+      .flatMap((c) => {
+        const piece = landingPieceByType(c.type);
+        return piece
+          ? [{ url: `${base}/pieces-detachees/${c.brandSlug}/${c.lineSlug}/${piece.slug}`, changeFrequency: 'weekly' as const, priority: 0.7 }]
+          : [];
+      }),
+  ];
+
   const collectionRoutes: MetadataRoute.Sitemap = collections.map((c) => ({
     url: `${base}/collection/${c.slug}`,
     lastModified: c.updatedAt,
@@ -103,6 +132,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...productRoutes,
     ...brandRoutes,
     ...lineRoutes,
+    ...landingRoutes,
     ...collectionRoutes,
     ...pageRoutes,
     ...repairGuideRoutes,
