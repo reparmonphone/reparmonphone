@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { redirectOrNotFound } from '@/lib/pageRedirect';
@@ -84,6 +84,17 @@ export default async function ProductPage({ params }: { params: { slug: string }
   if (!product) {
     await redirectOrNotFound(`/produit/${params.slug}`);
     notFound(); // jamais exécuté en pratique (redirectOrNotFound lève toujours) — garde le typage TS.
+  }
+
+  // Doublon masqué de la boutique (showInBoutique = false) pour lequel une redirection a été enregistrée
+  // (voir scripts/merge-duplicate-products.js) : 301 vers l'exemplaire conservé, pour que Google ne voie
+  // plus qu'une seule fiche. Aucune requête supplémentaire pour les produits visibles normalement.
+  if (!product.showInBoutique) {
+    const dupHit = await prisma.redirect.findUnique({ where: { fromPath: `/produit/${params.slug}` } });
+    if (dupHit) {
+      await prisma.redirect.update({ where: { id: dupHit.id }, data: { hits: { increment: 1 } } });
+      permanentRedirect(dupHit.toPath);
+    }
   }
 
   const relatedGuides = await prisma.repairGuide.findMany({
