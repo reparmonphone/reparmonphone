@@ -17,9 +17,17 @@ const EXCLUDED_PAGE_SLUGS = ['maintenance'];
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
-  const [products, brands, collections, pages, repairGuides] = await Promise.all([
-    prisma.product.findMany({ where: { showInBoutique: true }, select: { slug: true, updatedAt: true } }),
+  const [products, brands, lines, collections, pages, repairGuides] = await Promise.all([
+    prisma.product.findMany({ where: { showInBoutique: true }, select: { slug: true, updatedAt: true, imageUrl: true } }),
     prisma.brand.findMany({ select: { slug: true } }),
+    // Pages de gamme (ex: /marque/samsung/galaxy-a, /marque/apple/iphone) : ce sont des pages d'atterrissage
+    // clés pour des recherches nationales du type "écran iPhone" / "batterie Galaxy A" — jusqu'ici absentes du
+    // sitemap alors que seules les pages marque et produit y figuraient. On n'inclut que les gammes qui ont au
+    // moins un produit en boutique (pas de page vide à faire indexer).
+    prisma.productLine.findMany({
+      where: { models: { some: { products: { some: { showInBoutique: true } } } } },
+      select: { slug: true, brand: { select: { slug: true } } },
+    }),
     prisma.collection.findMany({ select: { slug: true, updatedAt: true } }),
     prisma.page.findMany({ select: { slug: true, updatedAt: true } }),
     prisma.repairGuide.findMany({
@@ -44,10 +52,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: p.updatedAt,
     changeFrequency: 'weekly',
     priority: 0.8,
+    // Sitemap images : aide Google Images à indexer les photos produit (trafic national supplémentaire).
+    // Seules les URLs absolues sont acceptées par le format sitemap.
+    ...(p.imageUrl && /^https?:\/\//.test(p.imageUrl) ? { images: [p.imageUrl] } : {}),
   }));
 
   const brandRoutes: MetadataRoute.Sitemap = brands.map((b) => ({
     url: `${base}/marque/${b.slug}`,
+    changeFrequency: 'weekly',
+    priority: 0.7,
+  }));
+
+  const lineRoutes: MetadataRoute.Sitemap = lines.map((l) => ({
+    url: `${base}/marque/${l.brand.slug}/${l.slug}`,
     changeFrequency: 'weekly',
     priority: 0.7,
   }));
@@ -85,6 +102,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...staticRoutes,
     ...productRoutes,
     ...brandRoutes,
+    ...lineRoutes,
     ...collectionRoutes,
     ...pageRoutes,
     ...repairGuideRoutes,

@@ -33,11 +33,29 @@ export type KeywordGroup = { title: string; hint: string; items: string[] };
 
 const uniq = (list: string[]) => Array.from(new Set(list.map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean)));
 
-export function generateKeywords({ target, pieceKeys, cities }: { target: string; pieceKeys: PieceKey[]; cities: string[] }): KeywordGroup[] {
+// 'france' : vente de pièces détachées sur toute la France (livraison Chronopost 24h)
+// 'local'  : atelier de Sainte-Maxime / Golfe de Saint-Tropez uniquement
+// 'both'   : les deux
+export type KeywordScope = 'france' | 'local' | 'both';
+
+export function generateKeywords({
+  target,
+  pieceKeys,
+  cities,
+  scope = 'france',
+}: {
+  target: string;
+  pieceKeys: PieceKey[];
+  cities: string[];
+  scope?: KeywordScope;
+}): KeywordGroup[] {
   const t = target.trim();
   if (!t) return [];
   const pieces = PIECES.filter((p) => pieceKeys.includes(p.key));
+  const withLocal = scope !== 'france';
+  const withNational = scope !== 'local';
 
+  const national: string[] = [];
   const achat: string[] = [];
   const reparation: string[] = [];
   const questions: string[] = [];
@@ -53,15 +71,34 @@ export function generateKeywords({ target, pieceKeys, cities }: { target: string
     reparation.push(`réparation ${p.label} ${t}`, `remplacement ${p.label} ${t}`, `changer ${p.label} ${t}`, `prix réparation ${p.label} ${t}`, `${t} ${p.label} cassé`);
     questions.push(`comment changer ${p.label} ${t}`, `tuto remplacement ${p.label} ${t}`, `combien coûte le remplacement ${p.label} ${t}`, `quel ${p.label} choisir pour ${t}`, `${p.label} origine ou compatible ${t}`);
     for (const s of p.symptoms) symptomes.push(`${t} ${s}`);
-    for (const c of cities) {
-      local.push(`réparation ${p.label} ${t} ${c}`);
+    national.push(
+      `${p.label} ${t} livraison France`,
+      `acheter ${p.label} ${t} en ligne`,
+      `${p.label} ${t} livraison rapide`,
+      `${p.label} ${t} livraison 24h`,
+      `${p.label} ${t} pas cher`,
+      `${p.label} ${t} avis`,
+      `où acheter ${p.label} ${t}`,
+      `site fiable pièces détachées ${t}`,
+      `boutique pièces détachées ${t}`,
+      `pièce détachée ${t} qualité origine`
+    );
+    if (withLocal) {
+      for (const c of cities) {
+        local.push(`réparation ${p.label} ${t} ${c}`);
+      }
     }
   }
-  for (const c of cities) {
-    local.push(`réparation ${t} ${c}`, `réparateur ${t} ${c}`, `réparation téléphone ${c}`, `écran téléphone ${c}`);
+  if (withLocal) {
+    for (const c of cities) {
+      local.push(`réparation ${t} ${c}`, `réparateur ${t} ${c}`, `réparation téléphone ${c}`, `écran téléphone ${c}`);
+    }
   }
 
   return [
+    ...(withNational
+      ? [{ title: 'France entière (livraison nationale)', hint: 'Le cœur de ta cible : à placer dans les titres, descriptions et pages produit/gamme.', items: uniq(national) }]
+      : []),
     { title: 'Achat de pièces (intention d\'achat forte)', hint: 'À utiliser dans les titres produits, catégories et descriptions.', items: uniq(achat) },
     { title: 'Réparation', hint: 'Pour les pages /reparation, rendez-vous et réparation à distance.', items: uniq(reparation) },
     { title: 'Questions et guides', hint: 'Idéal pour les guides de réparation et les FAQ.', items: uniq(questions) },
@@ -82,15 +119,15 @@ export function generateTitles({ target, piece }: { target: string; piece: Piece
   const t = target.trim();
   const cap = piece.label.charAt(0).toUpperCase() + piece.label.slice(1);
   const titles = [
-    `${cap} ${t} : pièce détachée | ${SITE}`,
+    `${cap} ${t} : livraison 24h France | ${SITE}`,
     `${cap} ${t} origine ou compatible | ${SITE}`,
     `Remplacer ${piece.label} ${t} – Pièce + guide | ${SITE}`,
-    `${cap} ${t} – Livraison 24h | ${SITE}`,
+    `${cap} ${t} pas cher – Livraison France | ${SITE}`,
   ].map((s) => tm(s, 60));
   const metas = [
-    `${cap} ${t} : qualité origine ou compatible, outils inclus selon modèle. Livraison Chronopost 24h en France métropolitaine. Atelier à Sainte-Maxime.`,
-    `Besoin de remplacer ${piece.label} de ton ${t} ? Pièce détachée en stock, guide de réparation et livraison 24h. Réparation possible en atelier à Sainte-Maxime.`,
-    `${cap} ${t} au meilleur prix : pièces testées, paiement sécurisé, livraison rapide. Réparateur dans le Golfe de Saint-Tropez.`,
+    `${cap} ${t} : qualité origine ou compatible, testée avant envoi. Livraison Chronopost 24h partout en France métropolitaine. Paiement sécurisé.`,
+    `Besoin de remplacer ${piece.label} de ton ${t} ? Pièce détachée en stock, guide de réparation et livraison rapide dans toute la France.`,
+    `${cap} ${t} au meilleur prix : pièces testées, paiement sécurisé, livraison Chronopost 24h. Expédition dans toute la France métropolitaine.`,
   ].map((s) => tm(s, 155));
   return { titles, metas };
 }

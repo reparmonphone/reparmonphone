@@ -9,6 +9,7 @@ import {
   generateArticle,
   parseGscCsv,
   type PieceKey,
+  type KeywordScope,
 } from '@/lib/keywordGenerator';
 import { saveKeywordList } from './actions';
 
@@ -51,6 +52,7 @@ export default function MotsClesTool({ site, models, priorityUrls, savedKeywords
   const [tab, setTab] = useState<Tab>('mots-cles');
   const [target, setTarget] = useState('');
   const [pieceKeys, setPieceKeys] = useState<PieceKey[]>(['ecran', 'batterie']);
+  const [scope, setScope] = useState<KeywordScope>('france');
   const [citiesText, setCitiesText] = useState(DEFAULT_CITIES.join(', '));
   const [mainPieceKey, setMainPieceKey] = useState<PieceKey>('ecran');
   const [articleCity, setArticleCity] = useState('Sainte-Maxime');
@@ -61,7 +63,22 @@ export default function MotsClesTool({ site, models, priorityUrls, savedKeywords
   const [copied, setCopied] = useState('');
 
   const cities = useMemo(() => citiesText.split(',').map((c) => c.trim()).filter(Boolean), [citiesText]);
-  const groups = useMemo(() => generateKeywords({ target, pieceKeys, cities }), [target, pieceKeys, cities]);
+  const groups = useMemo(() => generateKeywords({ target, pieceKeys, cities, scope }), [target, pieceKeys, cities, scope]);
+
+  // Export en masse "France entière" : tous les modèles de ta base × les pièces cochées, une ligne par mot-clé.
+  function exportAllModels() {
+    const rows: string[] = ['Marque;Modèle;Catégorie;Mot-clé'];
+    for (const m of models) {
+      const full = m.name.toLowerCase().includes(m.brand.toLowerCase()) ? m.name : `${m.brand} ${m.name}`;
+      for (const g of generateKeywords({ target: full, pieceKeys, cities: [], scope: 'france' })) {
+        // On garde uniquement les groupes utiles pour l'achat national, pas les symptômes/questions (trop nombreux).
+        if (g.title.startsWith('France') || g.title.startsWith('Achat')) {
+          for (const k of g.items) rows.push(`"${m.brand}";"${m.name}";"${g.title}";"${k}"`);
+        }
+      }
+    }
+    download('mots-cles-france-tous-modeles.csv', rows.join('\n'));
+  }
   const allKeywords = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const mainPiece = PIECES.find((p) => p.key === mainPieceKey) ?? PIECES[0];
   const titleMeta = useMemo(() => (target.trim() ? generateTitles({ target, piece: mainPiece }) : null), [target, mainPiece]);
@@ -145,9 +162,32 @@ export default function MotsClesTool({ site, models, priorityUrls, savedKeywords
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Villes / zones (séparées par des virgules)</label>
-          <input value={citiesText} onChange={(e) => setCitiesText(e.target.value)} className={input} />
+          <p className="block text-sm font-medium text-gray-700 mb-2">Cible géographique</p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['france', '🇫🇷 France entière (vente de pièces)'],
+              ['both', 'France + local'],
+              ['local', '📍 Local (atelier Sainte-Maxime)'],
+            ] as [KeywordScope, string][]).map(([id, label]) => (
+              <label
+                key={id}
+                className={`px-3 py-1.5 rounded-full text-sm border cursor-pointer select-none transition ${
+                  scope === id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                }`}
+              >
+                <input type="radio" name="scope" className="hidden" checked={scope === id} onChange={() => setScope(id)} />
+                {label}
+              </label>
+            ))}
+          </div>
         </div>
+
+        {scope !== 'france' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Villes / zones (séparées par des virgules)</label>
+            <input value={citiesText} onChange={(e) => setCitiesText(e.target.value)} className={input} />
+          </div>
+        )}
       </div>
 
       {/* Onglets */}
@@ -189,6 +229,9 @@ export default function MotsClesTool({ site, models, priorityUrls, savedKeywords
                 </button>
                 <button type="button" className={btnPrimary} disabled={pending} onClick={saveList}>
                   💾 Enregistrer dans ma liste
+                </button>
+                <button type="button" className={btn} onClick={exportAllModels} title="Un CSV avec tous tes modèles × les pièces cochées">
+                  ⬇️ Export France : tous les modèles
                 </button>
                 {saveMsg && <span className="text-sm text-green-700">{saveMsg}</span>}
               </div>

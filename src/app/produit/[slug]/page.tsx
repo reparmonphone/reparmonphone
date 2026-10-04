@@ -118,8 +118,29 @@ export default async function ProductPage({ params }: { params: { slug: string }
       url: `${SITE_URL}/produit/${product.slug}`,
       priceCurrency: 'EUR',
       price: Number(product.price).toFixed(2),
+      // Date de validité du prix (exigée/recommandée par Google pour les extraits produit) — recalculée à
+      // chaque régénération de la page, donc toujours dans le futur.
+      priceValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      itemCondition: 'https://schema.org/NewCondition',
+      itemCondition: /occasion/i.test(product.condition ?? '')
+        ? 'https://schema.org/UsedCondition'
+        : /reconditionn/i.test(product.condition ?? '')
+        ? 'https://schema.org/RefurbishedCondition'
+        : 'https://schema.org/NewCondition',
+      seller: { '@type': 'Organization', name: 'ReparMonPhone', url: SITE_URL },
+      // Livraison France entière : permet à Google d'afficher la livraison dans les résultats Shopping /
+      // extraits produit pour des acheteurs partout en France (pas seulement autour de Sainte-Maxime).
+      // Les frais exacts dépendent de l'option choisie et de la destination (voir /admin/livraison) : on
+      // ne déclare donc pas de montant ici — seulement le périmètre et les délais (Chronopost 24h).
+      shippingDetails: {
+        '@type': 'OfferShippingDetails',
+        shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'FR' },
+        deliveryTime: {
+          '@type': 'ShippingDeliveryTime',
+          handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
+          transitTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 5, unitCode: 'DAY' },
+        },
+      },
     },
     ...(product.reviewCount > 0 && product.avgRating
       ? {
