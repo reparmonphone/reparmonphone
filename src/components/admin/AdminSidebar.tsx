@@ -28,6 +28,7 @@ const NAV: NavItem[] = [
   { href: GA4_REALTIME_URL, label: '📊 Google Analytics', external: true },
   { href: '/admin/benefice', label: '💰 Bénéfice' },
   { href: '/admin/seo', label: '🔍 SEO & Référencement' },
+  { href: '/admin/mots-cles', label: '🧠 Mots-clés & SEO' },
   { href: '/admin/rdv', label: '📅 Rendez-vous', badgeKey: 'appointments' },
   { href: '/admin/reparation-a-distance', label: '📮 Réparation par correspondance', badgeKey: 'mailInRepairs' },
   { href: '/admin/utilisateurs', label: '👥 Utilisateurs' },
