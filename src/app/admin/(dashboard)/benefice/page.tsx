@@ -4,6 +4,10 @@ import { formatPrice } from '@/lib/format';
 
 // Statuts considérés comme du vrai CA encaissé (même définition que /admin/statistiques)
 const REVENUE_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const;
+// Commandes remboursées au client : le CA est rendu (compté 0), mais les frais de la plateforme de
+// paiement ne sont en général pas restitués, et le coût d'achat / frais de port éventuellement déjà
+// saisis sont dépensés pour rien. Ces commandes comptent donc comme une PERTE dans le bénéfice.
+const REFUNDED_STATUS = 'REFUNDED';
 
 const PROVIDER_LABELS: Record<string, string> = { STRIPE: 'Stripe', SUMUP: 'SumUp', PAYPAL: 'PayPal' };
 
@@ -34,12 +38,17 @@ type ComputedOrder = {
   shipping: number;
   profit: number;
   isIncomplete: boolean;
+  refunded: boolean;
 };
 
 function sumFor(list: ComputedOrder[], from?: Date) {
   const filtered = from ? list.filter((o) => o.createdAt >= from) : list;
+  const refundedList = filtered.filter((o) => o.refunded);
   return {
+    // Une commande remboursée n'apporte aucun CA (total = 0 pour elle, voir computed plus bas).
     revenue: filtered.reduce((s, o) => s + o.total, 0),
+    refundCount: refundedList.length,
+    refundLoss: refundedList.reduce((s, o) => s + o.profit, 0), // négatif : perte sur remboursements
     cost: filtered.reduce((s, o) => s + o.cost, 0),
     shipping: filtered.reduce((s, o) => s + o.shipping, 0),
     fee: filtered.reduce((s, o) => s + o.fee, 0),
@@ -70,12 +79,14 @@ export default async function AdminBeneficePage() {
       },
     }),
     prisma.order.findMany({
-      where: { status: { in: [...REVENUE_STATUSES] } },
+      where: { status: { in: [...REVENUE_STATUSES, REFUNDED_STATUS] } },
+      // (le type Prisma de "status" est l'enum OrderStatus : REFUNDED en fait partie)
       select: {
         id: true,
         invoiceNumber: true,
         createdAt: true,
         total: true,
+        status: true,
         paymentProvider: true,
         actualShippingCost: true,
         items: { select: { quantity: true, costPrice: true } },
@@ -102,14 +113,22 @@ export default async function AdminBeneficePage() {
   // que le coût d'achat d'au moins un article ou les frais de port réels n'ont pas été renseignés —
   // dans ce cas les champs manquants valent 0, donc le bénéfice affiché est SURESTIMÉ pour cette
   // commande (voir bandeau d'alerte).
+  //
+  // Commande REMBOURSÉE : le client a récupéré son argent, donc CA = 0, mais les frais de la plateforme
+  // de paiement (calculés sur le montant d'origine) restent à ta charge, ainsi que le coût d'achat et
+  // les frais de port DÉJÀ saisis. Cas fréquent : article en rupture chez le fournisseur → rien n'a été
+  // acheté ni expédié, les coûts ne sont pas saisis (valent 0) et la perte = les frais de paiement.
   const computed: ComputedOrder[] = ordersRaw.map((o) => {
-    const total = Number(o.total);
+    const refunded = o.status === REFUNDED_STATUS;
+    const originalTotal = Number(o.total);
+    const total = refunded ? 0 : originalTotal;
     const shippingHT = o.actualShippingCost != null ? Number(o.actualShippingCost) : 0;
     const costHT = o.items.reduce((s, it) => s + it.quantity * (it.costPrice != null ? Number(it.costPrice) : 0), 0);
     const shipping = shippingHT * (1 + VAT_RATE);
     const cost = costHT * (1 + VAT_RATE);
-    const fee = total * ((feeRates[o.paymentProvider] ?? 0) / 100) + (feeFixed[o.paymentProvider] ?? 0);
-    const isIncomplete = o.actualShippingCost == null || o.items.some((it) => it.costPrice == null);
+    const fee = originalTotal * ((feeRates[o.paymentProvider] ?? 0) / 100) + (feeFixed[o.paymentProvider] ?? 0);
+    // Une commande remboursée n'est jamais "incomplète" : des coûts non saisis y sont normaux.
+    const isIncomplete = !refunded && (o.actualShippingCost == null || o.items.some((it) => it.costPrice == null));
     return {
       id: o.id,
       invoiceNumber: o.invoiceNumber,
@@ -121,6 +140,7 @@ export default async function AdminBeneficePage() {
       shipping,
       profit: total - fee - cost - shipping,
       isIncomplete,
+      refunded,
     };
   });
 
@@ -157,6 +177,8 @@ export default async function AdminBeneficePage() {
         <Link href="/admin/paiements" className="text-brand hover:underline">Moyens de paiement</Link>).
         Coûts et frais de port visibles admin uniquement, jamais montrés au client, saisis HT — la TVA à
         20% est ajoutée automatiquement pour obtenir le coût réel dans ce calcul.
+        Une commande passée en « Remboursée » ne rapporte plus de chiffre d&apos;affaires, mais compte comme une
+        perte : frais de la plateforme de paiement (non restitués) et coûts déjà saisis.
       </p>
 
       {incompleteCount > 0 && (
@@ -222,6 +244,17 @@ export default async function AdminBeneficePage() {
               <td className="px-5 py-3 font-bold">Bénéfice net</td>
               <td className="px-5 py-3 text-right font-bold">{formatPrice(totalStats.profit)}</td>
             </tr>
+            {totalStats.refundCount > 0 && (
+              <tr>
+                <td className="px-5 py-2 text-gray-500 text-xs">
+                  dont pertes sur remboursements ({totalStats.refundCount} commande{totalStats.refundCount > 1 ? 's' : ''}{' '}
+                  remboursée{totalStats.refundCount > 1 ? 's' : ''} : frais de paiement non rendus + coûts déjà engagés)
+                </td>
+                <td className="px-5 py-2 text-right text-xs font-medium text-red-600">
+                  {formatPrice(totalStats.refundLoss)}
+                </td>
+              </tr>
+            )}
             <tr>
               <td className="px-5 py-2 text-gray-400 text-xs">Marge</td>
               <td className="px-5 py-2 text-right text-gray-400 text-xs">{margin.toFixed(1)}%</td>
