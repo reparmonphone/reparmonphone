@@ -65,9 +65,14 @@ function ConnexionForm() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2"
           />
+          <div className="text-right mt-1.5">
+            <Link href="/compte/mot-de-passe-oublie" className="text-sm text-brand hover:underline">
+              Mot de passe oublié ?
+            </Link>
+          </div>
         </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error &&<p className="text-red-600 text-sm">{error}</p>}
 
         <button
           type="submit"

@@ -68,6 +68,11 @@ export async function middleware(request: NextRequest) {
 
   const isAccountRoute = pathname.startsWith('/compte');
   const isAccountAuthPage = pathname === '/compte/connexion' || pathname === '/compte/inscription';
+  // Pages de récupération de mot de passe : accessibles sans être connecté (mot-de-passe-oublie) ET
+  // avec une session de récupération (nouveau-mot-de-passe : le client arrive connecté via le lien
+  // email), donc pas de redirection vers /compte comme pour connexion/inscription.
+  const isAccountPublicPage =
+    isAccountAuthPage || pathname === '/compte/mot-de-passe-oublie' || pathname === '/compte/nouveau-mot-de-passe';
 
   const isMaintenancePage = pathname === '/maintenance';
 
@@ -124,7 +129,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(adminUrl);
   }
 
-  if (isAccountRoute && !isAccountAuthPage && !user) {
+  if (isAccountRoute && !isAccountPublicPage && !user) {
     const loginUrl = new URL('/compte/connexion', request.url);
     return NextResponse.redirect(loginUrl);
   }
