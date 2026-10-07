@@ -10,7 +10,7 @@ async function getAccessToken() {
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) throw new Error('PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET manquants dans .env');
 
-  const res = await fetch(`${PAYPAL_API_BASE}/v2/oauth2/token`, {
+  const res = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
