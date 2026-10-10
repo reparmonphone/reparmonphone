@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import CartRecap from '@/components/CartRecap';
 
 export default function ConnexionPage() {
   return (
@@ -44,6 +45,8 @@ function ConnexionForm() {
     <div className="max-w-sm mx-auto px-4 py-16">
       <h1 className="text-2xl font-bold mb-1">Connexion</h1>
       <p className="text-gray-500 mb-6">Accède à tes commandes et rendez-vous.</p>
+
+      {redirectTo === '/panier' && <CartRecap className="mb-4" />}
 
       <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
         <div>

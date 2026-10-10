@@ -8,6 +8,7 @@ import HelpWidget from '@/components/HelpWidget';
 import GoogleMerchantBadge from '@/components/GoogleMerchantBadge';
 import TrackVisit from '@/components/TrackVisit';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
+import ExitIntentPopup from '@/components/ExitIntentPopup';
 import ManageCookiesLink from '@/components/ManageCookiesLink';
 import SmartlookLoader from '@/components/SmartlookLoader';
 import GoogleTagManagerLoader from '@/components/GoogleTagManagerLoader';
@@ -220,6 +221,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <GoogleMerchantBadge />
         <TrackVisit />
         <CookieConsentBanner />
+        <ExitIntentPopup />
         <SmartlookLoader />
         <GoogleTagManagerLoader />
       </body>

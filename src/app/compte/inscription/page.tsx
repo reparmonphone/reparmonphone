@@ -4,6 +4,8 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import AccountBenefits from '@/components/AccountBenefits';
+import CartRecap from '@/components/CartRecap';
 
 export default function InscriptionPage() {
   return (
@@ -67,7 +69,10 @@ function InscriptionForm() {
   return (
     <div className="max-w-md mx-auto px-4 py-16">
       <h1 className="text-2xl font-bold mb-1">Créer un compte</h1>
-      <p className="text-gray-500 mb-6">Pour suivre tes commandes et rendez-vous.</p>
+      <p className="text-gray-500 mb-4">Moins d&apos;une minute, c&apos;est gratuit et sans engagement.</p>
+
+      {redirectTo === '/panier' && <CartRecap className="mb-4" />}
+      <AccountBenefits compact className="mb-4" />
 
       <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
         <div className="grid grid-cols-2 gap-3">
