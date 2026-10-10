@@ -36,6 +36,7 @@ export default function PanierClient({
   freeShipping,
   paymentMethods,
   initialCustomer,
+  isGuest = false,
 }: {
   shippingOptions: ShippingOption[];
   shippingZones: ShippingZoneData[];
@@ -44,6 +45,7 @@ export default function PanierClient({
   freeShipping: FreeShippingConfig;
   paymentMethods: PaymentMethods;
   initialCustomer: InitialCustomer;
+  isGuest?: boolean;
 }) {
   const { items, removeItem, setQuantity, totalPrice } = useCart();
   const [loading, setLoading] = useState<'stripe' | 'sumup' | 'paypal' | null>(null);
@@ -138,8 +140,19 @@ export default function PanierClient({
     setPromoError(null);
   }
 
+  // Email vérifié simplement (une commande sans compte n'a que cet email pour recevoir la
+  // confirmation, la facture et le suivi du colis : une faute de frappe = client injoignable).
+  const emailLooksValid = /^\S+@\S+\.\S+$/.test(email.trim());
+
   function billingValid() {
-    return name.trim() && email.trim() && phone.trim() && addressLine1.trim() && addressZip.trim() && addressCity.trim();
+    return (
+      name.trim() &&
+      emailLooksValid &&
+      phone.trim() &&
+      addressLine1.trim() &&
+      addressZip.trim() &&
+      addressCity.trim()
+    );
   }
   function shippingValid() {
     if (!shipDifferent) return true;
@@ -149,6 +162,10 @@ export default function PanierClient({
   async function checkout(provider: 'stripe' | 'sumup' | 'paypal') {
     if (!acceptedTerms) {
       setError('Merci d\u2019accepter les conditions générales avant de payer.');
+      return;
+    }
+    if (provider !== 'stripe' && email.trim() && !emailLooksValid) {
+      setError('Ton adresse email semble incorrecte : vérifie-la pour recevoir ta confirmation et ta facture.');
       return;
     }
     if (provider !== 'stripe' && (!billingValid() || !shippingValid())) {
@@ -196,9 +213,20 @@ export default function PanierClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items, shippingOptionId: shippingId, customer, promoCode: appliedPromo?.code }),
       });
-      const data = await res.json();
+      // Le serveur renvoie toujours du JSON (même en cas d'erreur) — mais en cas de coupure réseau ou
+      // de souci serveur imprévu, la réponse peut être vide ou illisible. On l'attrape ici pour afficher
+      // un message clair plutôt que de planter silencieusement (ex: "Unexpected end of JSON input").
+      let data: { url?: string; error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        setError('Erreur de connexion au serveur de paiement. Réessaie dans quelques instants, ou contacte-nous si ça persiste.');
+        return;
+      }
       if (data.url) window.location.href = data.url;
       else setError(data.error ?? 'Erreur lors de la création du paiement.');
+    } catch {
+      setError('Erreur de connexion. Vérifie ta connexion internet et réessaie.');
     } finally {
       setLoading(null);
     }
@@ -238,8 +266,26 @@ export default function PanierClient({
       <div className="grid lg:grid-cols-[1fr_380px] gap-10">
         {/* Colonne gauche */}
         <div>
+          {isGuest && (
+            <div className="mb-6 bg-brand-light border border-brand/20 rounded-xl px-4 py-3 text-sm text-gray-700">
+              ✅ <strong>Pas besoin de compte pour commander.</strong> Remplis tes coordonnées, choisis ta livraison,
+              puis ton moyen de paiement.
+              <span className="block text-xs text-gray-500 mt-1">
+                Tu as déjà un compte ?{' '}
+                <Link href="/compte/connexion?redirect=/panier" className="text-brand font-medium hover:underline">
+                  Connecte-toi
+                </Link>{' '}
+                pour pré-remplir tes informations.
+              </span>
+            </div>
+          )}
+
           <h2 className="text-lg font-bold mb-1">Adresse de facturation</h2>
-          <p className="text-xs text-gray-400 mb-4">Pré-remplie depuis ton compte — modifie si besoin.</p>
+          <p className="text-xs text-gray-400 mb-4">
+            {isGuest
+              ? 'Ton email sert à t’envoyer la confirmation, ta facture et le suivi de ton colis : vérifie-le bien.'
+              : 'Pré-remplie depuis ton compte — modifie si besoin.'}
+          </p>
 
           <div className="grid grid-cols-2 gap-3 mb-3">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet *" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />

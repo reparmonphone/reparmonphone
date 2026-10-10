@@ -84,6 +84,11 @@ function CheckoutSuccessContent() {
       <p className="text-gray-600 mb-8">
         Votre paiement a bien été confirmé. Vous allez recevoir un e-mail de confirmation avec le suivi Chronopost.
       </p>
+      <p className="text-sm text-gray-500 mb-8 -mt-4">
+        Conservez bien cet e-mail : il contient votre facture et le suivi de votre colis. Pensez à regarder dans vos
+        courriers indésirables s&apos;il tarde à arriver, ou écrivez-nous à{' '}
+        <a href="mailto:contact@reparmonphone.fr" className="text-brand hover:underline">contact@reparmonphone.fr</a>.
+      </p>
       <Link href="/boutique" className="bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark transition">
         Retour à la boutique
       </Link>

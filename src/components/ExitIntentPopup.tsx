@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/store/cart';
 import { formatPrice } from '@/lib/format';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getStoredConsent } from '@/lib/cookieConsent';
 
 // Popup de sortie : remercie le visiteur qui s'apprête à quitter le site et le rassure pour l'inciter
@@ -16,6 +15,7 @@ import { getStoredConsent } from '@/lib/cookieConsent';
 //  - jamais avant que le visiteur ait répondu à la bannière cookies ;
 //  - une seule fois par session, puis pas avant 7 jours ;
 //  - jamais sur /admin, /checkout (confirmation de paiement), /compte, /rdv, /maintenance ;
+//  - la commande se fait sans compte : le bouton mène simplement au panier ;
 //  - ordinateur : déclenché quand la souris sort par le haut de la fenêtre (intention de quitter),
 //    après au moins 10 s passées sur le site ;
 //  - mobile/tablette (pas de détection de sortie possible) : uniquement si le panier n'est pas vide,
@@ -36,7 +36,6 @@ type Snapshot = {
   cartCount: number;
   cartTotal: number;
   firstTitle: string | null;
-  loggedIn: boolean | null; // null = on ne sait pas (erreur de lecture de session)
 };
 
 function alreadySeen(): boolean {
@@ -107,27 +106,11 @@ export default function ExitIntentPopup() {
       if (needCart && cartCount === 0) return false;
 
       triggered.current = true;
-
-      let loggedIn: boolean | null = null;
-      if (cartCount > 0) {
-        try {
-          const { data } = await createSupabaseBrowserClient().auth.getSession();
-          loggedIn = !!data.session;
-        } catch {
-          loggedIn = null;
-        }
-      }
-      if (cancelled) {
-        triggered.current = false;
-        return false;
-      }
-
       markSeen();
       setSnapshot({
         cartCount,
         cartTotal: items.reduce((s, i) => s + i.price * i.quantity, 0),
         firstTitle: items[0]?.title ?? null,
-        loggedIn,
       });
       lastFocus.current = document.activeElement as HTMLElement | null;
       setOpen(true);
@@ -268,6 +251,7 @@ export default function ExitIntentPopup() {
               </div>
 
               <ul className="mt-4 space-y-2 text-sm text-gray-700">
+                <li>👤 Pas besoin de créer de compte pour commander</li>
                 <li>✅ Paiement 100 % sécurisé, tes données bancaires ne sont jamais stockées chez nous</li>
                 <li>🚚 Expédition Chronopost 24h partout en France</li>
                 <li>🇫🇷 SAV en France, équipe à Sainte-Maxime</li>
@@ -280,32 +264,8 @@ export default function ExitIntentPopup() {
                 </li>
               </ul>
 
-              {snapshot.loggedIn === false && (
-                <p className="mt-4 text-xs text-gray-600 bg-brand-light border border-brand/20 rounded-lg px-3 py-2">
-                  Un compte gratuit se crée en moins d&apos;une minute : il te permet de suivre ta commande et de
-                  retrouver tes factures. Ton panier est conservé.
-                </p>
-              )}
-
               <div className="mt-5 space-y-2">
-                {snapshot.loggedIn === false ? (
-                  <>
-                    <Link
-                      href="/compte/inscription?redirect=/panier"
-                      onClick={() => clickCta('create_account')}
-                      className="block w-full text-center bg-brand text-white py-3 rounded-lg font-semibold hover:bg-brand-dark transition"
-                    >
-                      Créer mon compte et finaliser
-                    </Link>
-                    <Link
-                      href="/compte/connexion?redirect=/panier"
-                      onClick={() => clickCta('login')}
-                      className="block w-full text-center border border-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 transition"
-                    >
-                      J&apos;ai déjà un compte
-                    </Link>
-                  </>
-                ) : onCartPage ? (
+                {onCartPage ? (
                   <button
                     type="button"
                     onClick={() => clickCta('resume_order')}
