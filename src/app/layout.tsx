@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import './globals.css';
 import Header from '@/components/Header';
@@ -13,10 +13,14 @@ import ManageCookiesLink from '@/components/ManageCookiesLink';
 import SmartlookLoader from '@/components/SmartlookLoader';
 import GoogleTagManagerLoader from '@/components/GoogleTagManagerLoader';
 import JsonLd from '@/components/JsonLd';
+import { InstallAppPrompt, InstallAppEarlyScript } from '@/components/install-app-prompt';
 import { prisma } from '@/lib/prisma';
 import { getSiteMeta } from '@/lib/siteMeta';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
+
+// Couleur de la barre du navigateur sur mobile + de l'appli installée (même bleu que le site).
+export const viewport: Viewport = { themeColor: '#0E7FDB' };
 
 export async function generateMetadata(): Promise<Metadata> {
   const { title: SITE_TITLE, description: SITE_DESCRIPTION, ogImageUrl } = await getSiteMeta();
@@ -130,6 +134,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="fr">
       <body className="bg-white text-gray-900 antialiased">
+        {/* Appli installable (PWA) : doit s'exécuter en tout premier pour capter la fenêtre d'installation du navigateur */}
+        <InstallAppEarlyScript />
         {/* Google Tag Manager (noscript) — le conteneur lui-même (GoogleTagManagerLoader, plus bas)
             n'est chargé qu'après consentement "statistiques" ; ce repli n'a d'effet que pour les
             visiteurs sans JavaScript, voir GoogleTagManagerLoader.tsx pour la logique de consentement. */}
@@ -224,6 +230,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ExitIntentPopup />
         <SmartlookLoader />
         <GoogleTagManagerLoader />
+        <InstallAppPrompt />
       </body>
     </html>
   );
