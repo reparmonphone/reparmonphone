@@ -30,6 +30,18 @@ export function reviewReminderEligibleWhere() {
   };
 }
 
+// Relance de TOUS les clients dont la commande est au statut "Livrée" (remboursées, expédiées, annulées,
+// en attente... exclues d'office), y compris ceux déjà relancés avant l'ajout de Trustpilot — sans attendre
+// 10 jours. startedAt = moment où la relance groupée démarre : une commande relancée pendant cette session a
+// reviewReminderSentAt >= startedAt et n'est donc pas reprise (sinon la boucle ne finirait jamais).
+export function reviewReminderAllDeliveredWhere(startedAt: Date) {
+  return {
+    status: 'DELIVERED' as const,
+    customerEmail: { not: 'a-completer@reparmonphone.fr' },
+    OR: [{ reviewReminderSentAt: null }, { reviewReminderSentAt: { lt: startedAt } }],
+  };
+}
+
 export async function countReviewReminderEligible() {
   return prisma.order.count({ where: reviewReminderEligibleWhere() });
 }

@@ -95,7 +95,10 @@ export default async function AdminCommandesPage({
     },
   });
 
-  const eligibleReviewCount = await countReviewReminderEligible();
+  const [eligibleReviewCount, allDeliveredCount] = await Promise.all([
+    countReviewReminderEligible(),
+    prisma.order.count({ where: { status: 'DELIVERED', customerEmail: { not: 'a-completer@reparmonphone.fr' } } }),
+  ]);
 
   return (
     <div>
@@ -103,7 +106,7 @@ export default async function AdminCommandesPage({
         <h1 className="text-2xl font-bold">Commandes</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">{orders.length} commande(s)</span>
-          <BulkReviewReminderButton eligibleCount={eligibleReviewCount} />
+          <BulkReviewReminderButton eligibleCount={eligibleReviewCount} allDeliveredCount={allDeliveredCount} />
           <a href="/api/export/commandes" className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">
             ⬇️ Exporter CSV
           </a>

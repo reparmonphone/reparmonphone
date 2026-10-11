@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { sendPendingOrderReminder } from '@/lib/orderReminder';
-import { sendReviewReminder, reviewReminderEligibleWhere } from '@/lib/reviewReminder';
+import { sendReviewReminder, reviewReminderEligibleWhere, reviewReminderAllDeliveredWhere } from '@/lib/reviewReminder';
 import { sendOrderShippedEmail, sendTrackingNumberEmail } from '@/lib/orderEmails';
 import type { OrderStatus, ShippingCarrier } from '@prisma/client';
 
@@ -77,25 +77,46 @@ export async function sendReviewReminderManually(orderId: string) {
   return result;
 }
 
-// Relance groupée "laisse un avis" (produits + Trustpilot) : commandes livrées depuis plus de 10 jours et
-// jamais relancées (voir reviewReminderEligibleWhere). Traitée par petits lots de 5 pour rester sous la
-// limite de durée des fonctions Vercel et respecter le débit d'envoi de Resend : le bouton côté admin
-// rappelle cette action en boucle jusqu'à ce qu'il n'en reste plus. skipIds = commandes déjà en échec
-// pendant cette session, pour ne pas les retenter en boucle.
-export async function sendReviewReminderBatch(skipIds: string[] = []) {
+// Relance groupée "laisse un avis" (produits + Trustpilot), par petits lots de 5 pour rester sous la limite
+// de durée des fonctions Vercel et respecter le débit d'envoi de Resend : le bouton côté admin rappelle
+// cette action en boucle jusqu'à ce qu'il n'en reste plus.
+//  - mode "new" : commandes livrées depuis plus de 10 jours et jamais relancées (voir reviewReminderEligibleWhere)
+//  - mode "all" : toutes les commandes "Livrée", même déjà relancées (voir reviewReminderAllDeliveredWhere)
+// startedAt = début de la session de relance ; skipIds = commandes déjà en échec pendant cette session.
+// Un client qui a plusieurs commandes livrées ne reçoit qu'UN seul e-mail par session.
+export async function sendReviewReminderBatch(
+  mode: 'new' | 'all',
+  startedAtIso: string,
+  skipIds: string[] = []
+) {
   await requireAdminUser();
+  const startedAt = new Date(startedAtIso);
+  const baseWhere = () => (mode === 'all' ? reviewReminderAllDeliveredWhere(startedAt) : reviewReminderEligibleWhere());
 
   const batch = await prisma.order.findMany({
-    where: { ...reviewReminderEligibleWhere(), id: { notIn: skipIds } },
-    select: { id: true },
+    where: { ...baseWhere(), id: { notIn: skipIds } },
+    select: { id: true, customerEmail: true },
     orderBy: { createdAt: 'asc' },
     take: 5,
   });
 
   let sent = 0;
+  let duplicates = 0;
   const failedIds: string[] = [];
   let lastError: string | undefined;
   for (const order of batch) {
+    // Déjà relancé pendant cette session via une autre de ses commandes ? On marque celle-ci comme traitée
+    // sans renvoyer d'e-mail.
+    const alreadyEmailed = await prisma.order.findFirst({
+      where: { customerEmail: order.customerEmail, reviewReminderSentAt: { gte: startedAt } },
+      select: { id: true },
+    });
+    if (alreadyEmailed) {
+      await prisma.order.update({ where: { id: order.id }, data: { reviewReminderSentAt: new Date() } });
+      duplicates++;
+      continue;
+    }
+
     const result = await sendReviewReminder(order.id);
     if (result.error) {
       failedIds.push(order.id);
@@ -107,11 +128,11 @@ export async function sendReviewReminderBatch(skipIds: string[] = []) {
   }
 
   const remaining = await prisma.order.count({
-    where: { ...reviewReminderEligibleWhere(), id: { notIn: [...skipIds, ...failedIds] } },
+    where: { ...baseWhere(), id: { notIn: [...skipIds, ...failedIds] } },
   });
 
   revalidatePath('/admin/commandes');
-  return { sent, failedIds, lastError, remaining };
+  return { sent, duplicates, failedIds, lastError, remaining };
 }
 
 export async function deleteOrder(orderId: string) {
