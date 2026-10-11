@@ -199,11 +199,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span className="flex items-center gap-1.5">💳 Paiement Sécurisé</span>
               <span className="flex items-center gap-1.5">🚚 Livraison 24h Chronopost</span>
               <span className="flex items-center gap-1.5">🇫🇷 SAV en France</span>
-            </div>
-
-            {/* Avis clients Trustpilot : rassure les visiteurs et permet de laisser un avis (voir TrustpilotWidget.tsx) */}
-            <div className="max-w-sm mb-6">
-              <TrustpilotWidget />
+              {/* Avis clients Trustpilot, dans la continuité des garanties (voir TrustpilotWidget.tsx) */}
+              <div className="w-[260px] max-w-full">
+                <TrustpilotWidget />
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4">
