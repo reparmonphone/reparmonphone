@@ -12,7 +12,6 @@ export default function ReviewReminderButton({ orderId }: { orderId: string }) {
     startTransition(async () => {
       const result = await sendReviewReminderManually(orderId);
       if (result.error) setMessage(result.error);
-      else if (result.skipped) setMessage('Le client a déjà tout commenté — rien à envoyer.');
       else setMessage('✅ Email envoyé');
       setTimeout(() => setMessage(null), 3000);
     });
