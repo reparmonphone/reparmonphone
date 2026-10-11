@@ -10,6 +10,7 @@ import TrackVisit from '@/components/TrackVisit';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import ExitIntentPopup from '@/components/ExitIntentPopup';
 import ManageCookiesLink from '@/components/ManageCookiesLink';
+import TrustpilotWidget from '@/components/TrustpilotWidget';
 import SmartlookLoader from '@/components/SmartlookLoader';
 import GoogleTagManagerLoader from '@/components/GoogleTagManagerLoader';
 import JsonLd from '@/components/JsonLd';
@@ -198,6 +199,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span className="flex items-center gap-1.5">💳 Paiement Sécurisé</span>
               <span className="flex items-center gap-1.5">🚚 Livraison 24h Chronopost</span>
               <span className="flex items-center gap-1.5">🇫🇷 SAV en France</span>
+            </div>
+
+            {/* Avis clients Trustpilot : rassure les visiteurs et permet de laisser un avis (voir TrustpilotWidget.tsx) */}
+            <div className="max-w-sm mb-6">
+              <TrustpilotWidget />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4">
