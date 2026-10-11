@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { sendPendingOrderReminder } from '@/lib/orderReminder';
-import { sendReviewReminder } from '@/lib/reviewReminder';
+import { sendReviewReminder, reviewReminderEligibleWhere } from '@/lib/reviewReminder';
 import { sendOrderShippedEmail, sendTrackingNumberEmail } from '@/lib/orderEmails';
 import type { OrderStatus, ShippingCarrier } from '@prisma/client';
 
@@ -75,6 +75,43 @@ export async function sendReviewReminderManually(orderId: string) {
   revalidatePath('/admin/commandes');
   revalidatePath(`/admin/commandes/${orderId}`);
   return result;
+}
+
+// Relance groupée "laisse un avis" (produits + Trustpilot) : commandes livrées depuis plus de 10 jours et
+// jamais relancées (voir reviewReminderEligibleWhere). Traitée par petits lots de 5 pour rester sous la
+// limite de durée des fonctions Vercel et respecter le débit d'envoi de Resend : le bouton côté admin
+// rappelle cette action en boucle jusqu'à ce qu'il n'en reste plus. skipIds = commandes déjà en échec
+// pendant cette session, pour ne pas les retenter en boucle.
+export async function sendReviewReminderBatch(skipIds: string[] = []) {
+  await requireAdminUser();
+
+  const batch = await prisma.order.findMany({
+    where: { ...reviewReminderEligibleWhere(), id: { notIn: skipIds } },
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+    take: 5,
+  });
+
+  let sent = 0;
+  const failedIds: string[] = [];
+  let lastError: string | undefined;
+  for (const order of batch) {
+    const result = await sendReviewReminder(order.id);
+    if (result.error) {
+      failedIds.push(order.id);
+      lastError = result.error;
+    } else {
+      sent++;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  }
+
+  const remaining = await prisma.order.count({
+    where: { ...reviewReminderEligibleWhere(), id: { notIn: [...skipIds, ...failedIds] } },
+  });
+
+  revalidatePath('/admin/commandes');
+  return { sent, failedIds, lastError, remaining };
 }
 
 export async function deleteOrder(orderId: string) {

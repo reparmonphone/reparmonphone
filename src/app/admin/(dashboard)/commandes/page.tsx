@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { formatPrice } from '@/lib/format';
 import { CARRIER_LABELS } from '@/lib/tracking';
 import OrderRowActions from './OrderRowActions';
+import BulkReviewReminderButton from './BulkReviewReminderButton';
+import { countReviewReminderEligible } from '@/lib/reviewReminder';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'En attente',
@@ -93,12 +95,15 @@ export default async function AdminCommandesPage({
     },
   });
 
+  const eligibleReviewCount = await countReviewReminderEligible();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Commandes</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">{orders.length} commande(s)</span>
+          <BulkReviewReminderButton eligibleCount={eligibleReviewCount} />
           <a href="/api/export/commandes" className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">
             ⬇️ Exporter CSV
           </a>

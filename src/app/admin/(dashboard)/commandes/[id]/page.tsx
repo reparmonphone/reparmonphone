@@ -25,6 +25,29 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
 
   if (!order) notFound();
 
+  // Mode de livraison : enregistré sur les nouvelles commandes ; pour les anciennes (avant l'ajout de
+  // l'info), on le déduit du tarif payé en cherchant les modes de livraison qui ont ce prix.
+  let shippingMethodLabel: string | null = order.shippingMethod;
+  let shippingMethodGuessed = false;
+  if (!shippingMethodLabel && Number(order.shippingCost) > 0) {
+    const cost = Number(order.shippingCost);
+    const [shippingOptions, zoneRates] = await Promise.all([
+      prisma.shippingOption.findMany({ orderBy: { order: 'asc' } }),
+      prisma.shippingZoneRate.findMany(),
+    ]);
+    const matches = shippingOptions
+      .filter(
+        (o) =>
+          Number(o.price) === cost ||
+          zoneRates.some((r) => r.shippingOptionId === o.id && Number(r.price) === cost)
+      )
+      .map((o) => o.label);
+    if (matches.length > 0) {
+      shippingMethodLabel = matches.join(' ou ');
+      shippingMethodGuessed = true;
+    }
+  }
+
   const shippedByOrderItem = new Map<string, number>();
   for (const shipment of order.shipments) {
     for (const si of shipment.items) {
@@ -90,6 +113,12 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
               {order.shippingLine1}<br />
               {order.shippingZip} {order.shippingCity}
             </p>
+            {shippingMethodLabel && (
+              <p className="text-xs text-gray-500 mt-2">
+                🚚 {shippingMethodLabel}
+                {shippingMethodGuessed && <span className="text-gray-400"> (déduit du tarif)</span>}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Facturation</p>
@@ -123,10 +152,14 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
             <span>Sous-total</span>
             <span>{formatPrice(Number(order.subtotal))}</span>
           </div>
-          {Number(order.shippingCost) > 0 && (
+          {(Number(order.shippingCost) > 0 || shippingMethodLabel) && (
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Livraison</span>
-              <span>{formatPrice(Number(order.shippingCost))}</span>
+              <span>
+                Livraison
+                {shippingMethodLabel ? ` — ${shippingMethodLabel}` : ''}
+                {shippingMethodGuessed ? ' (déduit du tarif)' : ''}
+              </span>
+              <span>{Number(order.shippingCost) > 0 ? formatPrice(Number(order.shippingCost)) : 'Offerte'}</span>
             </div>
           )}
           {order.promoCode && (

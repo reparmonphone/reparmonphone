@@ -15,6 +15,25 @@ function trustpilotBlock(intro: string) {
         </div>`;
 }
 
+// Commandes à relancer : livrées depuis plus de 10 jours et jamais relancées. Pour les anciennes commandes
+// passées en "Livrée" avant l'enregistrement de la date de livraison (deliveredAt vide), on se base sur la
+// date de commande avec une marge de 14 jours.
+export function reviewReminderEligibleWhere() {
+  const DAY = 24 * 60 * 60 * 1000;
+  return {
+    status: 'DELIVERED' as const,
+    reviewReminderSentAt: null,
+    OR: [
+      { deliveredAt: { lte: new Date(Date.now() - 10 * DAY) } },
+      { deliveredAt: null, createdAt: { lte: new Date(Date.now() - 14 * DAY) } },
+    ],
+  };
+}
+
+export async function countReviewReminderEligible() {
+  return prisma.order.count({ where: reviewReminderEligibleWhere() });
+}
+
 export async function sendReviewReminder(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },

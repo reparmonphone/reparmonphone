@@ -288,6 +288,7 @@ model Order {
   promoCode      String?
   discountAmount Decimal     @default(0) @db.Decimal(10, 2)
   shippingCost   Decimal     @default(0) @db.Decimal(10, 2)
+  shippingMethod String? // libellé du mode de livraison choisi par le client (ex: "Chronopost 24h") — null pour les anciennes commandes
   total          Decimal     @db.Decimal(10, 2)
 
   paymentProvider PaymentProvider @default(STRIPE)
