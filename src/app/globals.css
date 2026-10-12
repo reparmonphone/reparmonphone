@@ -491,20 +491,20 @@ html[data-intro='play'] .rmp-splash {
 }
 .pt-root.out {
   opacity: 0;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.25s ease;
 }
 .pt-bg {
   position: absolute;
   inset: 0;
   background: radial-gradient(circle at 50% 42%, #2aa0f5 0%, #0e7fdb 42%, #0b5fa5 78%, #083f73 100%);
   clip-path: circle(0px at var(--cx, 50%) var(--cy, 50%));
-  transition: clip-path 0.62s cubic-bezier(0.65, 0, 0.25, 1);
+  transition: clip-path 0.45s cubic-bezier(0.65, 0, 0.25, 1);
 }
 .pt-bg.on {
   clip-path: circle(var(--r, 150vmax) at var(--cx, 50%) var(--cy, 50%));
 }
 .pt-root.landing .pt-bg {
-  transition: clip-path 0.8s cubic-bezier(0.55, 0, 0.2, 1);
+  transition: clip-path 0.55s cubic-bezier(0.55, 0, 0.2, 1);
 }
 .pt-dots {
   position: absolute;
@@ -512,7 +512,7 @@ html[data-intro='play'] .rmp-splash {
   background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.3px, transparent 1.6px);
   background-size: 24px 24px;
   opacity: 0;
-  transition: opacity 0.5s ease 0.2s;
+  transition: opacity 0.35s ease 0.1s;
 }
 .pt-root.on .pt-dots {
   opacity: 1;
@@ -527,7 +527,7 @@ html[data-intro='play'] .rmp-splash {
   background: #fff;
   box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
   transition-property: left, top, width, height, border-radius, box-shadow;
-  transition-duration: 0.72s;
+  transition-duration: 0.5s;
   transition-timing-function: var(--pt-ease);
   will-change: left, top, width, height;
 }
@@ -535,7 +535,7 @@ html[data-intro='play'] .rmp-splash {
   box-shadow: 0 40px 80px -24px rgba(3, 28, 66, 0.6), 0 0 70px 6px rgba(255, 255, 255, 0.35);
 }
 .pt-root.landing .pt-box {
-  transition-duration: 0.8s;
+  transition-duration: 0.55s;
   transition-timing-function: cubic-bezier(0.5, 0, 0.15, 1);
   box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
 }
@@ -546,7 +546,7 @@ html[data-intro='play'] .rmp-splash {
   height: 100%;
   object-fit: contain;
   box-sizing: border-box;
-  transition: padding 0.72s var(--pt-ease);
+  transition: padding 0.5s var(--pt-ease);
 }
 .pt-box.float {
   animation: pt-float 2.4s ease-in-out infinite;
@@ -555,7 +555,7 @@ html[data-intro='play'] .rmp-splash {
   position: absolute;
   opacity: 0;
   transform: scale(0.6);
-  transition: opacity 0.5s ease 0.35s, transform 0.7s var(--pt-ease) 0.2s;
+  transition: opacity 0.3s ease 0.1s, transform 0.5s var(--pt-ease) 0.05s;
 }
 .pt-ring.on {
   opacity: 1;
@@ -565,7 +565,7 @@ html[data-intro='play'] .rmp-splash {
   display: block;
   width: 100%;
   height: 100%;
-  animation: pt-spin 2.6s linear infinite;
+  animation: pt-spin 1.9s linear infinite;
 }
 .pt-root.landing .pt-ring {
   transition: opacity 0.3s ease, transform 0.5s ease;
@@ -578,10 +578,10 @@ html[data-intro='play'] .rmp-splash {
   opacity: 0;
 }
 .pt-root.on .pt-ping {
-  animation: pt-ping 2s ease-out 0.5s infinite;
+  animation: pt-ping 1.4s ease-out 0.3s infinite;
 }
 .pt-root.on .pt-ping.p2 {
-  animation-delay: 1.5s;
+  animation-delay: 1s;
 }
 .pt-root.landing .pt-ping {
   animation: none;
@@ -593,7 +593,7 @@ html[data-intro='play'] .rmp-splash {
   50% { transform: translateY(-9px); }
 }
 @keyframes pt-spin {
-  to { transform: rotate(360deg); }
+  to { transform: rotate(-360deg); }
 }
 @keyframes pt-ping {
   0% { opacity: 0.8; transform: scale(0.75); }
@@ -630,10 +630,10 @@ html[data-intro='play'] .rmp-splash {
   pointer-events: none;
   background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.85) 48%, rgba(180, 225, 255, 0.55) 52%, transparent 70%);
   transform: translateX(-120%);
-  animation: pg-sweep 1.2s ease-in-out 0.1s forwards;
+  animation: pg-sweep 0.8s ease-in-out forwards;
 }
 [data-pt-target].pt-landed {
-  animation: pg-glow 1.4s ease-out;
+  animation: pg-glow 1s ease-out;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -646,7 +646,8 @@ html[data-intro='play'] .rmp-splash {
   .pg-enter {
     animation: pg-enter 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
-  html[data-pt] .pg-enter {
+  html[data-pt] .pg-enter,
+  .pg-enter.pg-done {
     animation: none;
   }
   .pg-float {
