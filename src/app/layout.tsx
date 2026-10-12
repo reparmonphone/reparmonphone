@@ -133,8 +133,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   };
 
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <body className="bg-white text-gray-900 antialiased">
+        {/* Intro logo (accueil) : décide, avant l'affichage, si l'animation doit se jouer.
+            Une seule fois par visite, accueil seulement, jamais si "moins d'animations" est demandé. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var d=document.documentElement;if(location.pathname!=='/'){return}" +
+              "var r=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;" +
+              "var s=false;try{s=!!sessionStorage.getItem('rmp_intro_seen')}catch(e){}" +
+              "if(r||s){d.setAttribute('data-intro','skip');return}" +
+              "d.setAttribute('data-intro','play');try{sessionStorage.setItem('rmp_intro_seen','1')}catch(e){}" +
+              "}catch(e){}})();",
+          }}
+        />
         {/* Appli installable (PWA) : doit s'exécuter en tout premier pour capter la fenêtre d'installation du navigateur */}
         <InstallAppEarlyScript />
         {/* Google Tag Manager (noscript) — le conteneur lui-même (GoogleTagManagerLoader, plus bas)
