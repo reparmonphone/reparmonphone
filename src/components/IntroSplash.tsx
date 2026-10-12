@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 
-// Écran d'intro de la page d'accueil : le logo ReparMonPhone s'anime pendant ~4 secondes.
+// Écran d'intro de la page d'accueil : le logo ReparMonPhone s'anime pendant ~6 secondes.
 // - Affiché une seule fois par visite (le mini-script de layout.tsx pose html[data-intro="play"]).
 // - Jamais affiché si le visiteur a demandé "moins d'animations" ni sur les autres pages.
 // - Passable : bouton "Passer", touche Échap ou clic n'importe où.
@@ -13,7 +13,7 @@ import type { CSSProperties } from 'react';
 const ARROW_ORIGIN: CSSProperties = { transformOrigin: '253px 204px', transformBox: 'view-box' };
 const v = (i: number, extra: CSSProperties = {}) => ({ '--i': i, ...extra }) as CSSProperties;
 
-const TOTAL_MS = 3950;
+const TOTAL_MS = 6050;
 
 function finish(el: HTMLElement | null, fast: boolean) {
   const root = document.documentElement;

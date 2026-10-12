@@ -23,7 +23,7 @@ import IntroSplash from '@/components/IntroSplash';
 function AnimatedWords({
   text,
   start = 0,
-  step = 0.07,
+  step = 0.17,
   className = '',
 }: {
   text: string;
@@ -84,9 +84,9 @@ export default async function HomePage() {
         <div className="relative max-w-6xl mx-auto px-4 text-center">
           <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 max-w-4xl mx-auto text-balance">
             <AnimatedWords text={'Écran cassé, batterie fatiguée\u00A0?'} />{' '}
-            <AnimatedWords text={'On répare, ou on vous envoie la\u00A0pièce.'} start={0.5} className="text-brand" />
+            <AnimatedWords text={'On répare, ou on vous envoie la\u00A0pièce.'} start={1.0} className="text-brand" />
           </h1>
-          <p className="hero-fade mt-4 text-lg text-gray-600 max-w-2xl mx-auto" style={delay(1.1)}>
+          <p className="hero-fade mt-4 text-lg text-gray-600 max-w-2xl mx-auto" style={delay(2.6)}>
             Apple, Samsung, Huawei, Xiaomi et plus : réparation en atelier à{' '}
             <span className="whitespace-nowrap">Sainte-Maxime</span>, à domicile dans tout le Golfe de{' '}
             <span className="whitespace-nowrap">Saint-Tropez</span>, ou par correspondance partout en{' '}
@@ -98,21 +98,21 @@ export default async function HomePage() {
             <Link
               href="/boutique"
               className="hero-btn hero-cta hero-cta--primary bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark transition"
-              style={delay(1.35)}
+              style={delay(3.4)}
             >
               <span className="hero-emoji" aria-hidden="true">🛒</span> Acheter une pièce
             </Link>
             <Link
               href="/rdv"
               className="hero-btn hero-cta bg-white border border-brand text-brand px-6 py-3 rounded-lg font-semibold hover:bg-brand-light transition"
-              style={delay(1.5)}
+              style={delay(3.75)}
             >
               <span className="hero-emoji" aria-hidden="true">🔧</span> Prendre RDV réparation
             </Link>
             <Link
               href="/reparation-a-distance"
               className="hero-btn hero-cta bg-white border border-brand text-brand px-6 py-3 rounded-lg font-semibold hover:bg-brand-light transition"
-              style={delay(1.65)}
+              style={delay(4.1)}
             >
               <span className="hero-emoji" aria-hidden="true">📮</span> Réparation par correspondance
             </Link>

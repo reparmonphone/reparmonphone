@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import type { CSSProperties } from 'react';
 import { prisma } from '@/lib/prisma';
 import { LINE_CONTENT_KEY } from '@/lib/categoryContent';
+import RevealOnScroll from '@/components/RevealOnScroll';
+
+// Retard d'apparition (en secondes) pour un élément d'une carte : --d
+const d = (s: number) => ({ '--d': `${s.toFixed(2)}s` }) as CSSProperties;
 
 const BRAND_ORDER = ['apple', 'samsung', 'huawei', 'xiaomi'];
 
@@ -51,19 +56,28 @@ export default async function CategoriesEnVedette() {
   return (
     <section className="w-full bg-white py-12">
       <div className="mx-auto w-full max-w-7xl px-4">
-        <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900">Catégories En Vedette</h2>
-        <p className="text-gray-500 mt-1 mb-8">Retrouvez les catégories les plus consultées sur ReparMonPhone</p>
+        {/* Si JavaScript est désactivé, on montre tout sans animation */}
+        <noscript>
+          <style>{'.rv-i,.rv.rv-card{opacity:1!important}'}</style>
+        </noscript>
+        <RevealOnScroll className="mb-8">
+          <h2 className="rv-i rv-head text-2xl md:text-3xl font-extrabold text-gray-900">Catégories En Vedette</h2>
+          <p className="rv-i rv-head text-gray-500 mt-1" style={d(0.25)}>
+            Retrouvez les catégories les plus consultées sur ReparMonPhone
+          </p>
+        </RevealOnScroll>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {brands.map((brand) => {
+          {brands.map((brand, bi) => {
             const assets = ASSETS[brand.slug];
             return (
-              <div
+              <RevealOnScroll
                 key={brand.id}
-                className="flex min-h-[610px] flex-col items-center border border-gray-200 bg-white px-5 py-6 text-center"
+                delay={bi * 0.3}
+                className="rv-i rv-card flex min-h-[610px] flex-col items-center border border-gray-200 bg-white px-5 py-6 text-center transition-shadow duration-300 hover:shadow-xl"
               >
                 {/* Logo de la marque */}
-                <Link href={`/marque/${brand.slug}`} className="flex h-[110px] w-full items-center justify-center">
+                <Link href={`/marque/${brand.slug}`} className="rv-i rv-logo flex h-[110px] w-full items-center justify-center">
                   {assets?.logo ? (
                     <Image
                       src={assets.logo}
@@ -80,7 +94,7 @@ export default async function CategoriesEnVedette() {
 
                 {/* Liste des gammes — vrais liens vers la boutique filtrée */}
                 <div className="mt-6 flex flex-col items-center gap-4">
-                  {brand.lines.map((line) => {
+                  {brand.lines.map((line, li) => {
                     const contentKey = LINE_CONTENT_KEY[`${brand.slug}/${line.slug}`];
                     const lineHref = contentKey
                       ? `/marque/${brand.slug}/${contentKey}`
@@ -89,7 +103,8 @@ export default async function CategoriesEnVedette() {
                       <Link
                         key={line.id}
                         href={lineHref}
-                        className="text-[17px] font-medium text-cyan-500 transition-colors hover:text-cyan-700"
+                        className="rv-i rv-link text-[17px] font-medium text-cyan-500 transition-colors hover:text-cyan-700"
+                        style={d(li * 0.18)}
                       >
                         {line.name}
                       </Link>
@@ -101,7 +116,8 @@ export default async function CategoriesEnVedette() {
                 {assets?.phones && (
                   <Link
                     href={`/marque/${brand.slug}`}
-                    className="mt-auto flex h-[250px] w-full items-end justify-center pt-8"
+                    className="rv-i rv-phones mt-auto flex h-[250px] w-full items-end justify-center pt-8"
+                    style={d(brand.lines.length * 0.18)}
                   >
                     <Image
                       src={assets.phones}
@@ -113,7 +129,7 @@ export default async function CategoriesEnVedette() {
                     />
                   </Link>
                 )}
-              </div>
+              </RevealOnScroll>
             );
           })}
         </div>

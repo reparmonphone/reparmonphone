@@ -8,6 +8,7 @@ import { useCart } from '@/store/cart';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { LINE_CONTENT_KEY } from '@/lib/categoryContent';
 import SearchBar from './SearchBar';
+import AnimatedLogo from './AnimatedLogo';
 
 type Model = { id: string; name: string; slug: string };
 type ProductLine = { id: string; name: string; slug: string; models: Model[] };
@@ -101,14 +102,7 @@ export default function Header({
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-brand-dark">
-          <Image
-            src="https://bjfmbrexkkpgwufdqkoy.supabase.co/storage/v1/object/public/products/2025/03/logo-repar-mon-phone-3.png"
-            alt="ReparMonPhone"
-            width={168}
-            height={168}
-            quality={100}
-            className="rounded shrink-0"
-          />
+          <AnimatedLogo size={168} />
         </Link>
 
         <nav className="hidden lg:flex items-center gap-1 text-sm font-medium text-gray-700">
