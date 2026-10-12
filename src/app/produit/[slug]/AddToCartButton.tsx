@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useCart } from '@/store/cart';
 import { formatPrice } from '@/lib/format';
 import { trackAddToCart } from '@/lib/gtmEvents';
+import { flyToCart, rippleAt } from '@/lib/cartFx';
 
 type ScreenProtectorSuggestion = {
   id: string;
@@ -37,7 +38,9 @@ export default function AddToCartButton({
     <div className="relative">
       <button
         disabled={disabled}
-        onClick={() => {
+        onClick={(e) => {
+          rippleAt(e.currentTarget, e.clientX, e.clientY);
+          flyToCart(e.currentTarget, product.imageUrl);
           addItem(product);
           trackAddToCart({
             item_id: product.productId,
@@ -49,7 +52,9 @@ export default function AddToCartButton({
           setTimeout(() => setAdded(false), 1500);
           if (hasSuggestions) setShowUpsell(true);
         }}
-        className="w-full md:w-auto bg-brand text-white px-8 py-3 rounded-lg font-semibold hover:bg-brand-dark transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+        className={`atc w-full md:w-auto text-white px-8 py-3 rounded-lg font-semibold transition disabled:bg-gray-300 disabled:cursor-not-allowed ${
+          added ? 'atc-done bg-green-600' : 'bg-brand hover:bg-brand-dark'
+        }`}
       >
         {disabled ? 'Indisponible' : added ? '✅ Ajouté au panier' : '🛒 Ajouter au panier'}
       </button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 
 export default function ProductGallery({ images, title }: { images: string[]; title: string }) {
@@ -8,6 +8,17 @@ export default function ProductGallery({ images, title }: { images: string[]; ti
   const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
   const [zooming, setZooming] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  // Arrivée directe sur la fiche (sans la transition d'envol) : un reflet de lumière balaie la photo.
+  // Quand la transition est active, c'est elle qui lance le reflet à l'atterrissage (voir ProductTransition.tsx).
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el || document.documentElement.hasAttribute('data-pt')) return;
+    el.classList.add('pt-landed');
+    const t = window.setTimeout(() => el.classList.remove('pt-landed'), 1900);
+    return () => window.clearTimeout(t);
+  }, []);
 
   if (images.length === 0) {
     return (
@@ -27,13 +38,20 @@ export default function ProductGallery({ images, title }: { images: string[]; ti
   return (
     <div>
       <div
+        ref={mainRef}
+        data-pt-target
         className="relative aspect-square bg-white rounded-xl border border-gray-100 overflow-hidden cursor-zoom-in"
         onMouseEnter={() => setZooming(true)}
         onMouseLeave={() => setZooming(false)}
         onMouseMove={handleMouseMove}
         onClick={() => setLightboxOpen(true)}
       >
-        <Image src={images[active]} alt={title} fill className="object-contain p-8" priority />
+        {/* Halo + ombre au sol : la photo "flotte" doucement */}
+        <span className="pg-halo" aria-hidden="true" />
+        <span className="pg-shadow" aria-hidden="true" />
+        <span key={images[active]} className="pg-enter absolute inset-0 z-[1] block">
+          <Image src={images[active]} alt={title} fill className="pg-float object-contain p-8" priority />
+        </span>
 
         {/* Zoom au survol (desktop) : agrandissement centré sur la position du curseur */}
         {zooming && (
