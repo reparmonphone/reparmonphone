@@ -6,6 +6,12 @@ import { firstNameOnly } from '@/lib/displayName';
 
 export const metadata = { title: 'Avis Vérifiés' };
 
+// Sans cette ligne, Next.js fige la page au moment du déploiement (aucun cookie/en-tête lu = page "statique") :
+// un avis vérifié ajouté ensuite apparaissait dans le badge du bas de page (rendu à chaque visite côté admin)
+// mais pas ici — d'où "3 avis" en bas et 2 avis dans la page. La page est maintenant recalculée au plus toutes
+// les 5 minutes.
+export const revalidate = 300;
+
 // Cette page était jusqu'ici uniquement explicative (ce que signifie le badge "Achat vérifié") —
 // elle affiche maintenant aussi les avis vérifiés eux-mêmes, avec le produit concerné, pour que
 // les visiteurs qui cliquent sur le badge (bas de page, ou le badge flottant en bas à gauche,
