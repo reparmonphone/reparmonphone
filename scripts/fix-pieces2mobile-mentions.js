@@ -23,10 +23,14 @@ const APPLY = process.argv.includes('--apply');
 const COLLE_B7000_URL = 'https://www.reparmonphone.fr/produit/colle-b7000-50ml-smartphones-et-tablettes-mechanic';
 
 // Repère chaque lien <a ...href="...pieces2mobile.com...">texte</a> et capture séparément les attributs
-// avant/après href (pour les garder tels quels, ex: target="_blank" rel="noopener").
+// avant/après href (pour les garder tels quels, ex: target="_blank" rel="noopener"). Les URL ne
+// contiennent pas d'accent, donc pas besoin de gérer "pièces2mobile" ici.
 const ANCHOR_RE = /<a\s+([^>]*?)href\s*=\s*"([^"]*pieces2mobile\.com[^"]*)"([^>]*)>([\s\S]*?)<\/a>/gi;
-// Remplace toute mention restante en texte simple (casse variable, avec ou sans ".com") par "ReparMonPhone".
-const BRAND_RE = /pieces2mobile(\.com)?/gi;
+// Remplace toute mention restante en texte simple par "ReparMonPhone" — casse variable, avec ou sans
+// ".com", ET avec ou sans l'accent sur le "è" de "pièces" (les deux orthographes existent dans les
+// textes importés : "PIECES2MOBILE" et "PIÈCES2MOBILE" — le [eèEÈ] explicite couvre les deux sans
+// dépendre du comportement du moteur regex sur les accents).
+const BRAND_RE = /pi[eèEÈ]ces2mobile(\.com)?/gi;
 
 function fixAnchors(text) {
   return text.replace(ANCHOR_RE, (full, preAttrs, href, postAttrs, inner) => {
@@ -47,7 +51,12 @@ function fixText(text) {
 
 async function main() {
   const products = await prisma.product.findMany({
-    where: { description: { contains: 'ieces2mobile', mode: 'insensitive' } },
+    where: {
+      OR: [
+        { description: { contains: 'ieces2mobile', mode: 'insensitive' } },
+        { description: { contains: 'ièces2mobile', mode: 'insensitive' } },
+      ],
+    },
     select: { id: true, slug: true, title: true, description: true },
   });
 
@@ -78,14 +87,14 @@ async function main() {
     console.log(`\n--- ${p.title} (/produit/${p.slug}) ---`);
     // Affiche un extrait autour de chaque endroit modifié plutôt que tout le HTML (souvent long).
     const before = p.description;
-    // Repère grossièrement où ça diffère en cherchant chaque ancienne mention pieces2mobile dans le texte original.
-    let idx = 0;
-    const lowerBefore = before.toLowerCase();
-    while ((idx = lowerBefore.indexOf('ieces2mobile', idx)) !== -1) {
-      const start = Math.max(0, idx - 70);
-      const end = Math.min(before.length, idx + 80);
+    // Repère chaque mention "pieces2mobile" / "pièces2mobile" (accentuée ou non) dans le texte
+    // original pour afficher un extrait de contexte autour.
+    const previewRe = /pi[eèEÈ]ces2mobile(\.com)?/gi;
+    let m;
+    while ((m = previewRe.exec(before)) !== null) {
+      const start = Math.max(0, m.index - 70);
+      const end = Math.min(before.length, m.index + m[0].length + 70);
       console.log('  Avant :', '...' + before.slice(start, end).replace(/\s+/g, ' ').trim() + '...');
-      idx += 12;
     }
     console.log('  Après (description complète) :', after.length > 400 ? after.slice(0, 400) + '... [tronqué]' : after);
   }
@@ -102,7 +111,14 @@ async function main() {
   }
   console.log(`\n✅ ${updated} produit(s) mis à jour.`);
 
-  const stillLeft = await prisma.product.count({ where: { description: { contains: 'ieces2mobile', mode: 'insensitive' } } });
+  const stillLeft = await prisma.product.count({
+    where: {
+      OR: [
+        { description: { contains: 'ieces2mobile', mode: 'insensitive' } },
+        { description: { contains: 'ièces2mobile', mode: 'insensitive' } },
+      ],
+    },
+  });
   console.log(`Vérification : ${stillLeft} produit(s) contiennent encore une mention (devrait être 0).`);
 }
 

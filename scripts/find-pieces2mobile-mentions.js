@@ -10,7 +10,10 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env.migrat
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const RE = /pieces2mobile(\.com)?/gi;
+// [eèEÈ] explicite couvre les deux orthographes trouvées dans les textes importés :
+// "PIECES2MOBILE" (sans accent) et "PIÈCES2MOBILE" (avec l'accent correct de "pièces") — sans
+// dépendre du comportement du moteur regex sur le repli de casse des caractères accentués.
+const RE = /pi[eèEÈ]ces2mobile(\.com)?/gi;
 
 function findSnippets(text) {
   if (!text) return [];
@@ -154,7 +157,14 @@ async function main() {
 
   // ---- Avis produits ----
   console.log('\n========== Avis produits (ProductReview) ==========');
-  const reviews = await prisma.productReview.findMany({ where: { text: { contains: 'pieces2mobile', mode: 'insensitive' } } });
+  const reviews = await prisma.productReview.findMany({
+    where: {
+      OR: [
+        { text: { contains: 'pieces2mobile', mode: 'insensitive' } },
+        { text: { contains: 'pièces2mobile', mode: 'insensitive' } },
+      ],
+    },
+  });
   if (reviews.length === 0) {
     console.log('(aucune mention)');
   } else {

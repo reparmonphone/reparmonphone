@@ -17,6 +17,7 @@ import ProductTagCloud from '@/components/ProductTagCloud';
 import PartnersSection from '@/components/PartnersSection';
 import VisitorCounter from '@/components/VisitorCounter';
 import IntroSplash from '@/components/IntroSplash';
+import HomeFaq from '@/components/HomeFaq';
 
 // Découpe une phrase en mots qui arrivent un par un (animations .hero-word dans globals.css).
 // Le texte reste identique pour Google et les lecteurs d'écran.
@@ -148,6 +149,7 @@ export default async function HomePage() {
       <TopProduitsSection />
       <ReparActeursSection />
       <AvisSection />
+      <HomeFaq />
 
       <NewsletterBar />
       <ProductTagCloud />

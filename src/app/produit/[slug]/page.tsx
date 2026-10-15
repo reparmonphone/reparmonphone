@@ -228,6 +228,16 @@ export default async function ProductPage({ params }: { params: { slug: string }
             <ShareButton title={product.title} url={`${SITE_URL}/produit/${product.slug}`} />
           </div>
 
+          {product.inStock && (
+            <p className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+              <span aria-hidden="true">🚚</span>
+              <span>
+                <strong className="font-semibold text-gray-900">Commandez avant 20h</strong> : livraison estimée sous 24h par
+                Chronopost en France métropolitaine.
+              </span>
+            </p>
+          )}
+
           {!product.inStock && <StockNotifyForm productId={product.id} />}
 
           <div className="mt-3">

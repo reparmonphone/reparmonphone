@@ -276,7 +276,14 @@ async function main() {
 
       const price = Number((row['Prix_TTC'] || '0').replace(',', '.')) || 0;
       const inStock = (row['Disponibilite'] || '').trim() === 'En stock';
-      const shortDesc = (row['Description_Courte'] || '').trim().replace(SUPPLIER_BRAND_NAMES, 'ReparMonPhone') || null;
+      // Texte fournisseur obsolète : remplacé dès l'import par la vraie règle de livraison du site
+      // (même traitement que fix-35-euros-boilerplate.js et remove-professional-accounts-mention.js).
+      const shortDesc = (row['Description_Courte'] || '')
+        .trim()
+        .replace(SUPPLIER_BRAND_NAMES, 'ReparMonPhone')
+        .replace('Envois gratuits dès 35 euros.', "Livraison gratuite dès 250€ d'achat en France métropolitaine.")
+        .replace(/ ?Comptes professionnels\.?\s*/g, '')
+        .trimEnd() || null;
       const longDesc = (row['Description_Longue'] || '').trim().replace(SUPPLIER_BRAND_NAMES, 'ReparMonPhone') || null;
       const slug = await uniqueProductSlug(nom);
 

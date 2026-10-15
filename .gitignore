@@ -14,3 +14,4 @@ scripts/fournisseur_catalogue_merged_1.csv
 scripts/price-check-list.csv
 scripts/produits-reparmonphone-*.csv
 scripts/xiaomi-fournisseur-*.csv
+scripts/fournisseur*.csv
