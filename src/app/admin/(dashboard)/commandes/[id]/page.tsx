@@ -9,6 +9,7 @@ import InvoiceActions from '@/components/InvoiceActions';
 import OrderCostsForm from './OrderCostsForm';
 import PartialShipmentsPanel from './PartialShipmentsPanel';
 import OrderNotesPanel from './OrderNotesPanel';
+import OrderItemsEditor from './OrderItemsEditor';
 
 export default async function AdminOrderDetailPage({ params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
@@ -137,16 +138,16 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 mb-4">
         <h2 className="font-semibold mb-3">Articles</h2>
-        <div className="space-y-2">
-          {order.items.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm">
-              <span>
-                {item.quantity} × {item.product.title}
-              </span>
-              <span className="font-medium">{formatPrice(Number(item.unitPrice) * item.quantity)}</span>
-            </div>
-          ))}
-        </div>
+        <OrderItemsEditor
+          orderId={order.id}
+          canEdit={['PENDING', 'PAID', 'PROCESSING'].includes(order.status)}
+          items={order.items.map((item) => ({
+            id: item.id,
+            title: item.product.title,
+            quantity: item.quantity,
+            unitPrice: Number(item.unitPrice),
+          }))}
+        />
         <div className="border-t border-gray-100 mt-4 pt-4 space-y-1">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Sous-total</span>
