@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { STUDY_IMPORTS } from '@/data/etudes';
 import EtudesActions from './EtudesActions';
+import Indicateurs from './Indicateurs';
 
 export default async function AdminEtudesPage() {
   const studies = await prisma.study.findMany({
@@ -22,6 +23,8 @@ export default async function AdminEtudesPage() {
       <p className="text-gray-500 mb-6">
         Les rapports d&apos;analyse (MiroFish…) et les actions à mener qui en découlent, suivies une par une.
       </p>
+
+      <Indicateurs />
 
       <div className="space-y-3 mb-8">
         {studies.length === 0 && (

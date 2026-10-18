@@ -15,6 +15,7 @@ import ReviewsAccordion from '@/components/ReviewsAccordion';
 import JsonLd from '@/components/JsonLd';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
+import ProductReassurance from '@/components/ProductReassurance';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
@@ -237,6 +238,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
               </span>
             </p>
           )}
+
+          <ProductReassurance
+            brand={product.model.productLine.brand.name}
+            modelName={product.model.name}
+            guide={relatedGuides[0] ? { slug: relatedGuides[0].slug, title: relatedGuides[0].title } : null}
+          />
 
           {!product.inStock && <StockNotifyForm productId={product.id} />}
 
