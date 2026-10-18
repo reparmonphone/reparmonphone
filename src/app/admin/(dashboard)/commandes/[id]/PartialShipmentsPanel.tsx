@@ -91,6 +91,33 @@ export default function PartialShipmentsPanel({
   );
 }
 
+// Lien de suivi généré (ouvre la page du transporteur) + bouton pour le copier, afin de pouvoir le
+// coller dans un message au client (mail, SMS, WhatsApp...).
+function TrackingLinkActions({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt('Copie ce lien (Ctrl+C) :', url);
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-3">
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-brand text-xs font-semibold hover:underline">
+        🔗 Suivre le colis
+      </a>
+      <button type="button" onClick={copy} className="text-gray-500 text-xs hover:underline">
+        {copied ? '✅ Lien copié' : 'Copier le lien'}
+      </button>
+    </span>
+  );
+}
+
 function ShipmentCard({ shipment, index }: { shipment: ShipmentInfo; index: number }) {
   const [editing, setEditing] = useState(!shipment.trackingNumber);
   const [carrier, setCarrier] = useState<ShippingCarrier | ''>(shipment.carrier ?? '');
@@ -149,7 +176,7 @@ function ShipmentCard({ shipment, index }: { shipment: ShipmentInfo; index: numb
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2 mb-2">{error}</div>}
 
       {!editing ? (
-        <div className="flex items-center gap-3 text-sm mt-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm mt-2">
           <span className="text-gray-700">
             {carrier ? CARRIER_LABELS[carrier] : 'Transporteur non renseigné'}
             {number && (
@@ -163,6 +190,7 @@ function ShipmentCard({ shipment, index }: { shipment: ShipmentInfo; index: numb
             Modifier
           </button>
           {saved && <span className="text-green-600 text-xs">✅ Enregistré</span>}
+          {previewUrl && <TrackingLinkActions url={previewUrl} />}
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-3 mt-2">
