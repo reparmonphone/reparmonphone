@@ -880,3 +880,44 @@ model GuideStep {
   @@index([guideId])
   @@map("guide_steps")
 }
+
+// ---------- Études (rapports MiroFish & autres) ----------
+// Une étude = un rapport d'analyse + la liste des actions à mener qui en découlent.
+
+enum StudyTaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model Study {
+  id        String      @id @default(cuid())
+  slug      String?     @unique // ex: "mirofish-1" (sert à ne pas importer deux fois la même étude)
+  title     String
+  question  String      @db.Text
+  summary   String      @default("") @db.Text // conclusion en quelques lignes
+  findings  String      @default("") @db.Text // constats clés, un par ligne
+  report    String?     @db.Text // rapport complet collé tel quel
+  tasks     StudyTask[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("studies")
+}
+
+model StudyTask {
+  id          String          @id @default(cuid())
+  studyId     String
+  study       Study           @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  title       String
+  description String          @default("") @db.Text
+  notes       String          @default("") @db.Text
+  status      StudyTaskStatus @default(TODO)
+  order       Int             @default(0)
+  doneAt      DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([studyId])
+  @@map("study_tasks")
+}
