@@ -5,14 +5,82 @@ import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
 import { stripe } from '@/lib/stripe';
+import { buildTrackingUrl, CARRIER_LABELS } from '@/lib/tracking';
 import type { MailInRepairStatus, ShippingCarrier } from '@prisma/client';
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
+// Emails de statut automatiques (appareil reçu, renvoi expédié) : le client doit toujours savoir où en
+// est son téléphone (étude MiroFish n°2). Un échec d'envoi ne bloque jamais la mise à jour du statut.
+async function sendRepairStatusEmail(
+  repair: { id: string; customerName: string; customerEmail: string; deviceBrand: string; deviceModel: string },
+  kind: 'RECEIVED' | 'SHIPPED_BACK',
+  trackingUrl?: string | null,
+  carrierLabel?: string
+) {
+  const resend = getResendClient();
+  if (!resend) return;
+
+  const suiviUrl = `${SITE_URL}/reparation-a-distance/suivi/${repair.id}`;
+  const device = `${repair.deviceBrand} ${repair.deviceModel}`;
+
+  const content =
+    kind === 'RECEIVED'
+      ? {
+          subject: `Nous avons bien reçu votre ${device} — ReparMonPhone`,
+          title: 'Votre appareil est bien arrivé 📦',
+          body: `Nous avons bien reçu votre <strong>${device}</strong>. Le diagnostic est en cours : vous recevrez un email avec le lien de paiement sécurisé dès qu'il est confirmé. Rien n'est débité avant, et l'appareil n'est renvoyé qu'après règlement.`,
+          extra: `<div style="text-align:center; margin: 20px 0;"><a href="${suiviUrl}" style="display:inline-block; background:#1e3a8a; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Suivre ma réparation</a></div>`,
+        }
+      : {
+          subject: `Votre ${device} est reparti — suivi du colis`,
+          title: 'Votre appareil est reparti ✅',
+          body: `Votre <strong>${device}</strong> vient d'être renvoyé${carrierLabel ? ` par ${carrierLabel}` : ''}. Livraison en Chronopost 24h : le délai court à partir de l'expédition.`,
+          extra: trackingUrl
+            ? `<div style="text-align:center; margin: 20px 0;"><a href="${trackingUrl}" style="display:inline-block; background:#16a34a; color:#fff; text-decoration:none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 700;">Suivre mon colis</a></div>
+               <p style="color:#6b7280; font-size: 12px; text-align:center; margin: 0 0 8px;">Les photos de votre appareil réparé sont disponibles sur votre <a href="${suiviUrl}" style="color:#1e3a8a;">page de suivi</a>.</p>`
+            : '',
+        };
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: repair.customerEmail,
+      replyTo: 'contact@reparmonphone.fr',
+      subject: content.subject,
+      html: `
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto;">
+          <div style="background:#1e3a8a; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="color:#ffffff; font-size: 20px; margin: 0;">${content.title}</h1>
+          </div>
+          <div style="background:#ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; padding: 24px;">
+            <p style="color:#374151; font-size: 14px; line-height: 1.6;">Bonjour ${repair.customerName},</p>
+            <p style="color:#374151; font-size: 14px; line-height: 1.6;">${content.body}</p>
+            ${content.extra}
+            <p style="color:#374151; font-size: 14px; margin-top: 20px;">
+              Une question ? Répondez directement à cet email ou appelez-nous au 07 83 49 72 62.
+            </p>
+          </div>
+          <p style="color:#9ca3af; font-size: 12px; text-align: center; margin-top: 16px;">
+            ReparMonPhone — Les Saquèdes, 83120 Sainte-Maxime
+          </p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.error("Erreur lors de l'envoi de l'email de statut (réparation par correspondance)", e);
+  }
+}
+
 export async function updateMailInRepairStatus(repairId: string, status: MailInRepairStatus) {
   await requireAdminUser();
+  const before = await prisma.mailInRepair.findUnique({ where: { id: repairId } });
   await prisma.mailInRepair.update({ where: { id: repairId }, data: { status } });
+  // Passage à "Diagnostic" = appareil reçu : on prévient le client (une seule fois par changement).
+  if (before && status === 'DEVICE_RECEIVED' && before.status !== 'DEVICE_RECEIVED') {
+    await sendRepairStatusEmail(before, 'RECEIVED');
+  }
   revalidatePath('/admin/reparation-a-distance');
   revalidatePath(`/admin/reparation-a-distance/${repairId}`);
 }
@@ -237,6 +305,7 @@ export async function updateMailInRepairLogistics(
   }
 ) {
   await requireAdminUser();
+  const before = await prisma.mailInRepair.findUnique({ where: { id: repairId } });
   await prisma.mailInRepair.update({
     where: { id: repairId },
     data: {
@@ -249,6 +318,16 @@ export async function updateMailInRepairLogistics(
       ...(data.outboundTrackingNumber ? { status: 'SHIPPED_BACK' as const } : {}),
     },
   });
+  // Nouveau numéro de suivi de renvoi = on prévient le client avec le lien de suivi du transporteur.
+  if (before && data.outboundTrackingNumber && data.outboundTrackingNumber !== before.outboundTrackingNumber) {
+    const carrier = data.outboundCarrier || before.outboundCarrier || 'CHRONOPOST';
+    await sendRepairStatusEmail(
+      before,
+      'SHIPPED_BACK',
+      buildTrackingUrl(carrier, data.outboundTrackingNumber, null),
+      CARRIER_LABELS[carrier]
+    );
+  }
   revalidatePath(`/admin/reparation-a-distance/${repairId}`);
   revalidatePath('/admin/reparation-a-distance');
 }

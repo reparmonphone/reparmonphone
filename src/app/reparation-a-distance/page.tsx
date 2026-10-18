@@ -1,5 +1,11 @@
 import RepairByMailForm from './RepairByMailForm';
 import JsonLd from '@/components/JsonLd';
+import { prisma } from '@/lib/prisma';
+import { PRIX_REPARATIONS } from '@/data/reparationPrix';
+
+// Page publique : recalculée au plus une fois par heure (la note Google affichée en haut de page
+// vient de la base) — pas de requête base à chaque visite.
+export const revalidate = 3600;
 
 export const metadata = {
   title: 'Réparation de téléphone à distance / par correspondance — Chronopost, Colissimo | ReparMonPhone',
@@ -12,27 +18,90 @@ const STEPS = [
   {
     icon: '📝',
     title: '1. Décrivez votre panne',
-    text: "Remplissez le formulaire ci-dessous avec votre modèle et le problème rencontré. On vous répond sous 24h avec une estimation.",
+    text: "Remplissez le formulaire ci-dessous avec votre modèle et le problème rencontré. On vous répond sous 24h.",
   },
   {
-    icon: '📮',
-    title: "2. On valide votre demande et on vous donne l'adresse",
-    text: "Après échange avec vous, on vous communique l'adresse d'envoi exacte par email. Important : n'envoyez rien avant de l'avoir reçue.",
+    icon: '💶',
+    title: '2. Vous recevez un devis et l\'adresse',
+    text: "On vous envoie un devis par email. Vous l'acceptez ou le refusez en ligne, sans rien payer. Important : n'envoyez rien avant d'avoir reçu l'adresse d'envoi.",
   },
   {
     icon: '📦',
     title: '3. Envoyez votre appareil',
-    text: 'Vous nous envoyez votre téléphone par Chronopost ou Colissimo recommandé, bien protégé, à l\'adresse confirmée par email.',
+    text: "Par Chronopost ou Colissimo recommandé, bien protégé, à l'adresse confirmée par email. Vous indiquez votre numéro de suivi sur votre page de suivi.",
+  },
+  {
+    icon: '🔍',
+    title: '4. Diagnostic à réception',
+    text: "On confirme la panne en ouvrant l'appareil et on vous prévient par email dès qu'il est reçu.",
+  },
+  {
+    icon: '💳',
+    title: '5. Paiement après diagnostic',
+    text: "Vous recevez un lien de paiement sécurisé. Rien n'est débité avant, et l'appareil n'est renvoyé qu'après règlement.",
   },
   {
     icon: '🔧',
-    title: '4. Diagnostic et réparation',
-    text: 'On confirme le prix exact après avoir ouvert l\'appareil, puis on procède à la réparation avec des pièces neuves ou d\'origine.',
+    title: '6. Réparation',
+    text: "Réparation avec des pièces neuves ou d'origine, en général en moins d'une heure. Des photos de l'appareil réparé sont ajoutées à votre page de suivi.",
   },
   {
     icon: '✅',
-    title: '5. Renvoi Chronopost 24h',
-    text: 'Une fois le paiement réglé, on vous renvoie votre appareil réparé en Chronopost 24h. Les frais de renvoi sont toujours inclus dans le prix annoncé, jamais facturés à part.',
+    title: '7. Renvoi Chronopost 24h',
+    text: "On vous renvoie votre appareil en Chronopost 24h avec un lien de suivi par email. Les frais de renvoi sont toujours inclus dans le prix annoncé.",
+  },
+];
+
+// Version courte pour le haut de page : l'étape + ce qui se passe à ce moment-là.
+const STEPS_SHORT = [
+  { icon: '📝', label: 'Demande', note: 'Réponse sous 24h' },
+  { icon: '💶', label: 'Devis', note: 'Accepté en ligne' },
+  { icon: '📦', label: 'Envoi', note: 'Chronopost ou Colissimo' },
+  { icon: '🔍', label: 'Diagnostic', note: 'À réception' },
+  { icon: '💳', label: 'Paiement', note: 'Après diagnostic' },
+  { icon: '🔧', label: 'Réparation', note: 'En général < 1 h' },
+  { icon: '✅', label: 'Retour', note: 'Chronopost 24h, port inclus' },
+];
+
+// Les 4 questions que se posent les clients avant de commander (étude MiroFish n°2) : où est mon
+// appareil, le prix peut-il changer, mes données sont-elles protégées, quand le récupère-je.
+const ENGAGEMENTS = [
+  {
+    icon: '🔎',
+    title: 'Vous savez toujours où il en est',
+    points: [
+      'Page de suivi en ligne : demande, envoi, diagnostic, paiement, réparation, renvoi.',
+      'Un email à chaque étape clé : devis, appareil reçu, renvoi expédié.',
+      'Lien de suivi Chronopost pour le colis retour, et photos de l\'appareil réparé.',
+    ],
+  },
+  {
+    icon: '💶',
+    title: 'Pas de surprise sur le prix',
+    points: [
+      'Estimation gratuite et sans engagement.',
+      "Vous acceptez ou refusez le devis en ligne avant d'envoyer quoi que ce soit. Si vous refusez, la demande est close sans aucun frais.",
+      "Aucun paiement avant le diagnostic. L'appareil n'est renvoyé qu'après règlement.",
+      'Renvoi Chronopost 24h toujours inclus dans le prix.',
+    ],
+  },
+  {
+    icon: '🔒',
+    title: 'Vos données restent les vôtres',
+    points: [
+      'Nous n\'accédons ni à vos photos, ni à vos messages, ni à vos comptes. Nous ne copions ni ne conservons aucune donnée personnelle.',
+      'Avant l\'envoi : faites une sauvegarde, désactivez « Localiser mon iPhone » ou le verrouillage du compte Google, retirez la carte SIM, la carte mémoire et la coque.',
+      "Après la réparation : photos de l'appareil réparé sur votre page de suivi.",
+    ],
+  },
+  {
+    icon: '⏱️',
+    title: 'Un délai clair, sans mauvaise surprise',
+    points: [
+      'Le « 24h » correspond au transport Chronopost du colis retour, compté à partir de son expédition.',
+      "Réparation en général en moins d'une heure après réception. Au total, comptez 2 à 4 jours ouvrés (aller, réparation, retour).",
+      'En cas de jour férié ou de pièce en rupture, on vous prévient avant, par email.',
+    ],
   },
 ];
 
@@ -64,6 +133,22 @@ const FAQ = [
   {
     q: 'Combien de temps prend la réparation ?',
     a: 'La réparation elle-même prend généralement moins d\'une heure une fois l\'appareil reçu. Le délai total dépend surtout du transport aller (Chronopost ou Colissimo recommandé) et du retour en Chronopost 24h, en général 2 à 4 jours ouvrés au total.',
+  },
+  {
+    q: 'Puis-je refuser le devis ?',
+    a: "Oui. Le devis vous est envoyé par email avant tout envoi : vous l'acceptez ou le refusez en ligne. Si vous le refusez, la demande est close, vous n'envoyez rien et vous ne payez rien.",
+  },
+  {
+    q: 'Mes données personnelles sont-elles en sécurité ?',
+    a: "Nous n'accédons ni à vos photos, ni à vos messages, ni à vos comptes, et nous ne copions ni ne conservons de données personnelles. Par précaution, faites une sauvegarde avant l'envoi et désactivez « Localiser mon iPhone » ou le verrouillage du compte Google.",
+  },
+  {
+    q: 'Que dois-je faire avant d\'envoyer mon téléphone ?',
+    a: "Sauvegardez vos données, désactivez « Localiser mon iPhone » (ou le verrouillage du compte Google), retirez la carte SIM, la carte mémoire et la coque, puis emballez l'appareil dans un colis bien protégé. N'envoyez rien avant d'avoir reçu l'adresse par email.",
+  },
+  {
+    q: 'À partir de quand court le délai de 24h ?',
+    a: "Le « 24h » est le délai de transport Chronopost du colis retour : il court à partir de l'expédition de votre appareil réparé, après règlement. Le délai total (aller, réparation, retour) est en général de 2 à 4 jours ouvrés. Un jour férié ou une pièce en rupture peut l'allonger : dans ce cas on vous prévient avant.",
   },
 ];
 
@@ -110,7 +195,23 @@ const breadcrumbSchema = {
   ],
 };
 
-export default function ReparationADistancePage() {
+async function getGoogleRating() {
+  try {
+    const settings = await prisma.siteSetting.findMany({
+      where: { key: { in: ['google_reviews_total', 'google_reviews_average'] } },
+    });
+    const total = Number(settings.find((x) => x.key === 'google_reviews_total')?.value);
+    const average = Number(settings.find((x) => x.key === 'google_reviews_average')?.value);
+    if (!total || !average) return null;
+    return { total, average };
+  } catch {
+    return null;
+  }
+}
+
+export default async function ReparationADistancePage() {
+  const rating = await getGoogleRating();
+
   return (
     <div>
       <JsonLd data={faqSchema} />
@@ -134,12 +235,90 @@ export default function ReparationADistancePage() {
           >
             📮 Demander mon estimation gratuite
           </a>
+
+          {/* Preuves de confiance visibles dès le premier écran */}
+          <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-gray-700">
+            {rating && (
+              <li>
+                <a href="/avis-verifies" className="hover:underline">
+                  <span className="text-amber-500">★</span> {rating.average.toFixed(1).replace('.', ',')}/5 ·{' '}
+                  {rating.total} avis Google
+                </a>
+              </li>
+            )}
+            <li>🔎 Suivi en ligne, étape par étape</li>
+            <li>📸 Photos de l&apos;appareil réparé</li>
+            <li>
+              <a
+                href="https://fr.trustpilot.com/review/reparmonphone.fr"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+              >
+                <span className="text-[#00b67a]">★</span> Avis Trustpilot
+              </a>
+            </li>
+          </ul>
         </div>
+
+        {/* Parcours complet visible dès le premier écran */}
+        <div className="max-w-5xl mx-auto px-4 mt-10">
+          <ol className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+            {STEPS_SHORT.map((s, i) => (
+              <li key={s.label} className="bg-white border border-gray-100 rounded-xl px-2 py-3 text-center">
+                <div className="text-xl">{s.icon}</div>
+                <p className="text-sm font-semibold text-gray-800 mt-1">
+                  {i + 1}. {s.label}
+                </p>
+                <p className="text-[11px] text-gray-500 leading-tight mt-0.5">{s.note}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Les 4 réponses que les clients cherchent avant de commander */}
+      <section className="max-w-5xl mx-auto px-4 pt-14">
+        <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">Ce que vous devez savoir avant de commander</h2>
+        <p className="text-center text-gray-500 mb-8">Où est mon appareil, le prix peut-il changer, mes données, le délai.</p>
+        <div className="grid md:grid-cols-2 gap-5">
+          {ENGAGEMENTS.map((e) => (
+            <div key={e.title} className="bg-white border border-gray-100 rounded-xl p-5">
+              <h3 className="font-semibold text-gray-900 mb-3">
+                <span className="mr-2">{e.icon}</span>
+                {e.title}
+              </h3>
+              <ul className="space-y-2 text-sm text-gray-600 list-disc pl-5">
+                {e.points.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {PRIX_REPARATIONS.length > 0 && (
+          <div className="mt-6 bg-white border border-gray-100 rounded-xl p-5">
+            <h3 className="font-semibold text-gray-900 mb-3">💶 Prix indicatifs des pannes courantes</h3>
+            <ul className="divide-y divide-gray-100 text-sm">
+              {PRIX_REPARATIONS.map((r) => (
+                <li key={r.label} className="flex justify-between gap-4 py-2">
+                  <span className="text-gray-700">{r.label}</span>
+                  <span className="font-medium text-gray-900 shrink-0">{r.prix}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-gray-500 mt-3">
+              Prix TTC, renvoi Chronopost 24h inclus. Le devis exact vous est envoyé après votre demande, et vous
+              restez libre de le refuser.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="max-w-5xl mx-auto px-4 py-14">
         <h2 className="text-2xl font-bold text-center text-gray-900 mb-10">Comment ça marche</h2>
-        <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-6">
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6">
           {STEPS.map((step) => (
             <div key={step.title} className="bg-white border border-gray-100 rounded-xl p-5 text-center">
               <div className="text-3xl mb-3">{step.icon}</div>
