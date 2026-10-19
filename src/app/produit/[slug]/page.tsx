@@ -242,6 +242,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
           <ProductReassurance
             brand={product.model.productLine.brand.name}
             modelName={product.model.name}
+            isScreen={product.pieceType === 'ECRAN'}
             guide={relatedGuides[0] ? { slug: relatedGuides[0].slug, title: relatedGuides[0].title } : null}
           />
 

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { GARANTIE_PIECES, DELAI_RETOUR } from '@/data/reassurance';
+import { GARANTIE_PIECES, GARANTIE_ECRANS, DELAI_RETOUR } from '@/data/reassurance';
 
 // Bloc affiché sous le bouton « Ajouter au panier » : répond aux 3 doutes qui bloquent les clients
 // « convaincus mais instables » (étude MiroFish n°1) — est-ce compatible avec mon modèle, que se
@@ -7,13 +7,17 @@ import { GARANTIE_PIECES, DELAI_RETOUR } from '@/data/reassurance';
 export default function ProductReassurance({
   brand,
   modelName,
+  isScreen = false,
   guide,
 }: {
   brand: string;
   modelName: string;
+  isScreen?: boolean;
   guide?: { slug: string; title: string } | null;
 }) {
-  const garantie = GARANTIE_PIECES ? `Garantie ${GARANTIE_PIECES}` : 'Garantie';
+  // Les écrans ont une garantie plus longue que les autres pièces (voir CGV, article 8).
+  const duree = isScreen ? GARANTIE_ECRANS : GARANTIE_PIECES;
+  const garantie = duree ? `Garantie ${duree}` : 'Garantie';
   const retour = DELAI_RETOUR ? `retours sous ${DELAI_RETOUR}` : 'conditions de retour';
 
   return (
