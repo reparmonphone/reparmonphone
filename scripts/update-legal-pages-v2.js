@@ -1,0 +1,351 @@
+// Mise en conformité des 4 pages légales stockées en base (table "pages") :
+//   - cgv                (Conditions Générales de Vente)
+//   - mentions-legales   (Mentions légales)
+//   - confidentialite    (Politique de confidentialité : remplace le modèle WordPress « Texte suggéré »)
+//   - livraison-retours  (Livraison & Retours : garantie légale, rétractation, seuil de franco non figé)
+//
+// SÉCURITÉ : par défaut le script ne fait QU'UN APERÇU (aucune écriture). Avec --apply, il sauvegarde d'abord
+// les pages actuelles dans scripts/cache/legal-backup-AAAA-MM-JJ/ puis met à jour contentHtml uniquement
+// (titre, slug et autres pages ne sont pas touchés). Il peut être relancé sans risque.
+//
+// Usage :
+//   node scripts/update-legal-pages-v2.js            (aperçu + liste de ce qu'il reste à compléter)
+//   node scripts/update-legal-pages-v2.js --apply    (applique réellement)
+//
+// ► COMPLÈTE LA ZONE « CONFIG » CI-DESSOUS (tu peux le faire après coup puis relancer avec --apply).
+//   Ce qui reste vide n'est simplement pas affiché sur les pages, et le script te le signale.
+
+require('dotenv').config({ path: require('path').join(__dirname, '../.env.migration') });
+const fs = require('fs');
+const path = require('path');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+const APPLY = process.argv.includes('--apply');
+
+// ───────────────────────────── CONFIG À COMPLÉTER ─────────────────────────────
+const CONFIG = {
+  // SIRET (14 chiffres). Si vide, seul le SIREN déjà publié est affiché.
+  siret: '', // laissé vide : on affiche le SIREN 518 898 549
+  // TVA. Au choix :
+  //   'N° de TVA intracommunautaire : FR00123456789'
+  //   'TVA non applicable, article 293 B du CGI'   (franchise en base)
+  tva: 'TVA non applicable, article 293 B du CGI',
+  // Inscription au Répertoire des métiers (activité de réparation = souvent artisanale). Ex :
+  //   'Immatriculée au Répertoire des métiers de la Chambre de métiers et de l\'artisanat du Var (n° SIREN 518 898 549)'
+  repertoireMetiers: '',
+  // Médiateur de la consommation (OBLIGATOIRE pour vendre à des consommateurs). Choisis-en un dans la liste
+  // officielle de la CECMC (economie.gouv.fr), souscris, puis renseigne ici ses coordonnées.
+  // Médiateur : inscription en cours → on n'affiche pas de nom. Quand c'est finalisé, remplis les champs
+  // ci-dessous (nom, adresse, siteWeb, email) : ils apparaîtront automatiquement dans les CGV et les mentions légales.
+  mediateur: {
+    nom: '',          // ex. 'CM2C — Centre de la Médiation de la Consommation de Conciliateurs de Justice'
+    adresse: '',      // ex. '49 rue de Ponthieu, 75008 Paris'
+    siteWeb: '',      // ex. 'https://www.cm2c.net'
+    email: '',        // ex. 'secretariat@cm2c.net'
+  },
+  // Nom de l'exploitant affiché (laisse vide pour ne pas l'afficher).
+  nomExploitant: '',
+
+  // Passe à true seulement si une fonction de rétractation en ligne existe réellement sur le site.
+  retractationEnLigne: false,
+};
+// ───────────────────────────────────────────────────────────────────────────────
+
+const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const now = new Date();
+const DATE_FR = `${now.getDate() === 1 ? '1er' : now.getDate()} ${MOIS[now.getMonth()]} ${now.getFullYear()}`;
+const DATE_ISO = now.toISOString().slice(0, 10);
+
+const siretLine = CONFIG.siret ? `<strong>SIRET</strong> : ${CONFIG.siret}` : '<strong>SIREN</strong> : 518 898 549';
+
+// ─────────────────────────────────── CGV ───────────────────────────────────────
+const mediationIntro = `Conformément aux articles L611-1 et suivants du Code de la consommation, le consommateur a le droit de recourir gratuitement à un médiateur de la consommation en vue de la résolution amiable du litige qui l'oppose à ReparMonPhone, après avoir tenté de le résoudre directement par une réclamation écrite adressée à contact@reparmonphone.fr.`;
+const mediationBlock = CONFIG.mediateur.nom
+  ? `<p>${mediationIntro} Le médiateur compétent est : <strong>${CONFIG.mediateur.nom}</strong>${CONFIG.mediateur.adresse ? ` — ${CONFIG.mediateur.adresse}` : ''}${CONFIG.mediateur.siteWeb ? ` — site : ${CONFIG.mediateur.siteWeb}` : ''}${CONFIG.mediateur.email ? ` — e-mail : ${CONFIG.mediateur.email}` : ''}.</p>`
+  : `<p>${mediationIntro} Le médiateur compétent est en cours d'inscription ; ses coordonnées seront publiées sur cette page dès la finalisation de l'inscription.</p>`;
+
+const FRANCHISE_TVA = /293\s*B/i.test(CONFIG.tva || '');
+const PRIX_TEXTE = FRANCHISE_TVA
+  ? 'Les prix sont indiqués en euros. TVA non applicable, article 293 B du Code général des impôts.'
+  : 'Les prix sont indiqués en euros, toutes taxes comprises (TTC).';
+
+const retractationOnline = CONFIG.retractationEnLigne
+  ? ' ou en utilisant la fonction de rétractation en ligne disponible sur le site'
+  : '';
+
+const CGV_HTML = `
+<h1>Conditions Générales de Vente</h1>
+
+<h2>Article 1. Identité du vendeur, objet et champ d'application</h2>
+<p>Le site https://www.reparmonphone.fr est exploité par <strong>Repar Mon Phone</strong>, entreprise individuelle, SIREN 518 898 549, dont le siège est situé Les Saquèdes, 83120 Sainte-Maxime — téléphone : 07 83 49 72 62 — e-mail : contact@reparmonphone.fr (ci-après « ReparMonPhone »).</p>
+<p>Les présentes conditions générales de vente régissent les ventes à distance de pièces détachées et accessoires réalisées sur le site entre ReparMonPhone et tout acheteur, consommateur ou professionnel. Les dispositions relatives au droit de rétractation et aux garanties légales applicables aux consommateurs ne concernent que les consommateurs, c'est-à-dire les personnes physiques qui agissent à des fins qui n'entrent pas dans le cadre de leur activité professionnelle. Passer commande implique l'acceptation des présentes conditions. ReparMonPhone peut les modifier à tout moment ; la version applicable est celle en vigueur à la date de la commande.</p>
+
+<h2>Article 2. Produits</h2>
+<p>Les produits proposés sont ceux qui figurent sur le site, dans la limite des stocks disponibles. ReparMonPhone se réserve le droit de modifier à tout moment son assortiment. Les caractéristiques essentielles de chaque produit sont indiquées sur sa fiche. Les photographies sont les plus fidèles possibles mais ne peuvent assurer une similitude parfaite avec le produit, notamment pour les couleurs.</p>
+<p>Il appartient à l'acheteur de vérifier, avant de commander, la compatibilité de la pièce avec son appareil (marque, modèle, référence). ReparMonPhone peut l'aider à cette vérification par e-mail ou par téléphone.</p>
+
+<h2>Article 3. Prix et frais de livraison</h2>
+<p>${PRIX_TEXTE} Les frais de livraison, indiqués avant la validation de la commande, s'ajoutent au prix des produits. Une livraison offerte peut être proposée à partir d'un montant de commande indiqué sur le site et dans le panier. Le prix applicable est celui affiché au moment de la commande.</p>
+
+<h2>Article 3 bis. Erreurs d'affichage du stock ou du prix</h2>
+<p>ReparMonPhone met à jour les fiches produits (prix et disponibilité) aussi régulièrement que possible. Compte tenu du nombre de produits et de la fréquence des mises à jour, il peut arriver qu'un stock ou un prix affiché soit erroné. Les produits sont proposés sous réserve de leur disponibilité effective (article 2).</p>
+<p>Le présent article s'applique dans deux cas : (a) le produit commandé n'est en réalité plus disponible ; (b) le prix affiché est manifestement erroné, c'est-à-dire totalement décalé par rapport au prix réel du produit. Dans ces cas, ReparMonPhone ne peut pas livrer le produit au prix affiché par erreur, dans les limites permises par la loi.</p>
+<p><strong>Information de l'acheteur.</strong> ReparMonPhone en informe l'acheteur par e-mail, à l'adresse indiquée lors de la commande (et, le cas échéant, par téléphone), en principe dans les heures qui suivent la constatation de l'erreur, en précisant le produit concerné.</p>
+<p><strong>Délai de réponse de 24 heures.</strong> L'acheteur dispose de vingt-quatre (24) heures à compter de l'envoi de ce message pour répondre par e-mail ou par téléphone au 07 83 49 72 62 et indiquer son choix : accepter un produit de remplacement, maintenir la commande au prix corrigé lorsque cela est possible, attendre la remise en stock lorsqu'une date est connue, ou annuler.</p>
+<p><strong>Absence de réponse.</strong> À défaut de réponse dans ce délai, le produit concerné est retiré de la commande et remboursé sur le moyen de paiement utilisé. Les autres produits de la commande sont expédiés normalement, et les frais de livraison offerts ainsi que les éventuelles réductions restent acquis dans la limite du montant de la commande. Si la commande ne comprend plus aucun produit, elle est annulée et remboursée intégralement. L'acheteur qui souhaite malgré tout acquérir le produit peut passer une nouvelle commande aux conditions affichées à cette date.</p>
+<p><strong>Produit déjà expédié.</strong> Si l'erreur est constatée après l'expédition, ReparMonPhone contacte l'acheteur pour convenir d'une solution : conservation du produit au prix corrigé, ou retour du produit aux frais de ReparMonPhone avec remboursement.</p>
+<p><strong>Remboursement.</strong> Il est effectué dans les meilleurs délais et au plus tard dans les quatorze (14) jours suivant le retrait du produit ou l'annulation de la commande. Les droits légaux de l'acheteur, notamment le droit de rétractation (article 6), demeurent applicables.</p>
+
+<h2>Article 4. Commande et paiement</h2>
+<p>La commande peut être passée avec ou sans création de compte client. Le processus comprend : le choix des produits et leur ajout au panier ; la saisie des coordonnées et de l'adresse de livraison ; le choix du mode de livraison ; l'acceptation des conditions générales de vente ; puis le paiement. Le bouton de paiement vaut commande avec obligation de paiement. Avant de payer, l'acheteur peut vérifier le détail de sa commande et corriger d'éventuelles erreurs. Une confirmation de commande est envoyée par e-mail.</p>
+<p>Le règlement s'effectue par carte bancaire (Visa, Mastercard, American Express) via une passerelle de paiement sécurisée, ou par PayPal. Le paiement est débité au moment de la validation de la commande. En cas d'utilisation frauduleuse de son moyen de paiement, l'acheteur est invité à contacter sans délai l'émetteur de sa carte ou PayPal.</p>
+<p>Pour toute question relative à une commande : courrier à Les Saquèdes, 83120 Sainte-Maxime — e-mail : contact@reparmonphone.fr — téléphone : 07 83 49 72 62.</p>
+
+<h2>Article 5. Réserve de propriété</h2>
+<p>ReparMonPhone conserve la propriété des produits vendus jusqu'au complet encaissement du prix, en principal et en accessoires.</p>
+
+<h2>Article 6. Droit de rétractation (consommateurs)</h2>
+<p>Conformément aux articles L221-18 et suivants du Code de la consommation, le consommateur dispose de quatorze (14) jours à compter de la réception du produit (ou, pour une commande de plusieurs produits livrés séparément, de la réception du dernier produit) pour se rétracter, sans avoir à justifier de motif ni à payer de pénalités.</p>
+<p><strong>Comment se rétracter.</strong> Le consommateur notifie sa décision par une déclaration dénuée d'ambiguïté (e-mail à contact@reparmonphone.fr ou courrier à Les Saquèdes, 83120 Sainte-Maxime), en utilisant s'il le souhaite le formulaire type ci-dessous${retractationOnline}, en indiquant son numéro de commande.</p>
+<p><strong>Retour du produit.</strong> Le produit doit être renvoyé au plus tard dans les quatorze (14) jours suivant la communication de la décision de se rétracter. Les frais directs de renvoi sont à la charge du consommateur, sauf si ReparMonPhone accepte de les prendre en charge.</p>
+<p><strong>Remboursement.</strong> ReparMonPhone rembourse tous les paiements reçus, y compris les frais de livraison standard, au plus tard quatorze (14) jours après avoir été informée de la décision de se rétracter. Le remboursement peut être différé jusqu'à la réception du produit ou la preuve de son expédition, et s'effectue par le même moyen de paiement que celui utilisé pour la commande.</p>
+<p><strong>Dépréciation.</strong> La responsabilité du consommateur n'est engagée qu'à l'égard de la dépréciation du produit résultant de manipulations autres que celles nécessaires pour en établir la nature, les caractéristiques et le bon fonctionnement. Un produit installé ou collé sur un appareil, ou dont les protections ont été retirées, peut ainsi donner lieu à une réduction du remboursement proportionnelle à cette dépréciation.</p>
+<p><strong>Exceptions.</strong> Le droit de rétractation ne s'applique pas dans les cas prévus à l'article L221-28 du Code de la consommation (par exemple, biens confectionnés selon les spécifications du consommateur ou nettement personnalisés).</p>
+<p><strong>Formulaire type de rétractation</strong> (à compléter et renvoyer uniquement si vous souhaitez vous rétracter) :<br/>
+À l'attention de Repar Mon Phone, Les Saquèdes, 83120 Sainte-Maxime, contact@reparmonphone.fr :<br/>
+Je/nous (*) vous notifie/notifions (*) par la présente ma/notre (*) rétractation du contrat portant sur la vente du bien (*) ci-dessous :<br/>
+Commandé le (*) / reçu le (*) : ………… — Numéro de commande : …………<br/>
+Nom du (des) consommateur(s) : ………… — Adresse du (des) consommateur(s) : …………<br/>
+Signature du (des) consommateur(s) (uniquement en cas de notification du présent formulaire sur papier) : ………… — Date : …………<br/>
+(*) Rayez la mention inutile.</p>
+
+<h2>Article 7. Livraison</h2>
+<p>Les livraisons sont faites à l'adresse indiquée lors de la commande, via La Poste (Colissimo) ou Chronopost, avec numéro de suivi. Les délais indiqués sur le site (par exemple l'expédition le jour même pour toute commande passée avant 20 h en semaine) sont estimatifs. Pendant les périodes de fermeture annoncées sur le site, la préparation des commandes peut être décalée d'environ vingt-quatre (24) heures.</p>
+<p>Sauf indication contraire, la livraison intervient au plus tard trente (30) jours après la conclusion du contrat. En cas de retard, le consommateur peut enjoindre à ReparMonPhone de livrer dans un délai supplémentaire raisonnable et, à défaut de livraison, résoudre le contrat dans les conditions des articles L216-2 et suivants du Code de la consommation ; les sommes versées sont alors remboursées dans les quatorze (14) jours.</p>
+<p>À réception, il est conseillé de vérifier l'état de l'emballage et d'émettre des réserves précises auprès du transporteur en cas de dommage, puis de contacter ReparMonPhone sous trois (3) jours afin de faciliter le traitement du dossier. Cette démarche n'est pas une condition d'exercice des droits légaux du consommateur. En cas de retour pour livraison non conforme, les frais de renvoi sont remboursés.</p>
+
+<h2>Article 8. Garanties</h2>
+<h3>8.1 Garantie légale de conformité (consommateurs)</h3>
+<p>Le vendeur livre un bien conforme au contrat et répond des défauts de conformité existant lors de la délivrance, qui apparaissent dans un délai de deux (2) ans à compter de la délivrance du bien neuf (douze (12) mois pour un bien d'occasion), conformément aux articles L217-3 et suivants du Code de la consommation. Le défaut qui apparaît pendant ce délai est présumé exister au moment de la délivrance. En cas de défaut de conformité, le consommateur choisit entre la réparation et le remplacement du bien, sous réserve d'un coût manifestement disproportionné ; à défaut, il peut obtenir une réduction du prix ou la résolution du contrat. Cette garantie s'applique sans frais pour le consommateur et indépendamment de toute garantie commerciale.</p>
+<h3>8.2 Garantie des vices cachés</h3>
+<p>Le vendeur est tenu de la garantie des défauts cachés de la chose vendue qui la rendent impropre à l'usage auquel on la destine ou qui diminuent tellement cet usage que l'acheteur ne l'aurait pas acquise, ou n'en aurait donné qu'un moindre prix, s'il les avait connus (articles 1641 et suivants du Code civil). L'action doit être exercée dans un délai de deux (2) ans à compter de la découverte du vice (article 1648 du Code civil).</p>
+<h3>8.3 Garantie commerciale « écrans » (en complément des garanties légales)</h3>
+<p>En plus des garanties légales ci-dessus, qui restent applicables, ReparMonPhone offre une garantie commerciale d'un (1) an à compter de la date d'achat sur ses écrans. Elle couvre les bugs tactiles et défauts d'affichage des écrans iPhone des gammes Optimum, Standard et New Life, ainsi que des écrans d'origine / Service Pack et New Life Samsung / Xiaomi / Huawei / Oppo / OnePlus / Vivo / Google / Realme. Elle ne couvre pas : les blocages liés à une mise à jour, les défauts de montage (nappe déchirée, connectiques abîmées), les vitres ou dalles cassées après réception, ni la pièce installée ou collée sur un appareil, ou dont l'étiquette de sécurité « SEALED » a été retirée, lorsque le défaut n'existait pas à la livraison.</p>
+<p>Pour bénéficier de la garantie commerciale, la pièce doit être retournée avec son emballage d'origine, ses nappes et films de protection intacts, son sticker de garantie et l'ensemble de ses accessoires. Avant tout retour, merci de faire une demande préalable par e-mail à contact@reparmonphone.fr en indiquant le numéro de commande.</p>
+
+<h2>Article 9. Responsabilité</h2>
+<p>ReparMonPhone répond de ses manquements dans les conditions du droit commun. Aucune stipulation des présentes ne limite les droits que le consommateur tient de la loi ni la responsabilité de ReparMonPhone en cas de dommage corporel. ReparMonPhone ne peut être tenue responsable des dommages résultant d'une indisponibilité temporaire du réseau Internet ou d'un cas de force majeure.</p>
+
+<h2>Article 10. Propriété intellectuelle</h2>
+<p>Tous les éléments du site https://www.reparmonphone.fr (textes, images, logos, graphismes, logiciels) sont la propriété exclusive de ReparMonPhone ou utilisés avec autorisation. Toute reproduction ou exploitation, même partielle, sans autorisation écrite est interdite.</p>
+
+<h2>Article 11. Données personnelles</h2>
+<p>Les données collectées sont traitées conformément au Règlement général sur la protection des données (RGPD) et à la loi du 6 janvier 1978 modifiée. Les informations sur les traitements, les durées de conservation et l'exercice de vos droits figurent dans notre <a href="/confidentialite">politique de confidentialité</a>.</p>
+
+<h2>Article 12. Médiation, loi applicable et litiges</h2>
+<p>Les présentes conditions sont soumises à la loi française. En cas de réclamation, l'acheteur est invité à contacter d'abord ReparMonPhone à contact@reparmonphone.fr afin de rechercher une solution amiable.</p>
+${mediationBlock}
+<p>Le consommateur peut saisir, à son choix, outre l'une des juridictions territorialement compétentes en vertu du Code de procédure civile, la juridiction du lieu où il demeurait au moment de la conclusion du contrat ou de la survenance du fait dommageable. Pour les acheteurs professionnels, les tribunaux de Draguignan (Var) sont seuls compétents.</p>
+`.trim();
+
+// ───────────────────────────── MENTIONS LÉGALES ─────────────────────────────────
+const MENTIONS_HTML = `
+<h1>Mentions légales</h1>
+
+<h2>Éditeur du site</h2>
+<p><strong>Nom commercial</strong> : Repar Mon Phone (ReparMonPhone.fr)<br/>
+<strong>Forme juridique</strong> : entreprise individuelle (EI)<br/>
+${CONFIG.nomExploitant ? `<strong>Exploitant et directeur de la publication</strong> : ${CONFIG.nomExploitant}<br/>\n` : ''}${siretLine}<br/>
+${CONFIG.tva ? (/^TVA non applicable/i.test(CONFIG.tva) ? `${CONFIG.tva}<br/>` : `<strong>TVA</strong> : ${CONFIG.tva.replace(/^TVA\s*:\s*/i, '')}<br/>`) : ''}${CONFIG.repertoireMetiers ? `<strong>Activité artisanale</strong> : ${CONFIG.repertoireMetiers}<br/>` : ''}<strong>Adresse du siège</strong> : Les Saquèdes, 83120 Sainte-Maxime<br/>
+<strong>Téléphone</strong> : 07 83 49 72 62<br/>
+<strong>E-mail</strong> : <a href="mailto:contact@reparmonphone.fr">contact@reparmonphone.fr</a></p>
+
+<h2>Hébergeur</h2>
+<p><strong>Vercel Inc.</strong>, 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis — <a href="https://vercel.com/" target="_blank" rel="noopener noreferrer">https://vercel.com/</a></p>
+
+<h2>Propriété intellectuelle</h2>
+<p>Tous les contenus présents sur ce site (textes, images, logos, graphismes, etc.) sont la propriété exclusive de Repar Mon Phone, sauf indication contraire. Toute reproduction sans autorisation écrite est interdite.</p>
+
+<h2>Données personnelles et cookies</h2>
+<p>Le traitement de vos données personnelles, vos droits et la gestion des cookies sont décrits dans notre <a href="/confidentialite">politique de confidentialité</a>. Vous pouvez modifier vos choix de cookies à tout moment depuis le lien « Gérer les cookies » en bas de page.</p>
+
+<h2>Conditions de vente et médiation</h2>
+<p>Les ventes sont régies par nos <a href="/cgv">conditions générales de vente</a>, qui précisent notamment les modalités du droit de rétractation, des garanties légales et du recours au médiateur de la consommation${CONFIG.mediateur.nom ? ` (${CONFIG.mediateur.nom}${CONFIG.mediateur.siteWeb ? ' — ' + CONFIG.mediateur.siteWeb : ''})` : ' (médiateur compétent en cours d\'inscription)'}.</p>
+`.trim();
+
+// ───────────────────────── POLITIQUE DE CONFIDENTIALITÉ ─────────────────────────
+const CONFIDENTIALITE_HTML = `
+<h1>Politique de confidentialité</h1>
+
+<h2>1. Qui est responsable de vos données ?</h2>
+<p>Le responsable du traitement est <strong>Repar Mon Phone</strong> (entreprise individuelle), Les Saquèdes, 83120 Sainte-Maxime — e-mail : <a href="mailto:contact@reparmonphone.fr">contact@reparmonphone.fr</a> — téléphone : 07 83 49 72 62. Pour toute question sur vos données, écrivez-nous à cette adresse.</p>
+
+<h2>2. Quelles données, pourquoi et sur quel fondement ?</h2>
+<ul>
+<li><strong>Commande et compte client</strong> — nom, e-mail, téléphone, adresses de facturation et de livraison, contenu et historique des commandes, marque et quatre derniers chiffres de la carte (jamais le numéro complet). Finalité : traiter, livrer et facturer votre commande, gérer votre compte, le service après-vente. Fondement : exécution du contrat.</li>
+<li><strong>Paiement</strong> — le paiement est traité par nos prestataires (Stripe, SumUp, PayPal). Les données de votre carte bancaire sont saisies sur leurs pages sécurisées et ne passent pas par nos serveurs. Fondement : exécution du contrat.</li>
+<li><strong>Relances de commande et suivi</strong> — e-mails de confirmation, de suivi de colis, relance d'une commande restée en attente de paiement. Fondement : exécution du contrat et intérêt légitime.</li>
+<li><strong>Demandes d'avis</strong> — après livraison, nous pouvons vous envoyer un e-mail vous invitant à laisser un avis sur le produit ou sur Trustpilot. Fondement : intérêt légitime (vous pouvez vous y opposer à tout moment). Vous êtes libre de ne pas répondre.</li>
+<li><strong>Demandes de rendez-vous, de réparation et contact</strong> — nom, coordonnées, appareil concerné, date souhaitée, message. Finalité : traiter votre demande. Les rendez-vous peuvent être inscrits dans notre agenda Google. Fondement : exécution de mesures précontractuelles ou du contrat.</li>
+<li><strong>Avis produits</strong> — votre nom (ou prénom) et votre avis peuvent être publiés sur la fiche produit. Fondement : consentement.</li>
+<li><strong>Newsletter</strong> — votre adresse e-mail, si vous vous inscrivez. Fondement : consentement ; vous pouvez vous désinscrire à tout moment.</li>
+<li><strong>Statistiques de visite</strong> (uniquement si vous les acceptez dans le bandeau cookies) — compteur de visites interne, Google Tag Manager et enregistrement anonymisé des sessions de navigation via Smartlook (hébergé dans l'Union européenne). Finalité : améliorer le site. Fondement : consentement.</li>
+<li><strong>Sécurité du site</strong> — adresse IP et journaux techniques, pour prévenir la fraude et les abus. Fondement : intérêt légitime.</li>
+<li><strong>Obligations légales</strong> — conservation des factures et pièces comptables.</li>
+</ul>
+
+<h2>3. Qui reçoit vos données ?</h2>
+<p>Vos données ne sont ni vendues ni louées. Elles sont accessibles à Repar Mon Phone et, pour les besoins strictement nécessaires, à nos prestataires : Vercel (hébergement du site), Supabase (base de données et authentification), Stripe, SumUp et PayPal (paiement), Resend (envoi des e-mails), Chronopost et La Poste/Colissimo (livraison), Google (Google Agenda pour les rendez-vous ; Google Tag Manager si vous acceptez les statistiques), Smartlook (si vous acceptez les statistiques) et Trustpilot (uniquement lorsque vous cliquez sur le lien pour laisser un avis). Certains de ces prestataires sont situés hors de l'Union européenne, notamment aux États-Unis : les transferts sont encadrés par des garanties appropriées (clauses contractuelles types de la Commission européenne ou Data Privacy Framework).</p>
+
+<h2>4. Combien de temps conservons-nous vos données ?</h2>
+<ul>
+<li>Données de compte : tant que le compte est actif, puis supprimées après 3 ans sans activité.</li>
+<li>Données de commande : 5 ans (prescription civile) ; factures et pièces comptables : 10 ans (obligation légale).</li>
+<li>Demandes de contact et de rendez-vous : 3 ans maximum après le dernier échange.</li>
+<li>Newsletter : jusqu'à votre désinscription, ou 3 ans sans interaction.</li>
+<li>Cookies et traceurs soumis à consentement : 13 mois maximum ; votre choix est redemandé à l'issue de ce délai.</li>
+</ul>
+
+<h2>5. Vos droits</h2>
+<p>Vous disposez des droits d'accès, de rectification, d'effacement, de limitation, d'opposition (notamment aux traitements fondés sur l'intérêt légitime) et de portabilité de vos données, ainsi que du droit de retirer votre consentement à tout moment et de définir des directives sur le sort de vos données après votre décès. Pour les exercer, écrivez à <a href="mailto:contact@reparmonphone.fr">contact@reparmonphone.fr</a> en joignant, si nécessaire, un justificatif d'identité : nous répondons dans un délai d'un mois. Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une réclamation auprès de la CNIL (3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07 — <a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer">www.cnil.fr</a>).</p>
+
+<h2>6. Cookies et traceurs</h2>
+<ul>
+<li><strong>Cookies essentiels</strong> (toujours actifs) : panier, connexion à votre compte, sécurité et paiement. Ils ne nécessitent pas de consentement.</li>
+<li><strong>Statistiques de visite</strong> (soumis à votre consentement) : compteur de visites interne, Google Tag Manager et Smartlook. Ils ne sont chargés qu'après acceptation dans le bandeau.</li>
+</ul>
+<p>Vous pouvez accepter, refuser ou personnaliser vos choix à tout moment via le lien « Gérer les cookies » en bas de chaque page. Refuser les statistiques n'a aucune conséquence sur votre navigation ni sur vos commandes. Certains contenus intégrés (avis Trustpilot, Facebook, Instagram) relèvent des politiques de confidentialité de ces services.</p>
+
+<h2>7. Sécurité</h2>
+<p>Nous mettons en œuvre des mesures techniques et organisationnelles adaptées (connexion chiffrée HTTPS, accès restreint aux données, prestataires de paiement certifiés) pour protéger vos données.</p>
+`.trim();
+
+// ───────────────────────────── LIVRAISON & RETOURS ──────────────────────────────
+const LIVRAISON_HTML = `
+<h1>Livraison Chronopost 24h &amp; Retours</h1>
+
+<h2>🚚 Livraison Chronopost Express 24h</h2>
+<p>Toute commande de pièces détachées passée avant 20h est préparée et expédiée le jour même depuis notre atelier de Sainte-Maxime (Var), via Chronopost. Livraison estimée le lendemain avant 13h pour la majorité de la France métropolitaine (délais indicatifs).</p>
+<ul>
+<li><strong>Commande avant 20h</strong> : préparation et expédition le jour même, du lundi au vendredi.</li>
+<li><strong>Livraison Chronopost</strong> : le lendemain avant 13h pour la majorité de la France métropolitaine.</li>
+<li><strong>Frais de port offerts</strong> à partir du montant de commande indiqué dans votre panier (France métropolitaine).</li>
+<li>Délais plus longs pour la Corse et les DOM-TOM.</li>
+<li>Pendant les périodes de fermeture annoncées sur le site (vacances), la préparation de votre commande peut être décalée d'environ 24 heures.</li>
+<li>Un e-mail de suivi avec numéro de tracking est envoyé dès la prise en charge du colis par le transporteur.</li>
+</ul>
+<p>À réception, nous vous conseillons de vérifier l'état de l'emballage. En cas de dommage ou de colis manquant, émettez des réserves précises auprès du transporteur et contactez-nous sous 3 jours : nous nous occupons du dossier. Cette démarche ne limite pas vos droits légaux.</p>
+
+<h2>Droit de rétractation (14 jours)</h2>
+<p>Conformément à l'article L221-18 du Code de la consommation, vous disposez de <strong>14 jours</strong> à compter de la réception de votre commande pour vous rétracter, sans avoir à justifier de motif ni à payer de pénalités. Les frais de renvoi sont à votre charge, sauf accord contraire de notre part.</p>
+<p>Pour vous rétracter :</p>
+<ol>
+<li>Écrivez-nous à <a href="mailto:contact@reparmonphone.fr">contact@reparmonphone.fr</a> avec votre numéro de commande et le produit concerné (un formulaire type figure dans nos <a href="/cgv">conditions générales de vente</a>, article 6).${CONFIG.retractationEnLigne ? ' Vous pouvez aussi utiliser la fonction de rétractation en ligne du site.' : ''}</li>
+<li>Nous vous confirmons la marche à suivre pour le retour.</li>
+<li>Renvoyez le produit dans son emballage d'origine, avec ses accessoires, dans les 14 jours suivant votre demande.</li>
+</ol>
+<p>Nous vous remboursons, y compris les frais de livraison standard, au plus tard 14 jours après avoir été informés de votre décision, sur le moyen de paiement utilisé (le remboursement peut être différé jusqu'à la réception du produit). Un produit installé ou dont les protections ont été retirées peut donner lieu à une réduction du remboursement correspondant à sa dépréciation (voir article 6 des CGV).</p>
+
+<h2>Garanties</h2>
+<p>Vos produits bénéficient de la <strong>garantie légale de conformité (2 ans)</strong> et de la garantie des vices cachés. En complément, tous nos écrans sont garantis <strong>1 an</strong> (garantie commerciale) contre les bugs tactiles ou défauts d'affichage, dans les conditions précisées dans nos <a href="/cgv">conditions générales de vente</a> (article 8).</p>
+
+<h2>Produit défectueux ou erreur de notre part</h2>
+<p>Si vous recevez un produit défectueux ou différent de votre commande, contactez-nous à contact@reparmonphone.fr : l'échange ou le remboursement se fait alors sans frais de retour à votre charge.</p>
+
+<h2>Besoin d'aide ?</h2>
+<p>Notre équipe est à votre disposition du lundi au samedi, de 9h à 18h : <a href="mailto:contact@reparmonphone.fr">contact@reparmonphone.fr</a> — <a href="tel:+33783497262">07 83 49 72 62</a>.</p>
+`.trim();
+
+// ───────────────────────────────────────────────────────────────────────────────
+const TARGETS = [
+  { slug: 'cgv', html: CGV_HTML, label: 'CGV' },
+  { slug: 'mentions-legales', html: MENTIONS_HTML, label: 'Mentions légales' },
+  { slug: 'confidentialite', html: CONFIDENTIALITE_HTML, label: 'Politique de confidentialité' },
+  { slug: 'livraison-retours', html: LIVRAISON_HTML, label: 'Livraison & Retours' },
+];
+
+async function main() {
+  console.log(APPLY ? '--- MISE À JOUR RÉELLE ---\n' : '--- APERÇU (aucune écriture) ---\n');
+
+  const todo = [];
+  if (!CONFIG.mediateur.nom) todo.push('MÉDIATEUR : inscription en cours → quand elle est finalisée, remplis CONFIG.mediateur puis relance --apply (obligatoire pour vendre à des consommateurs).');
+  if (!CONFIG.tva) todo.push('TVA non renseignée → à ajouter dans les mentions légales (n° de TVA, ou « TVA non applicable, art. 293 B du CGI »).');
+  if (!CONFIG.siret) todo.push('SIRET non renseigné (seul le SIREN est affiché).');
+  if (!CONFIG.repertoireMetiers) todo.push('Inscription au Répertoire des métiers non renseignée (à indiquer si ton activité de réparation est artisanale).');
+  if (!CONFIG.retractationEnLigne) todo.push('Fonction de rétractation en ligne : non mentionnée (à mettre en place sur le site puis passer retractationEnLigne à true).');
+
+  const backupDir = path.join(__dirname, 'cache', `legal-backup-${DATE_ISO}-${now.toTimeString().slice(0, 8).replace(/:/g, 'h')}`);
+  if (APPLY) fs.mkdirSync(backupDir, { recursive: true });
+
+  // Aperçu visuel : un fichier HTML à ouvrir dans le navigateur (n'écrit RIEN en base)
+  if (!APPLY) {
+    const dir = path.join(__dirname, 'cache');
+    fs.mkdirSync(dir, { recursive: true });
+    const nav = TARGETS.map((t) => `<a href="#${t.slug}">${t.label}</a>`).join(' · ');
+    const body = TARGETS.map((t) => `<section id="${t.slug}"><div class="tag">Page : /${t.slug}</div>${t.html}</section>`).join('\n');
+    const doc = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Aperçu pages légales</title>
+<style>
+body{font-family:system-ui,Segoe UI,Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937;line-height:1.6}
+header{position:sticky;top:0;background:#0E7FDB;color:#fff;padding:10px 16px;font-size:14px;z-index:5}
+header a{color:#fff;margin:0 4px}
+section{max-width:860px;margin:24px auto;background:#fff;padding:28px 36px;border-radius:12px;box-shadow:0 1px 6px #0002}
+.tag{display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;padding:2px 8px;border-radius:6px;margin-bottom:12px}
+h1{font-size:28px;color:#0E7FDB}h2{font-size:20px;margin-top:28px}h3{font-size:16px}
+a{color:#0E7FDB}table{border-collapse:collapse}td,th{border:1px solid #d1d5db;padding:6px 10px}
+</style></head><body>
+<header>APERÇU (rien n'est publié) — ${nav}</header>
+${body}
+</body></html>`;
+    const out = path.join(dir, 'apercu-pages-legales.html');
+    fs.writeFileSync(out, doc, 'utf8');
+    console.log('👀 Aperçu visuel créé : ' + out + '\n   → ouvre ce fichier dans ton navigateur (double-clic).\n');
+  }
+
+  for (const { slug, html, label } of TARGETS) {
+    const page = await prisma.page.findUnique({ where: { slug } });
+    if (!page) {
+      console.log(`⚠️  Page "${slug}" (${label}) introuvable en base — ignorée.`);
+      continue;
+    }
+    console.log(`${label} (slug: ${slug}) — ${page.contentHtml.length} → ${html.length} caractères`);
+    if (APPLY) {
+      fs.writeFileSync(path.join(backupDir, `${slug}.html`), page.contentHtml, 'utf8');
+      await prisma.page.update({ where: { slug }, data: { contentHtml: html } });
+      console.log('   ✅ mis à jour (ancienne version sauvegardée)');
+    }
+  }
+
+  if (APPLY) console.log(`\n💾 Sauvegardes : ${backupDir}`);
+
+  // Recherche du nom / de la date dans TOUTES les pages et réglages en base (lecture seule)
+  const MOTIFS = /berndt|christophe|version du \d|\d+ octobre 2026|derni[eè]re mise à jour/i;
+  const cibles = new Set(TARGETS.map((t) => t.slug));
+  try {
+    const pages = await prisma.page.findMany();
+    for (const pg of pages) {
+      if (cibles.has(pg.slug)) continue; // ces 4 pages sont réécrites par ce script
+      const m = String(pg.contentHtml || '').match(MOTIFS);
+      if (m) console.log(`🔎 Page "${pg.slug}" contient encore « ${m[0]} » → à corriger dans l'admin.`);
+    }
+    const reglages = await prisma.siteSetting.findMany();
+    for (const r of reglages) {
+      const m = String(r.value || '').match(MOTIFS);
+      if (m) console.log(`🔎 Réglage "${r.key}" contient « ${m[0]} » → à corriger dans l'admin.`);
+    }
+  } catch (e) {
+    console.log('(recherche complémentaire en base ignorée : ' + e.message + ')');
+  }
+  if (todo.length) {
+    console.log('\n📝 CE QU\'IL RESTE À COMPLÉTER (zone CONFIG en haut du script, puis relance avec --apply) :');
+    todo.forEach((t) => console.log('  - ' + t));
+  }
+  if (!APPLY) console.log('\nAperçu uniquement — relance avec --apply pour appliquer.');
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

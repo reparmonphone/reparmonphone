@@ -11,7 +11,7 @@ import {
 export default function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
   const [customizing, setCustomizing] = useState(false);
-  const [analyticsChecked, setAnalyticsChecked] = useState(true);
+  const [analyticsChecked, setAnalyticsChecked] = useState(false); // jamais pré-coché : le consentement doit être un acte positif
 
   useEffect(() => {
     if (!getStoredConsent()) setVisible(true);
@@ -41,9 +41,8 @@ export default function CookieConsentBanner() {
               <p className="text-sm text-gray-700 mb-5 leading-relaxed">
                 🍪 Nous utilisons des cookies essentiels au fonctionnement du site (panier, compte client) et, si
                 tu l&apos;acceptes, des outils de mesure d&apos;audience et d&apos;analyse de navigation
-                (compteur de visite interne, et enregistrement vidéo anonymisé de session via Smartlook) pour
-                nous aider à améliorer le site. Aucune donnée n&apos;est revendue ni partagée avec des régies
-                publicitaires tierces.{' '}
+                (compteur de visite interne, Google Tag Manager et enregistrement anonymisé de session via
+                Smartlook) pour nous aider à améliorer le site. Aucune donnée n&apos;est revendue.{' '}
                 <a href="/confidentialite" className="text-brand hover:underline">
                   En savoir plus
                 </a>
@@ -96,8 +95,8 @@ export default function CookieConsentBanner() {
                   <span>
                     <span className="font-medium text-gray-800">Statistiques de visite</span>
                     <span className="block text-gray-500">
-                      Compteur de visite interne et enregistrement vidéo anonymisé de navigation (Smartlook) —
-                      pas de partage avec des tiers, pas de profilage publicitaire.
+                      Compteur de visite interne, Google Tag Manager et enregistrement anonymisé de navigation
+                      (Smartlook). Refuser n&apos;a aucune conséquence sur ta navigation ni sur tes commandes.
                     </span>
                   </span>
                 </label>

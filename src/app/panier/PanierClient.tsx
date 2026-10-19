@@ -474,7 +474,12 @@ export default function PanierClient({
               <Link href="/cgv" target="_blank" className="underline hover:text-brand font-medium">conditions générales</Link> *
             </span>
           </label>
-          <p className="text-xs text-gray-500 -mt-2 mb-4">
+          <p className="text-xs text-gray-500 -mt-2 mb-3">
+            Tu disposes de 14 jours à compter de la réception pour te rétracter (hors exceptions légales). Délais de
+            livraison indicatifs, garanties et retours : voir{' '}
+            <Link href="/livraison-retours" target="_blank" className="underline hover:text-brand">Livraison &amp; retours</Link>.
+          </p>
+          <p className="text-xs text-gray-500 mb-4">
             Les prix et stocks peuvent, rarement, comporter une erreur manifeste : si c&apos;est le cas, nous te
             prévenons par email dans les heures qui suivent (voir l&apos;article 3 bis des conditions générales).
           </p>
@@ -492,7 +497,7 @@ export default function PanierClient({
                     disabled={loading !== null}
                     className="w-full bg-brand text-white py-3 rounded-lg font-semibold hover:bg-brand-dark transition disabled:opacity-60"
                   >
-                    {loading === 'stripe' ? 'Redirection...' : '💳 Payer par carte (Stripe)'}
+                    {loading === 'stripe' ? 'Redirection...' : '💳 Commander et payer par carte'}
                   </button>
                   <p className="text-center text-xs text-gray-400">Apple Pay et Google Pay disponibles automatiquement si ton appareil les supporte.</p>
                 </>
@@ -504,7 +509,7 @@ export default function PanierClient({
                   disabled={loading !== null}
                   className="w-full bg-[#0BB0D8] text-white py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-60"
                 >
-                  {loading === 'sumup' ? 'Redirection...' : '💳 Payer avec SumUp'}
+                  {loading === 'sumup' ? 'Redirection...' : '💳 Commander et payer avec SumUp'}
                 </button>
               )}
 
@@ -514,16 +519,22 @@ export default function PanierClient({
                   disabled={loading !== null}
                   className="w-full bg-[#FFC439] text-[#003087] py-3 rounded-lg font-bold hover:opacity-90 transition disabled:opacity-60"
                 >
-                  {loading === 'paypal' ? 'Redirection...' : 'Payer avec PayPal'}
+                  {loading === 'paypal' ? 'Redirection...' : 'Commander et payer avec PayPal'}
                 </button>
               )}
             </div>
           )}
 
+          {!noPaymentMethodEnabled && (
+            <p className="text-center text-[11px] text-gray-400 mt-2">
+              En cliquant sur un bouton de paiement, tu passes une commande avec obligation de paiement.
+            </p>
+          )}
+
           {error && <p className="text-red-600 text-sm mt-4 text-center">{error}</p>}
 
           <p className="text-xs text-gray-400 mt-4 text-center">
-            Paiement 100% sécurisé. Tes données ne sont jamais stockées sur nos serveurs.
+            Paiement 100% sécurisé : les données de ta carte bancaire sont traitées par nos prestataires de paiement et ne passent jamais par nos serveurs.
           </p>
 
           <TrustBadges className="mt-4" />
