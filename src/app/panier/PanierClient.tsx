@@ -474,6 +474,10 @@ export default function PanierClient({
               <Link href="/cgv" target="_blank" className="underline hover:text-brand font-medium">conditions générales</Link> *
             </span>
           </label>
+          <p className="text-xs text-gray-500 -mt-2 mb-4">
+            Les prix et stocks peuvent, rarement, comporter une erreur manifeste : si c&apos;est le cas, nous te
+            prévenons par email dans les heures qui suivent (voir l&apos;article 3 bis des conditions générales).
+          </p>
 
           {noPaymentMethodEnabled ? (
             <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
