@@ -28,6 +28,15 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
 
   if (!order) notFound();
 
+  // Taux de frais de la plateforme de paiement de CETTE commande (pour l'aperçu du bénéfice dans « Coûts réels »)
+  const providerKey = String(order.paymentProvider).toLowerCase();
+  const feeSettings = await prisma.siteSetting.findMany({
+    where: { key: { in: [`fee_rate_${providerKey}`, `fee_fixed_${providerKey}`] } },
+  });
+  const feeRate = Number(feeSettings.find((x) => x.key === `fee_rate_${providerKey}`)?.value ?? 0);
+  const feeFixed = Number(feeSettings.find((x) => x.key === `fee_fixed_${providerKey}`)?.value ?? 0);
+  const providerLabel = ({ STRIPE: 'Stripe', SUMUP: 'SumUp', PAYPAL: 'PayPal' } as Record<string, string>)[String(order.paymentProvider)] ?? String(order.paymentProvider);
+
   // Mode de livraison : enregistré sur les nouvelles commandes ; pour les anciennes (avant l'ajout de
   // l'info), on le déduit du tarif payé en cherchant les modes de livraison qui ont ce prix.
   let shippingMethodLabel: string | null = order.shippingMethod;
@@ -192,6 +201,11 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
           costPrice: item.costPrice != null ? Number(item.costPrice) : null,
         }))}
         actualShippingCost={order.actualShippingCost != null ? Number(order.actualShippingCost) : null}
+        orderTotal={Number(order.total)}
+        refunded={order.status === 'REFUNDED'}
+        feeRate={feeRate}
+        feeFixed={feeFixed}
+        providerLabel={providerLabel}
       />
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 mb-4">

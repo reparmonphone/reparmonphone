@@ -214,8 +214,9 @@ export default async function AdminBeneficePage({ searchParams }: { searchParams
         Calculé ainsi, par commande : chiffre d&apos;affaires − coût d&apos;achat fournisseur − frais de port réels
         payés − frais de la plateforme de paiement (taux réglables sur{' '}
         <Link href="/admin/paiements" className="text-brand hover:underline">Moyens de paiement</Link>).
-        Coûts et frais de port visibles admin uniquement, jamais montrés au client, saisis HT — la TVA à
-        20% est ajoutée automatiquement pour obtenir le coût réel dans ce calcul.
+        Coûts et frais de port visibles admin uniquement, jamais montrés au client. Tu peux les saisir en HT
+        ou en TTC sur la commande (conversion automatique) ; ils sont enregistrés en HT et la TVA à 20% est
+        ajoutée dans ce calcul pour obtenir ce que tu paies réellement.
         Une commande passée en « Remboursée » ne rapporte plus de chiffre d&apos;affaires, mais compte comme une
         perte : frais de la plateforme de paiement (non restitués) et coûts déjà saisis.
       </p>
