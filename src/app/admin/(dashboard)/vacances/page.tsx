@@ -24,7 +24,7 @@ export default async function AdminVacancesPage() {
     <div>
       <h1 className="text-2xl font-bold mb-2">🏖️ Mode vacances</h1>
       <p className="text-sm text-gray-600 mb-4 max-w-3xl">
-        Prépare ton pop-up de vacances, vérifie-le avec l&apos;aperçu privé (personne d&apos;autre que toi ne le voit), puis active-le. Il
+        Prépare ton pop-up de vacances et vérifie-le dans l&apos;aperçu en direct (visible par toi seul, il se met à jour pendant que tu écris), puis active-le. Il
         s&apos;affiche tout seul à la date de départ et disparaît tout seul après la date de retour.
       </p>
       <p className={`text-sm border rounded-lg px-3 py-2 mb-6 max-w-3xl ${tones[status.tone]}`}>{status.text}</p>

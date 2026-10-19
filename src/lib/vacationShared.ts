@@ -11,7 +11,9 @@ export type VacationConfig = {
   message: string; // texte (humour) pendant les vacances
   titleBefore: string; // titre pendant la période de préavis
   messageBefore: string; // texte pendant la période de préavis
+  orderTitle: string; // titre du bloc « commandes » (mis en évidence en vert)
   orderInfo: string; // précision sur les commandes / expéditions
+  mediaUrl: string; // image ou vidéo de fond (facultatif) ; vide ou introuvable = animation intégrée
   showContact: boolean; // affiche l'adresse e-mail de contact
 };
 
@@ -26,6 +28,8 @@ export const DEFAULT_VACATION: VacationConfig = {
   titleBefore: 'Bientôt en vacances',
   messageBefore:
     'Notre batterie affiche 5 % : il est temps de partir la recharger. Un petit coup d’œil sur ce qu’il vous faut avant le départ ?',
+  orderTitle: 'Les commandes restent ouvertes et sont traitées',
+  mediaUrl: '/vacances/plage.mp4',
   orderInfo: 'Le site reste ouvert : vous pouvez toujours passer commande. Le traitement se faisant à distance, un décalage pouvant aller jusqu’à 24 h est possible. Merci de votre compréhension.',
   showContact: true,
 };
@@ -42,7 +46,9 @@ export type VacationPayload = {
   percent: number; // « batterie du réparateur »
   title: string;
   message: string;
+  orderTitle: string;
   orderInfo: string;
+  mediaUrl: string;
   showContact: boolean;
   version: string; // change quand le contenu change : sert à ré-afficher le pop-up aux visiteurs qui l'avaient fermé
 };
@@ -97,9 +103,11 @@ export function buildVacationPayload(
     percent,
     title,
     message,
+    orderTitle: c.orderTitle,
     orderInfo: c.orderInfo,
+    mediaUrl: c.mediaUrl,
     showContact: c.showContact,
-    version: `${phase}-${c.start}-${c.end}-${hash(title + message + c.orderInfo)}`,
+    version: `${phase}-${c.start}-${c.end}-${hash(title + message + c.orderTitle + c.orderInfo + c.mediaUrl)}`,
   };
 }
 

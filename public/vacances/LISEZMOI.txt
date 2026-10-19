@@ -1,0 +1,9 @@
+Dossier du visuel du pop-up « Mode vacances ».
+
+Pour utiliser ta propre vidéo ou photo :
+1. Copie ton fichier ici (ex. plage.mp4, plage.webm, plage.jpg).
+2. Dans l'admin > Mode vacances > « Visuel du haut », écris son chemin : /vacances/plage.mp4
+3. Vérifie dans l'aperçu en direct, puis enregistre.
+
+Conseil : vidéo de 8 à 15 secondes, sans son, moins de 4 Mo, qui boucle.
+Si aucun fichier n'est trouvé, l'animation intégrée (mer, soleil, palmier) s'affiche toute seule.

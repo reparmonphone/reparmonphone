@@ -19,7 +19,9 @@ export async function saveVacation(input: VacationConfig) {
     message: clip(input.message, 400),
     titleBefore: clip(input.titleBefore, 80),
     messageBefore: clip(input.messageBefore, 400),
+    orderTitle: clip(input.orderTitle, 90),
     orderInfo: clip(input.orderInfo, 300),
+    mediaUrl: clip(input.mediaUrl, 300),
     showContact: !!input.showContact,
   };
 
@@ -28,6 +30,10 @@ export async function saveVacation(input: VacationConfig) {
   }
   if (!config.title || !config.message) {
     return { error: 'Le titre et le message « pendant les vacances » ne peuvent pas être vides.' };
+  }
+
+  if (config.mediaUrl && !/^(\/[\w\-./%]+|https:\/\/\S+)$/.test(config.mediaUrl)) {
+    return { error: 'Le fichier du visuel doit être un chemin du type /vacances/plage.mp4 ou une adresse https://… (laisse vide pour garder l’animation intégrée).' };
   }
 
   await saveVacationConfig(config);
