@@ -28,6 +28,9 @@ function startOfYear(d: Date) {
 }
 
 type ComputedOrder = {
+  customerName: string;
+  shippingPaid: number; // livraison facturée au client (info)
+  status: string;
   id: string;
   invoiceNumber: number;
   createdAt: Date;
@@ -57,7 +60,15 @@ function sumFor(list: ComputedOrder[], from?: Date) {
   };
 }
 
-export default async function AdminBeneficePage() {
+const TZ = 'Europe/Paris';
+const dayKey = (d: Date) => new Intl.DateTimeFormat('fr-CA', { timeZone: TZ }).format(d); // AAAA-MM-JJ
+const dayLabel = (d: Date) =>
+  new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+const timeLabel = (d: Date) => new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(d);
+const monthLabel = (key: string) =>
+  new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${key}-01T12:00:00Z`));
+
+export default async function AdminBeneficePage({ searchParams }: { searchParams?: { mois?: string } }) {
   const now = new Date();
   const todayStart = startOfDay(now);
   const monthStart = startOfMonth(now);
@@ -86,6 +97,8 @@ export default async function AdminBeneficePage() {
         invoiceNumber: true,
         createdAt: true,
         total: true,
+        customerName: true,
+        shippingCost: true,
         status: true,
         paymentProvider: true,
         actualShippingCost: true,
@@ -130,6 +143,9 @@ export default async function AdminBeneficePage() {
     // Une commande remboursée n'est jamais "incomplète" : des coûts non saisis y sont normaux.
     const isIncomplete = !refunded && (o.actualShippingCost == null || o.items.some((it) => it.costPrice == null));
     return {
+      customerName: o.customerName,
+      shippingPaid: Number(o.shippingCost ?? 0),
+      status: o.status,
       id: o.id,
       invoiceNumber: o.invoiceNumber,
       createdAt: o.createdAt,
@@ -165,11 +181,34 @@ export default async function AdminBeneficePage() {
   }
   const maxMonth = Math.max(1, ...Object.values(monthBuckets).map((v) => Math.abs(v)));
 
+  // ── Détail par jour (filtre par mois : ?mois=AAAA-MM, ou ?mois=tout) ──
+  const monthKeys: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const wanted = searchParams?.mois;
+  const selectedMonth = wanted === 'tout' ? 'tout' : wanted && /^\d{4}-\d{2}$/.test(wanted) ? wanted : monthKeys[0];
+  const detailOrders = computed.filter((o) => selectedMonth === 'tout' || dayKey(o.createdAt).startsWith(selectedMonth));
+  const days: { key: string; date: Date; orders: ComputedOrder[]; stats: ReturnType<typeof sumFor> }[] = [];
+  for (const o of detailOrders) {
+    // computed est trié du plus récent au plus ancien
+    const key = dayKey(o.createdAt);
+    let g = days[days.length - 1];
+    if (!g || g.key !== key) {
+      g = { key, date: o.createdAt, orders: [], stats: sumFor([]) };
+      days.push(g);
+    }
+    g.orders.push(o);
+  }
+  for (const g of days) g.stats = sumFor(g.orders);
+  const detailStats = sumFor(detailOrders);
+
   const incompleteOrders = computed.filter((o) => o.isIncomplete).slice(0, 15);
   const incompleteCount = computed.filter((o) => o.isIncomplete).length;
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-6xl">
       <h1 className="text-2xl font-bold mb-1">Bénéfice</h1>
       <p className="text-gray-500 mb-6">
         Calculé ainsi, par commande : chiffre d&apos;affaires − coût d&apos;achat fournisseur − frais de port réels
@@ -282,6 +321,112 @@ export default async function AdminBeneficePage() {
           ))}
         </div>
       </div>
+
+      <h2 className="text-lg font-bold mb-1">🧾 Détail par commande, jour par jour</h2>
+      <p className="text-xs text-gray-500 mb-3">
+        Pour chaque commande : chiffre d&apos;affaires − coût d&apos;achat − port réel − frais de paiement = bénéfice
+        (coûts avec TVA 20 % ajoutée). Les commandes annulées ou non payées ne sont pas comptées.
+      </p>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {monthKeys.map((m) => (
+          <Link
+            key={m}
+            href={`/admin/benefice?mois=${m}`}
+            className={`px-3 py-1.5 rounded-lg text-xs border transition ${
+              selectedMonth === m ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand'
+            }`}
+          >
+            {monthLabel(m)}
+          </Link>
+        ))}
+        <Link
+          href="/admin/benefice?mois=tout"
+          className={`px-3 py-1.5 rounded-lg text-xs border transition ${
+            selectedMonth === 'tout' ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand'
+          }`}
+        >
+          Tout l&apos;historique
+        </Link>
+      </div>
+
+      {days.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-xl p-6 text-sm text-gray-500 mb-8">
+          Aucune commande sur cette période.
+        </div>
+      ) : (
+        <div className="space-y-4 mb-8">
+          <div className="flex justify-between text-sm bg-gray-50 border border-gray-100 rounded-xl px-5 py-3">
+            <span className="text-gray-600">
+              {selectedMonth === 'tout' ? 'Tout l’historique' : monthLabel(selectedMonth)} — {detailStats.count} commande
+              {detailStats.count > 1 ? 's' : ''} · CA {formatPrice(detailStats.revenue)}
+            </span>
+            <span className={`font-bold ${detailStats.profit < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+              Bénéfice : {formatPrice(detailStats.profit)}
+            </span>
+          </div>
+
+          {days.map((g) => (
+            <div key={g.key} className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-gray-50 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-800 capitalize">{dayLabel(g.date)}</h3>
+                <p className="text-xs text-gray-500">
+                  {g.stats.count} commande{g.stats.count > 1 ? 's' : ''} · CA {formatPrice(g.stats.revenue)} ·{' '}
+                  <span className={`font-bold text-sm ${g.stats.profit < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                    bénéfice {formatPrice(g.stats.profit)}
+                  </span>
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-400 text-left">
+                      <th className="px-5 py-2 font-medium">Commande</th>
+                      <th className="px-3 py-2 font-medium">Paiement</th>
+                      <th className="px-3 py-2 font-medium text-right">CA</th>
+                      <th className="px-3 py-2 font-medium text-right">− Achat</th>
+                      <th className="px-3 py-2 font-medium text-right">− Port réel</th>
+                      <th className="px-3 py-2 font-medium text-right">− Frais paiement</th>
+                      <th className="px-5 py-2 font-medium text-right">= Bénéfice</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {g.orders.map((o) => (
+                      <tr key={o.id} className={o.refunded ? 'bg-red-50/40' : undefined}>
+                        <td className="px-5 py-2.5">
+                          <Link href={`/admin/commandes/${o.id}#couts`} className="text-brand hover:underline font-medium">
+                            #{o.invoiceNumber}
+                          </Link>{' '}
+                          <span className="text-gray-400 text-xs">{timeLabel(o.createdAt)}</span>
+                          <div className="text-xs text-gray-600">{o.customerName}</div>
+                          {o.refunded && <div className="text-[11px] font-semibold text-red-600">Remboursée — CA rendu, frais non restitués</div>}
+                          {o.isIncomplete && (
+                            <Link href={`/admin/commandes/${o.id}#couts`} className="text-[11px] font-semibold text-amber-600 hover:underline">
+                              ⚠️ coût ou port non renseigné
+                            </Link>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600">{PROVIDER_LABELS[o.paymentProvider] ?? o.paymentProvider}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          {formatPrice(o.total)}
+                          {o.shippingPaid > 0 && !o.refunded && (
+                            <div className="text-[11px] text-gray-400">livraison client : {formatPrice(o.shippingPaid)}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-red-600">{o.cost > 0 ? `− ${formatPrice(o.cost)}` : '—'}</td>
+                        <td className="px-3 py-2.5 text-right text-red-600">{o.shipping > 0 ? `− ${formatPrice(o.shipping)}` : '—'}</td>
+                        <td className="px-3 py-2.5 text-right text-red-600">{o.fee > 0 ? `− ${formatPrice(o.fee)}` : '—'}</td>
+                        <td className={`px-5 py-2.5 text-right font-bold ${o.profit < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                          {formatPrice(o.profit)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <h2 className="font-semibold p-5 pb-3">Taux de frais actuellement appliqués</h2>

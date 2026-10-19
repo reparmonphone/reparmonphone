@@ -22,6 +22,9 @@ const CSS = `
 .vac-bird path{animation:vac-flap .9s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
 .vac-palm{transform-origin:70px 194px;animation:vac-sway 7s ease-in-out infinite}
 .vac-frond{transform-origin:114px 82px;animation:vac-frond 4.6s ease-in-out infinite}
+.vac-yacht{animation:vac-yacht 70s linear infinite;animation-delay:-22s}
+.vac-yacht-bob{transform-box:fill-box;transform-origin:50% 100%;animation:vac-bob 5.5s ease-in-out infinite}
+.vac-wake{animation:vac-wakepulse 3s ease-in-out infinite}
 .vac-wave-a{animation:vac-wave 14s linear infinite}
 .vac-wave-b{animation:vac-wave 9s linear infinite reverse}
 .vac-wave-c{animation:vac-wave 6s linear infinite}
@@ -55,6 +58,9 @@ const CSS = `
 @keyframes vac-flap{0%,100%{transform:scaleY(1)}50%{transform:scaleY(-.5)}}
 @keyframes vac-sway{0%,100%{transform:rotate(-1.2deg)}50%{transform:rotate(1.4deg)}}
 @keyframes vac-frond{0%,100%{transform:rotate(-3.5deg)}50%{transform:rotate(3.5deg)}}
+@keyframes vac-yacht{from{transform:translateX(580px)}to{transform:translateX(-170px)}}
+@keyframes vac-bob{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-.9px) rotate(.5deg)}}
+@keyframes vac-wakepulse{0%,100%{opacity:.75}50%{opacity:1}}
 @keyframes vac-wave{from{transform:translateX(0)}to{transform:translateX(-130px)}}
 @keyframes vac-glint{0%,100%{opacity:.15;transform:scaleX(.6)}50%{opacity:.95;transform:scaleX(1.15)}}
 @keyframes vac-twinkle{0%,100%{opacity:0;transform:scale(.5)}50%{opacity:.95;transform:scale(1)}}
@@ -74,7 +80,7 @@ const CSS = `
 @keyframes vac-draw{to{stroke-dashoffset:0}}
 @keyframes vac-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){
-  .vac-overlay,.vac-card,.vac-rays,.vac-glow,.vac-cloud-a,.vac-cloud-b,.vac-bird,.vac-bird path,.vac-palm,.vac-frond,.vac-wave-a,.vac-wave-b,.vac-wave-c,.vac-glint,.vac-twinkle,.vac-foam,.vac-surf,.vac-kenburns,.vac-logo,.vac-fill,.vac-stripes,.vac-fill-shine,.vac-bolt,.vac-low,.vac-dots span,.vac-orders,.vac-ping,.vac-rise>*,.vac-rise>.vac-orders{animation:none!important}
+  .vac-overlay,.vac-card,.vac-rays,.vac-glow,.vac-cloud-a,.vac-cloud-b,.vac-bird,.vac-bird path,.vac-palm,.vac-frond,.vac-yacht,.vac-yacht-bob,.vac-wake,.vac-wave-a,.vac-wave-b,.vac-wave-c,.vac-glint,.vac-twinkle,.vac-foam,.vac-surf,.vac-kenburns,.vac-logo,.vac-fill,.vac-stripes,.vac-fill-shine,.vac-bolt,.vac-low,.vac-dots span,.vac-orders,.vac-ping,.vac-rise>*,.vac-rise>.vac-orders{animation:none!important}
   .vac-check{animation:none!important;stroke-dashoffset:0}
 }
 `;
@@ -151,6 +157,18 @@ function Scene() {
         <filter id="vacSoft" x="-20%" y="-50%" width="140%" height="200%">
           <feGaussianBlur stdDeviation="1.4" />
         </filter>
+        <linearGradient id="vacHull" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#FFFFFF" />
+          <stop offset="1" stopColor="#D3DCE6" />
+        </linearGradient>
+        <linearGradient id="vacGlass" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3A5F86" />
+          <stop offset="1" stopColor="#14263D" />
+        </linearGradient>
+        <linearGradient id="vacWake" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+        </linearGradient>
         <clipPath id="vacSeaClip">
           <rect x="0" y="104" width="520" height="96" />
         </clipPath>
@@ -212,6 +230,36 @@ function Scene() {
         ))}
       </g>
       <line x1="0" y1="104.5" x2="520" y2="104.5" stroke="#fff" strokeOpacity="0.5" strokeWidth="1" />
+
+      {/* yacht moderne et épuré, qui traverse lentement de droite à gauche */}
+      <g transform="translate(0 120) scale(0.95)">
+        <g className="vac-yacht">
+          <g className="vac-yacht-bob">
+            {/* sillage derrière le bateau (il avance vers la gauche) */}
+            <g className="vac-wake">
+              <path d="M96 2.6 Q130 1 172 3.2 Q132 5.6 100 5 Z" fill="url(#vacWake)" />
+              <path d="M94 5.4 Q122 4.6 150 6 Q122 7.6 98 6.8 Z" fill="url(#vacWake)" opacity="0.6" />
+            </g>
+            {/* coque blanche, étrave inclinée */}
+            <path d="M-5 -9 L98 -9 L96 0 Q94 3.5 88 3.5 L12 3.5 Q5 2.5 2 -2 Z" fill="url(#vacHull)" />
+            <path d="M-3 -4.2 L97 -4.2 L96.6 -2.8 L-1.8 -2.8 Z" fill="#1B3A5C" opacity="0.9" />
+            {/* pont principal et grandes baies vitrées */}
+            <path d="M14 -9 L19 -16.5 L90 -16.5 L95 -9 Z" fill="url(#vacHull)" />
+            <rect x="21" y="-14.8" width="68" height="3.8" rx="1.2" fill="url(#vacGlass)" />
+            <path d="M24 -14.5 L34 -14.5 L30 -11.3 L24 -11.3 Z" fill="#fff" opacity="0.25" />
+            {/* pont supérieur */}
+            <path d="M36 -16.5 L40 -21.5 L82 -21.5 L85 -16.5 Z" fill="url(#vacHull)" />
+            <rect x="42" y="-20.2" width="36" height="2.5" rx="1" fill="url(#vacGlass)" />
+            <rect x="32" y="-23.2" width="58" height="1.7" rx="0.85" fill="#E9EEF3" />
+            {/* mât radar */}
+            <line x1="68" y1="-23" x2="68" y2="-31" stroke="#E9EEF3" strokeWidth="1.1" />
+            <circle cx="68" cy="-31.6" r="1.7" fill="#fff" />
+            {/* eau qui lèche la coque + étrave */}
+            <path d="M-6 1.4 Q4 -0.8 16 1.4 T40 1.4 T64 1.4 T88 1.4 T104 1.4 L104 3.6 Q92 5 80 3.6 T56 3.6 T32 3.6 T8 3.6 T-6 3.6 Z" fill="#fff" opacity="0.55" />
+            <path d="M-7 1.4 Q-2 -1.8 5 0.6 Q0 2.4 -7 1.4 Z" fill="#fff" opacity="0.9" />
+          </g>
+        </g>
+      </g>
 
       {/* plage */}
       <path d="M0 200 V152 Q80 138 160 158 Q225 176 262 200 Z" fill="url(#vacSand)" />
