@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import AppointmentStatusSelect from './AppointmentStatusSelect';
+import RdvTabs from './RdvTabs';
 import type { AppointmentStatus, AppointmentType, Prisma } from '@prisma/client';
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
@@ -61,6 +62,8 @@ export default async function AdminRdvPage({ searchParams }: { searchParams: Rdv
           ⬇️ Exporter CSV
         </a>
       </div>
+
+      <RdvTabs active="demandes" />
 
       <form className="flex flex-wrap gap-2 mb-6 bg-white border border-gray-100 rounded-xl p-4" action="/admin/rdv" method="get">
         <input

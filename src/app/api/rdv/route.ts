@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
+import { periodOfTime } from '@/lib/rdvAvailability';
 
 const schema = z.object({
   customerName: z.string().min(2),
@@ -13,7 +14,8 @@ const schema = z.object({
   issueDescription: z.string().min(5),
   type: z.enum(['ATELIER', 'DOMICILE']),
   city: z.string().min(2),
-  preferredDate: z.string(),
+  // Format "AAAA-MM-JJTHH:mm" (envoyé par le formulaire)
+  preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 });
@@ -28,6 +30,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
+
+  // Vérifie côté serveur que le créneau n'a pas été fermé dans l'admin (matin / après-midi / journée)
+  const slotDate = data.preferredDate.slice(0, 10);
+  const slotPeriod = periodOfTime(data.preferredDate.slice(11, 16));
+  const [sy, sm, sd] = slotDate.split('-').map(Number);
+  const slotWeekday = new Date(Date.UTC(sy, sm - 1, sd)).getUTCDay();
+  const blocked = await prisma.rdvBlock.findFirst({
+    where: {
+      period: { in: ['DAY', slotPeriod] },
+      OR: [{ date: slotDate }, { date: null, weekday: slotWeekday }],
+    },
+    select: { id: true },
+  });
+  if (blocked) {
+    return NextResponse.json(
+      { error: 'creneau_indisponible', message: 'Ce créneau n\u2019est pas disponible.' },
+      { status: 409 }
+    );
+  }
 
   let extraFee = 0;
   if (data.type === 'DOMICILE') {

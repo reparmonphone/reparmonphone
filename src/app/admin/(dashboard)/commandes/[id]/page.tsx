@@ -10,6 +10,7 @@ import OrderCostsForm from './OrderCostsForm';
 import PartialShipmentsPanel from './PartialShipmentsPanel';
 import OrderNotesPanel from './OrderNotesPanel';
 import OrderItemsEditor from './OrderItemsEditor';
+import NoReviewToggle from '../NoReviewToggle';
 
 export default async function AdminOrderDetailPage({ params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
@@ -200,7 +201,10 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
             <OrderRowActions orderId={order.id} isPending />
           </div>
         )}
-        {order.status === 'DELIVERED' && <ReviewReminderButton orderId={order.id} />}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <NoReviewToggle orderId={order.id} initialValue={order.noReviewRequest} />
+        </div>
+        {order.status === 'DELIVERED' && !order.noReviewRequest && <ReviewReminderButton orderId={order.id} />}
       </div>
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 mb-4">

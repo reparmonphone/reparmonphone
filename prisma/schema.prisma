@@ -309,6 +309,7 @@ model Order {
   reminderSentAt DateTime? // dernière relance email envoyée pour une commande restée "En attente"
   deliveredAt    DateTime? // date à laquelle la commande est passée au statut "Livrée"
   reviewReminderSentAt DateTime? // relance "laisse un avis" déjà envoyée pour cette commande
+  noReviewRequest Boolean @default(false) // true = aucune demande d'avis automatique/groupée pour cette commande (ni pour ce client)
 
   // Coût réel d'expédition payé par l'admin (Chronopost/Colissimo...) — DIFFÉRENT de shippingCost
   // (ce que le CLIENT a payé). Saisi manuellement par l'admin pour le calcul du bénéfice, jamais
@@ -552,6 +553,28 @@ model MailInRepairReply {
 
   @@index([mailInRepairId])
   @@map("mail_in_repair_replies")
+}
+
+// ---------- Disponibilités RDV ----------
+// Créneaux fermés à la réservation sur la page publique /rdv. Une ligne = une journée (ou matin, ou
+// après-midi) bloquée, soit à une date précise (date = "AAAA-MM-JJ"), soit chaque semaine (weekday 0=dimanche
+// … 6=samedi). Aucune ligne = tout est ouvert.
+enum RdvPeriod {
+  DAY
+  MORNING
+  AFTERNOON
+}
+
+model RdvBlock {
+  id        String    @id @default(cuid())
+  date      String? // "AAAA-MM-JJ" pour un blocage ponctuel
+  weekday   Int? // 0-6 pour un blocage récurrent chaque semaine
+  period    RdvPeriod @default(DAY)
+  note      String? // mémo perso (ex: "Dentiste"), jamais affiché au client
+  createdAt DateTime  @default(now())
+
+  @@index([date])
+  @@map("rdv_blocks")
 }
 
 // ---------- Zones de livraison / déplacement à supplément ----------

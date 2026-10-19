@@ -91,7 +91,9 @@ export async function sendReviewReminderBatch(
 ) {
   await requireAdminUser();
   const startedAt = new Date(startedAtIso);
-  const baseWhere = () => (mode === 'all' ? reviewReminderAllDeliveredWhere(startedAt) : reviewReminderEligibleWhere());
+  // Calculé une seule fois par appel (inclut la liste des clients exclus des demandes d'avis)
+  const base = mode === 'all' ? await reviewReminderAllDeliveredWhere(startedAt) : await reviewReminderEligibleWhere();
+  const baseWhere = () => base;
 
   const batch = await prisma.order.findMany({
     where: { ...baseWhere(), id: { notIn: skipIds } },
@@ -133,6 +135,16 @@ export async function sendReviewReminderBatch(
 
   revalidatePath('/admin/commandes');
   return { sent, duplicates, failedIds, lastError, remaining };
+}
+
+// Case « Ne pas demander d'avis » : exclut la commande (et les autres commandes du même client) des relances
+// automatiques (cron), de la relance groupée et du bouton manuel.
+export async function setNoReviewRequest(orderId: string, value: boolean) {
+  await requireAdminUser();
+  await prisma.order.update({ where: { id: orderId }, data: { noReviewRequest: value } });
+  revalidatePath('/admin/commandes');
+  revalidatePath(`/admin/commandes/${orderId}`);
+  return { ok: true };
 }
 
 export async function deleteOrder(orderId: string) {

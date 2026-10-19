@@ -15,14 +15,29 @@ function trustpilotBlock(intro: string) {
         </div>`;
 }
 
+// Commandes exclues des demandes d'avis (case « Ne pas demander d'avis » cochée dans l'admin). Par prudence, on
+// exclut aussi les AUTRES commandes du même client (même e-mail) : sinon une commande non cochée lui enverrait
+// quand même la demande.
+export async function getReviewExcludedEmails(): Promise<string[]> {
+  const rows = await prisma.order.findMany({
+    where: { noReviewRequest: true },
+    select: { customerEmail: true },
+    distinct: ['customerEmail'],
+  });
+  return rows.map((r) => r.customerEmail);
+}
+
 // Commandes à relancer : livrées depuis plus de 10 jours et jamais relancées. Pour les anciennes commandes
 // passées en "Livrée" avant l'enregistrement de la date de livraison (deliveredAt vide), on se base sur la
 // date de commande avec une marge de 14 jours.
-export function reviewReminderEligibleWhere() {
+export async function reviewReminderEligibleWhere() {
   const DAY = 24 * 60 * 60 * 1000;
+  const excluded = await getReviewExcludedEmails();
   return {
     status: 'DELIVERED' as const,
     reviewReminderSentAt: null,
+    noReviewRequest: false,
+    customerEmail: { notIn: excluded },
     OR: [
       { deliveredAt: { lte: new Date(Date.now() - 10 * DAY) } },
       { deliveredAt: null, createdAt: { lte: new Date(Date.now() - 14 * DAY) } },
@@ -34,16 +49,18 @@ export function reviewReminderEligibleWhere() {
 // en attente... exclues d'office), y compris ceux déjà relancés avant l'ajout de Trustpilot — sans attendre
 // 10 jours. startedAt = moment où la relance groupée démarre : une commande relancée pendant cette session a
 // reviewReminderSentAt >= startedAt et n'est donc pas reprise (sinon la boucle ne finirait jamais).
-export function reviewReminderAllDeliveredWhere(startedAt: Date) {
+export async function reviewReminderAllDeliveredWhere(startedAt: Date) {
+  const excluded = await getReviewExcludedEmails();
   return {
     status: 'DELIVERED' as const,
-    customerEmail: { not: 'a-completer@reparmonphone.fr' },
+    noReviewRequest: false,
+    customerEmail: { not: 'a-completer@reparmonphone.fr', notIn: excluded },
     OR: [{ reviewReminderSentAt: null }, { reviewReminderSentAt: { lt: startedAt } }],
   };
 }
 
 export async function countReviewReminderEligible() {
-  return prisma.order.count({ where: reviewReminderEligibleWhere() });
+  return prisma.order.count({ where: await reviewReminderEligibleWhere() });
 }
 
 export async function sendReviewReminder(orderId: string) {
@@ -53,6 +70,16 @@ export async function sendReviewReminder(orderId: string) {
   });
   if (!order) return { error: 'Commande introuvable.' };
   if (order.status !== 'DELIVERED') return { error: 'Cette commande n\u2019est pas (ou plus) au statut "Livrée".' };
+  if (order.noReviewRequest) {
+    return { error: 'Cette commande est marquée « Ne pas demander d\u2019avis ». Décoche l\u2019option pour pouvoir envoyer la demande.' };
+  }
+  const clientExcluded = await prisma.order.findFirst({
+    where: { customerEmail: order.customerEmail, noReviewRequest: true },
+    select: { id: true },
+  });
+  if (clientExcluded) {
+    return { error: 'Une autre commande de ce client est marquée « Ne pas demander d\u2019avis » : demande non envoyée.' };
+  }
 
   // Ne relance que pour les produits pas encore commentés par ce client (si connecté)
   const reviewedProductIds = order.userId

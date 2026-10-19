@@ -4,7 +4,8 @@ import { formatPrice } from '@/lib/format';
 import { CARRIER_LABELS } from '@/lib/tracking';
 import OrderRowActions from './OrderRowActions';
 import BulkReviewReminderButton from './BulkReviewReminderButton';
-import { countReviewReminderEligible } from '@/lib/reviewReminder';
+import NoReviewToggle from './NoReviewToggle';
+import { countReviewReminderEligible, getReviewExcludedEmails } from '@/lib/reviewReminder';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'En attente',
@@ -74,10 +75,12 @@ function trackingSummary(o: OrderForTracking): { label: string; color: string } 
 export default async function AdminCommandesPage({
   searchParams,
 }: {
-  searchParams: { statut?: string; q?: string };
+  searchParams: { statut?: string; q?: string; avis?: string };
 }) {
   const where: Record<string, unknown> = {};
+  const onlyExcluded = searchParams.avis === 'exclus';
   if (searchParams.statut) where.status = searchParams.statut;
+  if (onlyExcluded) where.noReviewRequest = true;
   if (searchParams.q) {
     where.OR = [
       { customerName: { contains: searchParams.q, mode: 'insensitive' } },
@@ -95,10 +98,19 @@ export default async function AdminCommandesPage({
     },
   });
 
-  const [eligibleReviewCount, allDeliveredCount] = await Promise.all([
+  const excludedEmails = await getReviewExcludedEmails();
+  const [eligibleReviewCount, allDeliveredCount, excludedOrdersCount] = await Promise.all([
     countReviewReminderEligible(),
-    prisma.order.count({ where: { status: 'DELIVERED', customerEmail: { not: 'a-completer@reparmonphone.fr' } } }),
+    prisma.order.count({
+      where: {
+        status: 'DELIVERED',
+        noReviewRequest: false,
+        customerEmail: { not: 'a-completer@reparmonphone.fr', notIn: excludedEmails },
+      },
+    }),
+    prisma.order.count({ where: { noReviewRequest: true } }),
   ]);
+  const tabBase = 'px-4 py-2 text-sm font-medium rounded-lg transition';
 
   return (
     <div>
@@ -113,7 +125,29 @@ export default async function AdminCommandesPage({
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Link
+          href="/admin/commandes"
+          className={`${tabBase} ${!onlyExcluded ? 'bg-brand text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >
+          Toutes les commandes
+        </Link>
+        <Link
+          href="/admin/commandes?avis=exclus"
+          className={`${tabBase} ${onlyExcluded ? 'bg-red-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >
+          🚫 Sans demande d&apos;avis ({excludedOrdersCount})
+        </Link>
+      </div>
+      {onlyExcluded && (
+        <p className="text-xs text-gray-500 mb-4">
+          Ces commandes (et les autres commandes de ces mêmes clients) ne reçoivent jamais de demande d&apos;avis, ni automatique ni groupée.
+          Clique sur « 🚫 Pas d&apos;avis » dans la ligne pour réactiver.
+        </p>
+      )}
+
       <form className="flex flex-wrap gap-3 mb-6" action="/admin/commandes" method="get">
+        {onlyExcluded && <input type="hidden" name="avis" value="exclus" />}
         <input
           type="text"
           name="q"
@@ -131,7 +165,7 @@ export default async function AdminCommandesPage({
           Filtrer
         </button>
         {(searchParams.statut || searchParams.q) && (
-          <Link href="/admin/commandes" className="text-sm text-gray-500 hover:text-gray-800 self-center">
+          <Link href={onlyExcluded ? '/admin/commandes?avis=exclus' : '/admin/commandes'} className="text-sm text-gray-500 hover:text-gray-800 self-center">
             Réinitialiser
           </Link>
         )}
@@ -181,7 +215,10 @@ export default async function AdminCommandesPage({
                     {new Date(o.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}
                   </td>
                   <td className="px-4 py-3">
-                    <OrderRowActions orderId={o.id} isPending={o.status === 'PENDING'} />
+                    <div className="flex flex-col items-start gap-1.5">
+                      <OrderRowActions orderId={o.id} isPending={o.status === 'PENDING'} />
+                      <NoReviewToggle orderId={o.id} initialValue={o.noReviewRequest} variant="compact" />
+                    </div>
                   </td>
                 </tr>
               ))}

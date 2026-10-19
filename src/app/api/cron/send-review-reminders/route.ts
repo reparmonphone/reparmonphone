@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendReviewReminder } from '@/lib/reviewReminder';
+import { sendReviewReminder, getReviewExcludedEmails } from '@/lib/reviewReminder';
 
 // Appelée périodiquement par Vercel Cron (voir vercel.json) — protégée par CRON_SECRET.
 export async function GET(req: NextRequest) {
@@ -12,7 +12,13 @@ export async function GET(req: NextRequest) {
   const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
 
   const staleOrders = await prisma.order.findMany({
-    where: { status: 'DELIVERED', deliveredAt: { lte: tenDaysAgo }, reviewReminderSentAt: null },
+    where: {
+      status: 'DELIVERED',
+      deliveredAt: { lte: tenDaysAgo },
+      reviewReminderSentAt: null,
+      noReviewRequest: false,
+      customerEmail: { notIn: await getReviewExcludedEmails() },
+    },
     select: { id: true },
     take: 50,
   });
