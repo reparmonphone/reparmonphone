@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
+import { syncAppointmentToCalendar } from '@/lib/googleCalendar';
 import type { AppointmentStatus } from '@prisma/client';
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
@@ -11,6 +12,8 @@ const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonph
 export async function updateAppointmentStatus(appointmentId: string, status: AppointmentStatus) {
   await requireAdminUser();
   await prisma.appointment.update({ where: { id: appointmentId }, data: { status } });
+  // Met à jour (ou retire, si annulé) l'événement dans Google Agenda ; sans effet si la synchro est désactivée
+  await syncAppointmentToCalendar(appointmentId);
   revalidatePath('/admin/rdv');
   revalidatePath(`/admin/rdv/${appointmentId}`);
 }

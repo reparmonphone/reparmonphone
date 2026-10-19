@@ -11,6 +11,7 @@ import PartialShipmentsPanel from './PartialShipmentsPanel';
 import OrderNotesPanel from './OrderNotesPanel';
 import OrderItemsEditor from './OrderItemsEditor';
 import NoReviewToggle from '../NoReviewToggle';
+import ReviewStatusBadge from '../ReviewStatusBadge';
 
 export default async function AdminOrderDetailPage({ params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
@@ -203,6 +204,18 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
         )}
         <div className="mt-4 pt-4 border-t border-gray-100">
           <NoReviewToggle orderId={order.id} initialValue={order.noReviewRequest} />
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-xs font-medium text-gray-500 mb-1">Demande d&apos;avis</p>
+          <ReviewStatusBadge
+            status={order.status}
+            noReviewRequest={order.noReviewRequest}
+            reviewReminderSentAt={order.reviewReminderSentAt}
+            reviewAutoSentAt={order.reviewAutoSentAt}
+            reviewRelanceCount={order.reviewRelanceCount}
+            deliveredAt={order.deliveredAt}
+            createdAt={order.createdAt}
+          />
         </div>
         {order.status === 'DELIVERED' && !order.noReviewRequest && <ReviewReminderButton orderId={order.id} />}
       </div>

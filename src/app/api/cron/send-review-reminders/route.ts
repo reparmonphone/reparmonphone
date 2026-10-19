@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   let sent = 0;
   for (const order of staleOrders) {
-    const result = await sendReviewReminder(order.id);
+    const result = await sendReviewReminder(order.id, 'auto');
     if (result.ok) sent++;
   }
 

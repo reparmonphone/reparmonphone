@@ -63,7 +63,9 @@ export async function countReviewReminderEligible() {
   return prisma.order.count({ where: await reviewReminderEligibleWhere() });
 }
 
-export async function sendReviewReminder(orderId: string) {
+// source = 'auto' (cron automatique) ou 'manual' (bouton « Relancer » / relance groupée) : sert uniquement au suivi
+// affiché dans la liste des commandes.
+export async function sendReviewReminder(orderId: string, source: 'auto' | 'manual' = 'manual') {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: { include: { product: true } } },
@@ -135,6 +137,13 @@ export async function sendReviewReminder(orderId: string) {
     return { error: "Erreur lors de l'envoi de l'email." };
   }
 
-  await prisma.order.update({ where: { id: order.id }, data: { reviewReminderSentAt: new Date() } });
+  const now = new Date();
+  await prisma.order.update({
+    where: { id: order.id },
+    data:
+      source === 'auto'
+        ? { reviewReminderSentAt: now, reviewAutoSentAt: now }
+        : { reviewReminderSentAt: now, reviewRelanceCount: { increment: 1 } },
+  });
   return { ok: true };
 }

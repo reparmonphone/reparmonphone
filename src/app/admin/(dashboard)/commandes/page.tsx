@@ -5,6 +5,7 @@ import { CARRIER_LABELS } from '@/lib/tracking';
 import OrderRowActions from './OrderRowActions';
 import BulkReviewReminderButton from './BulkReviewReminderButton';
 import NoReviewToggle from './NoReviewToggle';
+import ReviewStatusBadge from './ReviewStatusBadge';
 import { countReviewReminderEligible, getReviewExcludedEmails } from '@/lib/reviewReminder';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -78,9 +79,18 @@ export default async function AdminCommandesPage({
   searchParams: { statut?: string; q?: string; avis?: string };
 }) {
   const where: Record<string, unknown> = {};
-  const onlyExcluded = searchParams.avis === 'exclus';
+  const avisFilter = searchParams.avis ?? '';
+  const onlyExcluded = avisFilter === 'exclus';
   if (searchParams.statut) where.status = searchParams.statut;
   if (onlyExcluded) where.noReviewRequest = true;
+  // Envoyées : un e-mail de demande d'avis (auto ou manuel) est déjà parti
+  if (avisFilter === 'envoyes') where.reviewReminderSentAt = { not: null };
+  // À envoyer : livrées, jamais demandé, pas exclues
+  if (avisFilter === 'a-envoyer') {
+    where.status = 'DELIVERED';
+    where.reviewReminderSentAt = null;
+    where.noReviewRequest = false;
+  }
   if (searchParams.q) {
     where.OR = [
       { customerName: { contains: searchParams.q, mode: 'insensitive' } },
@@ -98,8 +108,9 @@ export default async function AdminCommandesPage({
     },
   });
 
+  const tabBase = 'px-4 py-2 text-sm font-medium rounded-lg transition';
   const excludedEmails = await getReviewExcludedEmails();
-  const [eligibleReviewCount, allDeliveredCount, excludedOrdersCount] = await Promise.all([
+  const [eligibleReviewCount, allDeliveredCount, excludedOrdersCount, sentCount, toSendCount] = await Promise.all([
     countReviewReminderEligible(),
     prisma.order.count({
       where: {
@@ -109,8 +120,11 @@ export default async function AdminCommandesPage({
       },
     }),
     prisma.order.count({ where: { noReviewRequest: true } }),
+    prisma.order.count({ where: { reviewReminderSentAt: { not: null } } }),
+    prisma.order.count({ where: { status: 'DELIVERED', reviewReminderSentAt: null, noReviewRequest: false } }),
   ]);
-  const tabBase = 'px-4 py-2 text-sm font-medium rounded-lg transition';
+  const tabCls = (active: boolean, activeColor = 'bg-brand text-white') =>
+    `${tabBase} ${active ? activeColor : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`;
 
   return (
     <div>
@@ -126,16 +140,16 @@ export default async function AdminCommandesPage({
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <Link
-          href="/admin/commandes"
-          className={`${tabBase} ${!onlyExcluded ? 'bg-brand text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-        >
+        <Link href="/admin/commandes" className={tabCls(!avisFilter)}>
           Toutes les commandes
         </Link>
-        <Link
-          href="/admin/commandes?avis=exclus"
-          className={`${tabBase} ${onlyExcluded ? 'bg-red-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-        >
+        <Link href="/admin/commandes?avis=a-envoyer" className={tabCls(avisFilter === 'a-envoyer', 'bg-amber-500 text-white')}>
+          ⏳ Avis à envoyer ({toSendCount})
+        </Link>
+        <Link href="/admin/commandes?avis=envoyes" className={tabCls(avisFilter === 'envoyes', 'bg-green-600 text-white')}>
+          ✉️ Avis déjà demandé ({sentCount})
+        </Link>
+        <Link href="/admin/commandes?avis=exclus" className={tabCls(onlyExcluded, 'bg-red-600 text-white')}>
           🚫 Sans demande d&apos;avis ({excludedOrdersCount})
         </Link>
       </div>
@@ -147,7 +161,7 @@ export default async function AdminCommandesPage({
       )}
 
       <form className="flex flex-wrap gap-3 mb-6" action="/admin/commandes" method="get">
-        {onlyExcluded && <input type="hidden" name="avis" value="exclus" />}
+        {avisFilter && <input type="hidden" name="avis" value={avisFilter} />}
         <input
           type="text"
           name="q"
@@ -165,7 +179,7 @@ export default async function AdminCommandesPage({
           Filtrer
         </button>
         {(searchParams.statut || searchParams.q) && (
-          <Link href={onlyExcluded ? '/admin/commandes?avis=exclus' : '/admin/commandes'} className="text-sm text-gray-500 hover:text-gray-800 self-center">
+          <Link href={avisFilter ? `/admin/commandes?avis=${avisFilter}` : '/admin/commandes'} className="text-sm text-gray-500 hover:text-gray-800 self-center">
             Réinitialiser
           </Link>
         )}
@@ -184,6 +198,7 @@ export default async function AdminCommandesPage({
                 <th className="px-4 py-3">Paiement</th>
                 <th className="px-4 py-3">Statut</th>
                 <th className="px-4 py-3">Suivi</th>
+                <th className="px-4 py-3">Demande d&apos;avis</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -210,6 +225,17 @@ export default async function AdminCommandesPage({
                   </td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap">
                     <span className={trackingSummary(o).color}>{trackingSummary(o).label}</span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <ReviewStatusBadge
+                      status={o.status}
+                      noReviewRequest={o.noReviewRequest}
+                      reviewReminderSentAt={o.reviewReminderSentAt}
+                      reviewAutoSentAt={o.reviewAutoSentAt}
+                      reviewRelanceCount={o.reviewRelanceCount}
+                      deliveredAt={o.deliveredAt}
+                      createdAt={o.createdAt}
+                    />
                   </td>
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                     {new Date(o.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}

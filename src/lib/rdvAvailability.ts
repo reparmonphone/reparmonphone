@@ -51,3 +51,25 @@ export function addDays(date: string, n: number): string {
 export function todayInParis(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
 }
+
+// ---- Rendez-vous déjà acceptés (statut « Confirmé » dans l'admin) ----
+// Un nouveau RDV est refusé s'il tombe à moins de RDV_DURATION_MIN minutes d'un RDV déjà confirmé (durée
+// moyenne d'une intervention : à ajuster ici si besoin).
+export const RDV_DURATION_MIN = 60;
+
+export type BookedLite = { date: string; time: string }; // "AAAA-MM-JJ" + "HH:mm" (aucune donnée client)
+
+function toMinutes(time: string): number {
+  return parseInt(time.slice(0, 2), 10) * 60 + parseInt(time.slice(3, 5), 10);
+}
+
+/** Heures déjà prises ce jour-là, triées. */
+export function bookedTimesOn(date: string, booked: BookedLite[]): string[] {
+  return booked.filter((b) => b.date === date).map((b) => b.time).sort();
+}
+
+/** Renvoie le RDV confirmé qui gêne l'heure demandée, ou null si l'heure est libre. */
+export function findBookingConflict(date: string, time: string, booked: BookedLite[]): BookedLite | null {
+  const wanted = toMinutes(time);
+  return booked.find((b) => b.date === date && Math.abs(toMinutes(b.time) - wanted) < RDV_DURATION_MIN) ?? null;
+}

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import AppointmentStatusSelect from '../AppointmentStatusSelect';
 import AppointmentReplyForm from './AppointmentReplyForm';
+import { googleCalendarTemplateUrl } from '@/lib/googleCalendar';
 
 export default async function AdminRdvDetailPage({ params }: { params: { id: string } }) {
   const appointment = await prisma.appointment.findUnique({ where: { id: params.id } });
@@ -41,6 +42,18 @@ export default async function AdminRdvDetailPage({ params }: { params: { id: str
           <div>
             <p className="text-xs text-gray-400">Date souhaitée</p>
             <p className="text-gray-700">{new Date(appointment.preferredDate).toLocaleString('fr-FR')}</p>
+            {appointment.googleEventId ? (
+              <p className="text-xs text-green-700 mt-1">✅ Dans ton Google Agenda</p>
+            ) : (
+              <a
+                href={googleCalendarTemplateUrl(appointment)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-brand font-medium hover:underline"
+              >
+                📆 Ajouter à Google Agenda →
+              </a>
+            )}
           </div>
         </div>
 

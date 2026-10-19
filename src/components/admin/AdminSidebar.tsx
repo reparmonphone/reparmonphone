@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { href: '/admin/menu', label: '📋 Menu du header' },
   { href: '/admin/collections', label: '⭐ Collections' },
   { href: '/admin/maintenance', label: '🚧 Mode maintenance' },
+  { href: '/admin/vacances', label: '🏖️ Mode vacances' },
   { href: '/admin/commandes', label: '🛒 Commandes', badgeKey: 'orders' },
   { href: '/admin/litiges', label: '⚠️ Litiges & réclamations', badgeKey: 'claims' },
   { href: '/admin/livraison', label: '🚚 Frais de port' },

@@ -308,7 +308,9 @@ model Order {
 
   reminderSentAt DateTime? // dernière relance email envoyée pour une commande restée "En attente"
   deliveredAt    DateTime? // date à laquelle la commande est passée au statut "Livrée"
-  reviewReminderSentAt DateTime? // relance "laisse un avis" déjà envoyée pour cette commande
+  reviewReminderSentAt DateTime? // dernière demande d'avis envoyée (automatique OU manuelle) pour cette commande
+  reviewAutoSentAt DateTime? // date d'envoi de la demande d'avis AUTOMATIQUE (cron, 10 jours après livraison)
+  reviewRelanceCount Int @default(0) // nombre de demandes/relances d'avis envoyées MANUELLEMENT (bouton ou relance groupée)
   noReviewRequest Boolean @default(false) // true = aucune demande d'avis automatique/groupée pour cette commande (ni pour ce client)
 
   // Coût réel d'expédition payé par l'admin (Chronopost/Colissimo...) — DIFFÉRENT de shippingCost
@@ -469,6 +471,7 @@ model Appointment {
   status          AppointmentStatus @default(REQUESTED)
   adminReply    String?   @db.Text // dernière réponse envoyée au client depuis l'admin
   repliedAt     DateTime? // date d'envoi de cette réponse
+  googleEventId String? // identifiant de l'événement dans Google Agenda (synchro, voir /admin/rdv/agenda)
 
   createdAt DateTime @default(now())
 

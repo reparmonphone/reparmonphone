@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
-import { periodOfTime } from '@/lib/rdvAvailability';
+import { findBookingConflict, periodOfTime } from '@/lib/rdvAvailability';
+import { getVacationConfig } from '@/lib/vacation';
+import { formatRange, isDuringVacation } from '@/lib/vacationShared';
+import { googleCalendarTemplateUrl, syncAppointmentToCalendar } from '@/lib/googleCalendar';
 
 const schema = z.object({
   customerName: z.string().min(2),
@@ -34,6 +37,18 @@ export async function POST(req: NextRequest) {
   // Vérifie côté serveur que le créneau n'a pas été fermé dans l'admin (matin / après-midi / journée)
   const slotDate = data.preferredDate.slice(0, 10);
   const slotPeriod = periodOfTime(data.preferredDate.slice(11, 16));
+  // Mode vacances : aucun RDV pendant les dates de vacances
+  const vacation = await getVacationConfig();
+  if (isDuringVacation(vacation, slotDate)) {
+    return NextResponse.json(
+      {
+        error: 'vacances',
+        message: `Nous sommes en vacances ${formatRange(vacation.start, vacation.end)}. Merci de choisir une date après notre retour.`,
+      },
+      { status: 409 }
+    );
+  }
+
   const [sy, sm, sd] = slotDate.split('-').map(Number);
   const slotWeekday = new Date(Date.UTC(sy, sm - 1, sd)).getUTCDay();
   const blocked = await prisma.rdvBlock.findFirst({
@@ -45,7 +60,34 @@ export async function POST(req: NextRequest) {
   });
   if (blocked) {
     return NextResponse.json(
-      { error: 'creneau_indisponible', message: 'Ce créneau n\u2019est pas disponible.' },
+      {
+        error: 'creneau_indisponible',
+        message: 'Ce créneau n\u2019est pas disponible. Merci de choisir un autre moment ou une autre date.',
+      },
+      { status: 409 }
+    );
+  }
+
+  // Heure déjà prise par un rendez-vous que j'ai accepté (statut « Confirmé ») : le client doit décaler
+  const confirmedThatDay = await prisma.appointment.findMany({
+    where: {
+      status: 'CONFIRMED',
+      preferredDate: { gte: new Date(`${slotDate}T00:00`), lte: new Date(`${slotDate}T23:59`) },
+    },
+    select: { preferredDate: true },
+  });
+  const conflict = findBookingConflict(
+    slotDate,
+    data.preferredDate.slice(11, 16),
+    confirmedThatDay.map((a) => ({ date: slotDate, time: a.preferredDate.toISOString().slice(11, 16) }))
+  );
+  if (conflict) {
+    return NextResponse.json(
+      {
+        error: 'deja_reserve',
+        message:
+          'Un rendez-vous est déjà prévu à cette heure-là. Merci de décaler votre demande : choisissez une autre heure ou un autre jour.',
+      },
       { status: 409 }
     );
   }
@@ -70,6 +112,9 @@ export async function POST(req: NextRequest) {
       userId: user?.id,
     },
   });
+
+  // Ajout dans Google Agenda (si activé dans l'admin) — n'empêche jamais la création du RDV
+  await syncAppointmentToCalendar(appointment.id);
 
   // Notifications email — n'empêchent jamais la création du RDV de réussir si l'envoi échoue
   const resend = getResendClient();
@@ -107,6 +152,7 @@ export async function POST(req: NextRequest) {
                 <p style="color:#6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px;">Description de la panne</p>
                 <p style="color:#374151; font-size: 14px; line-height: 1.6; white-space: pre-line; margin: 0;">${data.issueDescription}</p>
               </div>
+              <p style="text-align:center; margin: 16px 0 0;"><a href="${googleCalendarTemplateUrl(appointment)}" style="color:#1e3a8a; font-size:13px; font-weight:600;">📆 Ajouter à Google Agenda</a></p>
               <div style="text-align:center; margin-top: 20px;">
                 <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr'}/admin/rdv/${appointment.id}" style="display:inline-block; background:#1e3a8a; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Voir et répondre</a>
               </div>
