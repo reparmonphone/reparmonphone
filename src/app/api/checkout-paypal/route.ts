@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { createPaypalOrder } from '@/lib/paypal';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
+import { getClientIp } from '@/lib/clientIp';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
 import { getFreeShippingConfig } from '@/lib/freeShipping';
 
@@ -73,8 +74,21 @@ export async function POST(req: NextRequest) {
     // Revalidation du code promo côté serveur
     let discountAmount = 0;
     let appliedPromoCode: string | undefined;
+    // Compte connecté (si présent) + adresse IP : utilisés par les codes limités à 1 usage par client
+    // (ex. REPARMONPHONEFIDELITY) et pour rattacher la commande au compte.
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const clientIp = getClientIp(req);
     if (promoCode) {
-      const validation = await validatePromoCode(promoCode, subtotal);
+      const validation = await validatePromoCode(promoCode, subtotal, {
+        email: customer?.email || user?.email || null,
+        userId: user?.id ?? null,
+        ip: clientIp,
+      });
+      // Code refusé : on le dit au client au lieu de facturer sans la remise qu'il voit dans son panier.
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 });
       if (validation.ok) {
         discountAmount = validation.discount;
         appliedPromoCode = validation.code;
@@ -83,10 +97,6 @@ export async function POST(req: NextRequest) {
 
     const total = Math.max(0, subtotal + shippingCost - discountAmount);
 
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
     // Comme pour SumUp, on collecte l'adresse nous-mêmes plutôt que de dépendre du profil PayPal de l'acheteur.
     const shipLine1 = customer.shipDifferent ? customer.shipAddressLine1 : customer.addressLine1;
@@ -111,6 +121,7 @@ export async function POST(req: NextRequest) {
         shippingCost,
         shippingMethod: shippingOption?.label ?? null,
         promoCode: appliedPromoCode,
+        ipAddress: clientIp,
         discountAmount,
         total,
         status: 'PENDING',

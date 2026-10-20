@@ -17,6 +17,7 @@ import GoogleTagManagerLoader from '@/components/GoogleTagManagerLoader';
 import JsonLd from '@/components/JsonLd';
 import { InstallAppPrompt, InstallAppEarlyScript } from '@/components/install-app-prompt';
 import ProductTransition from '@/components/ProductTransition';
+import CartTransition from '@/components/CartTransition';
 import { prisma } from '@/lib/prisma';
 import { getSiteMeta } from '@/lib/siteMeta';
 
@@ -253,6 +254,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <GoogleTagManagerLoader />
         <InstallAppPrompt />
         <ProductTransition />
+        <CartTransition />
       </body>
     </html>
   );

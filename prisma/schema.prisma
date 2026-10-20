@@ -269,6 +269,7 @@ model Order {
   id             String      @id @default(cuid())
   invoiceNumber  Int         @unique @default(autoincrement())
   userId         String? // uuid Supabase Auth (auth.users.id) si le client était connecté au moment de la commande
+  ipAddress      String? // adresse IP au moment de la commande — uniquement pour limiter certains codes promo à 1 usage / client
   customerName   String
   customerEmail  String
   customerPhone  String?
@@ -785,6 +786,11 @@ model PromoCode {
   expiresAt DateTime?
   maxUses   Int? // null = illimité
   usedCount Int       @default(0)
+  // Code de fidélité : utilisable une seule fois par client (même e-mail / même compte / même adresse IP
+  // sur une commande déjà payée avec ce code) et seulement à partir de la 2ème commande (le client doit
+  // déjà avoir une commande payée à son e-mail ou sur son compte).
+  oncePerCustomer    Boolean @default(false)
+  requiresPriorOrder Boolean @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

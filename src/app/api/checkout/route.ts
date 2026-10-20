@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
+import { getClientIp } from '@/lib/clientIp';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
 import { DOMTOM_STRIPE_COUNTRY_CODES } from '@/lib/shippingCountryCodes';
 import { getFreeShippingConfig } from '@/lib/freeShipping';
@@ -75,8 +76,21 @@ export async function POST(req: NextRequest) {
     let discountAmount = 0;
     let appliedPromoCode: string | undefined;
     let stripeCouponId: string | undefined;
+    // Compte connecté (si présent) + adresse IP : utilisés par les codes limités à 1 usage par client
+    // (ex. REPARMONPHONEFIDELITY) et pour rattacher la commande au compte.
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const clientIp = getClientIp(req);
     if (promoCode) {
-      const validation = await validatePromoCode(promoCode, subtotal);
+      const validation = await validatePromoCode(promoCode, subtotal, {
+        email: customer?.email || user?.email || null,
+        userId: user?.id ?? null,
+        ip: clientIp,
+      });
+      // Code refusé : on le dit au client au lieu de facturer sans la remise qu'il voit dans son panier.
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 });
       if (validation.ok) {
         discountAmount = validation.discount;
         appliedPromoCode = validation.code;
@@ -93,11 +107,6 @@ export async function POST(req: NextRequest) {
 
     const total = Math.max(0, subtotal + shippingCost - discountAmount);
 
-    // Si le client est connecté, on rattache la commande à son compte (sinon commande "invité")
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
     // On crée la commande tout de suite en PENDING — les infos client/livraison définitives
     // (nom, adresse) ne sont connues qu'après saisie sur la page Stripe et seront complétées par le webhook.
@@ -113,6 +122,7 @@ export async function POST(req: NextRequest) {
         shippingCost,
         shippingMethod: shippingOption?.label ?? null,
         promoCode: appliedPromoCode,
+        ipAddress: clientIp,
         discountAmount,
         total,
         status: 'PENDING',

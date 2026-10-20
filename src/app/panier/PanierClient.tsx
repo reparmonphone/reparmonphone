@@ -28,6 +28,21 @@ type InitialCustomer = {
 };
 type PaymentMethods = { stripe: boolean; sumup: boolean; paypal: boolean };
 
+// Entrée de la page Panier : les blocs arrivent en cascade. Quand le visiteur vient de l'animation
+// d'ouverture (CartTransition), la classe cart-tx sur <html> met la cascade en pause tant que le voile
+// couvre la page, pour qu'elle se joue sous ses yeux à l'instant où le voile se retire.
+const CART_ENTRY_CSS = `
+.cart-rise{animation:cart-rise .6s cubic-bezier(.2,.8,.2,1) both}
+.cart-rise-side{animation:cart-rise-side .7s cubic-bezier(.2,.8,.2,1) both}
+html.cart-tx .cart-rise,html.cart-tx .cart-rise-side{animation-play-state:paused}
+@keyframes cart-rise{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes cart-rise-side{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+.cart-cta{position:relative;overflow:hidden;isolation:isolate}
+.cart-cta::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.38) 50%,transparent 65%);transform:translateX(-130%);animation:cart-cta-shine 4.2s ease-in-out 1.6s infinite}
+@keyframes cart-cta-shine{0%,70%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
+@media (prefers-reduced-motion:reduce){.cart-rise,.cart-rise-side{animation:none}.cart-cta::after{animation:none}}
+`;
+
 export default function PanierClient({
   shippingOptions,
   shippingZones,
@@ -120,7 +135,7 @@ export default function PanierClient({
       const res = await fetch('/api/promo/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: promoInput, subtotal }),
+        body: JSON.stringify({ code: promoInput, subtotal, email: email.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -247,7 +262,8 @@ export default function PanierClient({
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-center gap-3 mb-8 text-sm">
+      <style>{CART_ENTRY_CSS}</style>
+      <div className="cart-rise flex items-center gap-3 mb-8 text-sm" style={{ animationDelay: '0s' }}>
         <StepBadge n={1} label="Panier" active />
         <span className="text-gray-300">›</span>
         <StepBadge n={2} label="Vérifier" active />
@@ -255,7 +271,7 @@ export default function PanierClient({
         <StepBadge n={3} label="Statut de la commande" />
       </div>
 
-      <div className="bg-brand text-white rounded-xl px-5 py-3 mb-8 text-sm">
+      <div className="cart-rise bg-brand text-white rounded-xl px-5 py-3 mb-8 text-sm" style={{ animationDelay: '0.08s' }}>
         🗓️ 👉{' '}
         <Link href="/rdv" className="underline font-medium">
           Pense à prendre rendez-vous
@@ -320,8 +336,12 @@ export default function PanierClient({
 
           <h2 className="text-lg font-bold mb-4">Articles</h2>
           <div className="space-y-3">
-            {items.map((item) => (
-              <div key={item.productId} className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4">
+            {items.map((item, idx) => (
+              <div
+                key={item.productId}
+                className="cart-rise flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4"
+                style={{ animationDelay: `${0.16 + Math.min(idx, 6) * 0.09}s` }}
+              >
                 <div className="relative w-14 h-14 shrink-0 bg-gray-50 rounded">
                   {item.imageUrl && <Image src={item.imageUrl} alt={item.title} fill className="object-contain p-1" />}
                 </div>
@@ -345,7 +365,7 @@ export default function PanierClient({
         </div>
 
         {/* Colonne droite */}
-        <div className="bg-white border border-gray-100 rounded-xl p-6 h-fit lg:sticky lg:top-6">
+        <div className="cart-rise-side bg-white border border-gray-100 rounded-xl p-6 h-fit lg:sticky lg:top-6" style={{ animationDelay: '0.22s' }}>
           <h2 className="font-bold text-lg mb-4">Ta commande</h2>
 
           <div className="space-y-2 mb-4 pb-4 border-b border-gray-100">
@@ -495,7 +515,7 @@ export default function PanierClient({
                   <button
                     onClick={() => checkout('stripe')}
                     disabled={loading !== null}
-                    className="w-full bg-brand text-white py-3 rounded-lg font-semibold hover:bg-brand-dark transition disabled:opacity-60"
+                    className="cart-cta w-full bg-brand text-white py-3 rounded-lg font-semibold hover:bg-brand-dark transition disabled:opacity-60"
                   >
                     {loading === 'stripe' ? 'Redirection...' : '💳 Commander et payer par carte'}
                   </button>

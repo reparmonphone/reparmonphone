@@ -12,7 +12,7 @@ export default function TopUtilityBar() {
 
         <div className="flex items-center gap-4 ml-auto">
           <span className="hidden sm:inline text-brand-light">
-            🎁 Bénéficiez de 15% sur votre 2ème commande !{' '}
+            🎁 Bénéficiez de 5% sur votre 2ème commande !{' '}
             <Link href="/boutique" className="underline font-medium">En savoir plus</Link>
           </span>
           <div className="flex items-center gap-2 text-sm">

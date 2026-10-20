@@ -3,7 +3,7 @@ import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { generateInvoicePdf } from '@/lib/invoicePdf';
 import { getResendClient } from '@/lib/resend';
-import { sendNewOrderAdminNotification } from '@/lib/orderEmails';
+import { sendNewOrderAdminNotification, fidelityBlockHtml } from '@/lib/orderEmails';
 import Stripe from 'stripe';
 
 export async function POST(req: NextRequest) {
@@ -191,11 +191,12 @@ export async function POST(req: NextRequest) {
             })),
           });
           const invoiceLabel = `${updatedOrder.createdAt.getFullYear()}-${String(updatedOrder.invoiceNumber).padStart(5, '0')}`;
+          const fidelityHtml = await fidelityBlockHtml(updatedOrder, 'tu');
           await resend.emails.send({
             from: process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>',
             to: updatedOrder.customerEmail,
             subject: `Confirmation de commande — Facture n° ${invoiceLabel}`,
-            html: `<p>Bonjour ${updatedOrder.customerName},</p><p>Merci pour ta commande ! Ta facture n° ${invoiceLabel} est en pièce jointe.</p><p>L'équipe ReparMonPhone</p>`,
+            html: `<p>Bonjour ${updatedOrder.customerName},</p><p>Merci pour ta commande ! Ta facture n° ${invoiceLabel} est en pièce jointe.</p>${fidelityHtml}<p>L'équipe ReparMonPhone</p>`,
             attachments: [{ filename: `facture-reparmonphone-${invoiceLabel}.pdf`, content: pdfBuffer }],
           });
         }

@@ -49,6 +49,41 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
+// ---------- Offre de fidélité : -5 % sur la 2ème commande ----------
+// Bloc affiché dans l'e-mail de confirmation de commande et dans les e-mails d'expédition / de suivi.
+// Masqué si le client a déjà utilisé le code (sur cette commande ou une précédente).
+export const FIDELITY_CODE = 'REPARMONPHONEFIDELITY';
+export const FIDELITY_PERCENT = 5;
+
+export async function fidelityBlockHtml(
+  order: { customerEmail: string; promoCode: string | null },
+  tone: 'vous' | 'tu' = 'vous'
+): Promise<string> {
+  try {
+    if (order.promoCode === FIDELITY_CODE) return '';
+    const used = await prisma.order.count({
+      where: {
+        promoCode: FIDELITY_CODE,
+        status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'REFUNDED'] },
+        customerEmail: { equals: order.customerEmail, mode: 'insensitive' },
+      },
+    });
+    if (used > 0) return '';
+  } catch {
+    // en cas d'erreur de lecture, on affiche quand même l'offre
+  }
+  const you = tone === 'vous';
+  return `
+    <div style="background:#fffbeb; border:1px dashed #f59e0b; border-radius:8px; padding:16px; margin:20px 0; text-align:center;">
+      <p style="margin:0 0 6px; font-size:15px; font-weight:700; color:#92400e;">🎁 ${FIDELITY_PERCENT} % de remise sur ${you ? 'votre' : 'ta'} 2ème commande</p>
+      <p style="margin:0 0 10px; font-size:13px; color:#78350f; line-height:1.5;">
+        ${you ? 'Pour vous remercier de votre confiance, vous bénéficiez' : 'Pour te remercier de ta confiance, tu bénéficies'} de ${FIDELITY_PERCENT} % de remise sur <strong>tout ${you ? 'votre' : 'ton'} panier</strong> lors de ${you ? 'votre' : 'ta'} prochaine commande.
+      </p>
+      <p style="margin:0 0 10px;"><span style="display:inline-block; background:#ffffff; border:2px solid #f59e0b; border-radius:6px; padding:8px 16px; font-size:16px; font-weight:800; letter-spacing:0.06em; color:#111827;">${FIDELITY_CODE}</span></p>
+      <p style="margin:0; font-size:12px; color:#92400e;">À saisir ${you ? 'vous-même' : 'toi-même'} dans le champ « Code promo » du panier. Valable une seule fois par client.</p>
+    </div>`;
+}
+
 function emailWrapper(headerColor: string, headerTitle: string, headerSubtitle: string, bodyHtml: string) {
   return `
     <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto;">
@@ -97,6 +132,7 @@ export async function sendOrderConfirmedCustomerEmail(orderId: string) {
 
   const itemsHtml = orderItemsTableHtml(order.items);
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
+  const fidelityHtml = await fidelityBlockHtml(order);
 
   try {
     await resend.emails.send({
@@ -120,6 +156,7 @@ export async function sendOrderConfirmedCustomerEmail(orderId: string) {
             <tr><td style="padding:4px 0; color:#6b7280; font-size:14px;">Livraison</td><td style="padding:4px 0; text-align:right; font-size:14px;">${formatPrice(Number(order.shippingCost))}</td></tr>
             <tr><td style="padding:8px 0 0; color:#111827; font-size:16px; font-weight:700; border-top:1px solid #e5e7eb;">Total</td><td style="padding:8px 0 0; text-align:right; font-size:16px; font-weight:700; border-top:1px solid #e5e7eb;">${formatPrice(Number(order.total))}</td></tr>
           </table>
+          ${fidelityHtml}
           <p style="color:#6b7280; font-size: 13px; margin-top: 20px;">
             Vous recevrez un nouvel email dès que votre colis sera expédié.<br />
             Livraison à : ${order.shippingLine1}, ${order.shippingZip} ${order.shippingCity}
@@ -201,6 +238,7 @@ export async function sendOrderShippedEmail(orderId: string) {
 
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
   const trackingUrl = getTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
+  const fidelityHtml = await fidelityBlockHtml(order);
 
   try {
     await resend.emails.send({
@@ -229,6 +267,7 @@ export async function sendOrderShippedEmail(orderId: string) {
               ? `<div style="text-align:center; margin-top: 16px;"><a href="${trackingUrl}" style="display:inline-block; background:#2563eb; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Suivre mon colis</a></div>`
               : `<div style="text-align:center; margin-top: 16px;"><a href="${SITE_URL}/compte/commandes" style="display:inline-block; background:#2563eb; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Voir ma commande</a></div>`
           }
+          ${fidelityHtml}
         `
       ),
     });
@@ -249,6 +288,7 @@ export async function sendTrackingNumberEmail(orderId: string) {
 
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
   const trackingUrl = getTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
+  const fidelityHtml = await fidelityBlockHtml(order);
 
   try {
     await resend.emails.send({
@@ -272,6 +312,7 @@ export async function sendTrackingNumberEmail(orderId: string) {
               ? `<div style="text-align:center; margin-top: 16px;"><a href="${trackingUrl}" style="display:inline-block; background:#2563eb; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Suivre mon colis</a></div>`
               : ''
           }
+          ${fidelityHtml}
         `
       ),
     });
@@ -300,6 +341,7 @@ export async function sendShipmentTrackingEmail(shipmentId: string) {
   const { order } = shipment;
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
   const trackingUrl = getTrackingUrl(shipment.carrier, shipment.trackingNumber, shipment.trackingUrlOverride);
+  const fidelityHtml = await fidelityBlockHtml(order);
   const itemsHtml = orderItemsTableHtml(
     shipment.items.map((si) => ({ quantity: si.quantity, unitPrice: si.orderItem.unitPrice, product: si.orderItem.product }))
   );
@@ -330,6 +372,7 @@ export async function sendShipmentTrackingEmail(shipmentId: string) {
               ? `<div style="text-align:center; margin-top: 16px;"><a href="${trackingUrl}" style="display:inline-block; background:#2563eb; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Suivre ce colis</a></div>`
               : ''
           }
+          ${fidelityHtml}
           <p style="color:#9ca3af; font-size: 12px; margin-top: 16px;">
             Le reste de votre commande vous sera expédié séparément dès que possible ; vous recevrez un email dédié pour chaque colis.
           </p>
