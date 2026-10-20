@@ -42,6 +42,19 @@ function sortBrands(brands: Brand[]) {
   });
 }
 
+// Effet de survol des menus : le lien s'allume comme un écran de smartphone et un reflet blanc le traverse.
+// Le texte reste au-dessus (span relatif), l'effet se coupe pour qui a désactivé les animations.
+const NAV_CSS = `
+.nav-glare{position:relative;overflow:hidden;transition:color .2s}
+.nav-glare::before{content:"";position:absolute;inset:0;border-radius:inherit;border:1.5px solid #b8d9f5;background:linear-gradient(135deg,#f1f8ff,#d9ecfc);opacity:0;transition:opacity .2s}
+.nav-glare::after{content:"";position:absolute;inset:0;background:linear-gradient(112deg,transparent 38%,rgba(255,255,255,.95) 50%,transparent 62%);transform:translateX(-130%)}
+.nav-glare:hover,.nav-glare:focus-visible{color:#0E7FDB}
+.nav-glare:hover::before,.nav-glare:focus-visible::before{opacity:1}
+.nav-glare:hover::after,.nav-glare:focus-visible::after{animation:nav-glare .75s ease forwards}
+@keyframes nav-glare{to{transform:translateX(130%)}}
+@media (prefers-reduced-motion:reduce){.nav-glare::after{animation:none!important}.nav-glare{transition:none}}
+`;
+
 export default function Header({
   menuTree,
   menuItems,
@@ -100,6 +113,7 @@ export default function Header({
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
+      <style>{NAV_CSS}</style>
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-brand-dark">
           <AnimatedLogo size={168} />
@@ -115,9 +129,9 @@ export default function Header({
             >
               <Link
                 href={`/marque/${brand.slug}`}
-                className="px-3 py-2 rounded-lg hover:bg-brand-light hover:text-brand-dark transition inline-block"
+                className="nav-glare px-3 py-2 rounded-lg inline-block"
               >
-                {displayName(brand.name)}
+                <span className="relative z-[1]">{displayName(brand.name)}</span>
               </Link>
 
               {openBrand === brand.id && brand.lines.length > 0 && (
@@ -167,13 +181,13 @@ export default function Header({
               href={item.href}
               target={item.openInNewTab ? '_blank' : undefined}
               rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
-              className="px-3 py-2 rounded-lg hover:bg-brand-light hover:text-brand-dark transition"
+              className="nav-glare px-3 py-2 rounded-lg"
             >
-              {item.label}
+              <span className="relative z-[1]">{item.label}</span>
             </Link>
           ))}
-          <Link href="/reparation" className="px-3 py-2 rounded-lg hover:bg-brand-light hover:text-brand-dark transition">
-            🔧 Guides
+          <Link href="/reparation" className="nav-glare px-3 py-2 rounded-lg">
+            <span className="relative z-[1]">🔧 Guides</span>
           </Link>
         </nav>
 
@@ -260,22 +274,22 @@ export default function Header({
       </div>
 
       {/* Menu mobile simplifié */}
-      <div className="lg:hidden border-t border-gray-100 px-4 py-2 flex gap-3 overflow-x-auto text-sm">
+      <div className="lg:hidden border-t border-gray-100 px-4 py-2 flex gap-1 overflow-x-auto text-sm">
         {brands.map((brand) => (
-          <Link key={brand.id} href={`/marque/${brand.slug}`} className="shrink-0 text-gray-600">
-            {displayName(brand.name)}
+          <Link key={brand.id} href={`/marque/${brand.slug}`} className="nav-glare shrink-0 text-gray-600 px-2.5 py-1 rounded-lg">
+            <span className="relative z-[1]">{displayName(brand.name)}</span>
           </Link>
         ))}
-        <Link href="/reparation" className="shrink-0 text-gray-600">🔧 Guides</Link>
+        <Link href="/reparation" className="nav-glare shrink-0 text-gray-600 px-2.5 py-1 rounded-lg"><span className="relative z-[1]">🔧 Guides</span></Link>
         {menuItems.map((item) => (
           <Link
             key={item.id}
             href={item.href}
             target={item.openInNewTab ? '_blank' : undefined}
             rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
-            className="shrink-0 text-brand font-medium"
+            className="nav-glare shrink-0 text-brand font-medium px-2.5 py-1 rounded-lg"
           >
-            {item.label}
+            <span className="relative z-[1]">{item.label}</span>
           </Link>
         ))}
         {!user && (
