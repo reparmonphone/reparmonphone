@@ -13,7 +13,7 @@ import { usePathname } from 'next/navigation';
 import { getTheme, type PublicTheme, type ThemeId, type ThemeOptions } from '@/lib/seasonalThemes';
 
 // quiet = pages de paiement : seulement l'ambiance, sans éléments qui bougent ni bandeau (on ne distrait pas un client qui paie)
-type ThemeProps = { options: ThemeOptions; preview: boolean; quiet: boolean };
+type ThemeProps = { options: ThemeOptions; preview: boolean; quiet?: boolean };
 
 const HalloweenTheme = dynamic(() => import('./HalloweenTheme'), { ssr: false });
 
