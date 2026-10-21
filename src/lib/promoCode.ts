@@ -7,6 +7,7 @@ export type PromoContext = {
   email?: string | null; // e-mail saisi dans le panier (ou celui du compte connecté)
   userId?: string | null; // compte connecté, si présent
   ip?: string | null; // adresse IP du visiteur
+  items?: { productId: string; quantity: number }[]; // contenu du panier (pour les codes non cumulables)
 };
 
 export async function validatePromoCode(codeInput: string, subtotal: number, ctx: PromoContext = {}) {
@@ -55,8 +56,35 @@ export async function validatePromoCode(codeInput: string, subtotal: number, ctx
     }
   }
 
-  const value = Number(promo.value);
-  const discount = promo.type === 'PERCENT' ? Math.round(subtotal * (value / 100) * 100) / 100 : Math.min(value, subtotal);
+  // Code non cumulable : la remise ne porte que sur les produits SANS promotion en cours (prix barré).
+  // Les prix sont relus en base — on ne se fie jamais au panier du navigateur.
+  let base = subtotal;
+  let excluded = 0;
+  if (promo.nonCumulable) {
+    const items = (ctx.items ?? []).filter((i) => i && i.productId && Number(i.quantity) > 0);
+    if (items.length === 0) return { error: 'Panier introuvable : recharge la page puis réessaie.' };
+    const products = await prisma.product.findMany({
+      where: { id: { in: items.map((i) => i.productId) } },
+      select: { id: true, price: true, regularPrice: true },
+    });
+    base = 0;
+    for (const it of items) {
+      const p = products.find((x) => x.id === it.productId);
+      if (!p) continue;
+      const line = Number(p.price) * Number(it.quantity);
+      const onSale = p.regularPrice != null && Number(p.regularPrice) > Number(p.price);
+      if (onSale) excluded += line;
+      else base += line;
+    }
+    base = Math.round(base * 100) / 100;
+    if (base <= 0) {
+      return { error: 'Ce code n’est pas cumulable avec les produits déjà en promotion : aucun produit de ton panier n’est éligible.' };
+    }
+  }
 
-  return { ok: true as const, code: promo.code, discount };
+  const value = Number(promo.value);
+  const discount = promo.type === 'PERCENT' ? Math.round(base * (value / 100) * 100) / 100 : Math.min(value, base);
+  const note = promo.nonCumulable && excluded > 0 ? 'Remise appliquée uniquement sur les produits hors promotion (non cumulable).' : undefined;
+
+  return { ok: true as const, code: promo.code, discount, note, nonCumulable: promo.nonCumulable };
 }

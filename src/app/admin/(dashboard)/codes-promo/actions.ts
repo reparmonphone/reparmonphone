@@ -15,6 +15,7 @@ export async function createPromoCode(data: {
   value: number;
   expiresAt: string;
   maxUses: string;
+  nonCumulable?: boolean;
 }) {
   await requireAdminUser();
   const code = data.code.trim().toUpperCase();
@@ -31,6 +32,7 @@ export async function createPromoCode(data: {
       value: data.value,
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       maxUses: data.maxUses ? parseInt(data.maxUses, 10) : null,
+      nonCumulable: !!data.nonCumulable,
     },
   });
   revalidateAll();
@@ -39,7 +41,7 @@ export async function createPromoCode(data: {
 
 export async function updatePromoCode(
   id: string,
-  data: { code: string; type: PromoType; value: number; active: boolean; expiresAt: string; maxUses: string }
+  data: { code: string; type: PromoType; value: number; active: boolean; expiresAt: string; maxUses: string; nonCumulable?: boolean }
 ) {
   await requireAdminUser();
   const code = data.code.trim().toUpperCase();
@@ -57,6 +59,7 @@ export async function updatePromoCode(
       active: data.active,
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       maxUses: data.maxUses ? parseInt(data.maxUses, 10) : null,
+      ...(data.nonCumulable !== undefined ? { nonCumulable: data.nonCumulable } : {}),
     },
   });
   revalidateAll();

@@ -86,7 +86,7 @@ export default function PanierClient({
 
   // Code promo
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number; note?: string } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [checkingPromo, setCheckingPromo] = useState(false);
 
@@ -135,7 +135,12 @@ export default function PanierClient({
       const res = await fetch('/api/promo/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: promoInput, subtotal, email: email.trim() }),
+        body: JSON.stringify({
+          code: promoInput,
+          subtotal,
+          email: email.trim(),
+          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -143,7 +148,7 @@ export default function PanierClient({
         setAppliedPromo(null);
         return;
       }
-      setAppliedPromo({ code: data.code, discount: data.discount });
+      setAppliedPromo({ code: data.code, discount: data.discount, note: data.note });
     } finally {
       setCheckingPromo(false);
     }
@@ -407,6 +412,7 @@ export default function PanierClient({
               </div>
             )}
             {promoError && <p className="text-red-600 text-xs mt-1.5">{promoError}</p>}
+            {appliedPromo?.note && <p className="text-gray-500 text-xs mt-1.5">{appliedPromo.note}</p>}
           </div>
 
           {shippingOptions.length > 0 && (

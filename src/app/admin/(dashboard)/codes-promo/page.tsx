@@ -21,6 +21,7 @@ export default async function AdminCodesPromoPage() {
           expiresAt: c.expiresAt ? c.expiresAt.toISOString().slice(0, 10) : '',
           maxUses: c.maxUses,
           usedCount: c.usedCount,
+          nonCumulable: c.nonCumulable,
         }))}
       />
     </div>

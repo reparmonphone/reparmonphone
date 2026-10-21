@@ -791,6 +791,9 @@ model PromoCode {
   // déjà avoir une commande payée à son e-mail ou sur son compte).
   oncePerCustomer    Boolean @default(false)
   requiresPriorOrder Boolean @default(false)
+  // Code « non cumulable » : la remise ne s'applique pas aux produits déjà en promotion (prix barré :
+  // prix < prix régulier). Un seul code promo reste de toute façon possible par commande.
+  nonCumulable Boolean @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

@@ -13,6 +13,7 @@ type PromoCodeData = {
   expiresAt: string;
   maxUses: number | null;
   usedCount: number;
+  nonCumulable: boolean;
 };
 
 export default function PromoCodesList({ codes }: { codes: PromoCodeData[] }) {
@@ -62,6 +63,7 @@ function PromoCodeRow({
   const [active, setActive] = useState(code.active);
   const [expiresAt, setExpiresAt] = useState(code.expiresAt);
   const [maxUses, setMaxUses] = useState(code.maxUses ? String(code.maxUses) : '');
+  const [nonCumulable, setNonCumulable] = useState(code.nonCumulable);
 
   const isExpired = code.expiresAt && new Date(code.expiresAt) < new Date();
   const isMaxedOut = code.maxUses !== null && code.usedCount >= code.maxUses;
@@ -90,9 +92,13 @@ function PromoCodeRow({
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Actif
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={nonCumulable} onChange={(e) => setNonCumulable(e.target.checked)} />
+          Non cumulable : ne s&apos;applique pas aux produits déjà en promotion (prix barré)
+        </label>
         <div className="flex gap-3">
           <button
-            onClick={() => run(async () => { const r = await updatePromoCode(code.id, { code: code.code, type, value, active, expiresAt, maxUses }); if (!r.error) setEditing(false); return r; })}
+            onClick={() => run(async () => { const r = await updatePromoCode(code.id, { code: code.code, type, value, active, expiresAt, maxUses, nonCumulable }); if (!r.error) setEditing(false); return r; })}
             disabled={pending}
             className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition disabled:opacity-60"
           >
@@ -112,6 +118,7 @@ function PromoCodeRow({
           {!code.active && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">désactivé</span>}
           {isExpired && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">expiré</span>}
           {isMaxedOut && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">épuisé</span>}
+          {code.nonCumulable && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">non cumulable</span>}
         </div>
         <p className="text-sm text-gray-500">
           {code.type === 'PERCENT' ? `${code.value}%` : `${code.value.toFixed(2)}€`} de réduction
@@ -145,17 +152,19 @@ function NewPromoCodeForm({
   const [value, setValue] = useState(10);
   const [expiresAt, setExpiresAt] = useState('');
   const [maxUses, setMaxUses] = useState('');
+  const [nonCumulable, setNonCumulable] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!code.trim()) return;
     run(async () => {
-      const r = await createPromoCode({ code, type, value, expiresAt, maxUses });
+      const r = await createPromoCode({ code, type, value, expiresAt, maxUses, nonCumulable });
       if (!r.error) {
         setCode('');
         setValue(10);
         setExpiresAt('');
         setMaxUses('');
+        setNonCumulable(false);
       }
       return r;
     });
@@ -181,6 +190,10 @@ function NewPromoCodeForm({
           <input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Illimité" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
         </div>
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={nonCumulable} onChange={(e) => setNonCumulable(e.target.checked)} />
+        Non cumulable : ne s&apos;applique pas aux produits déjà en promotion (prix barré)
+      </label>
       <button type="submit" disabled={pending} className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition disabled:opacity-60">
         + Créer le code
       </button>

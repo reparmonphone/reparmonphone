@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
         email: customer?.email || user?.email || null,
         userId: user?.id ?? null,
         ip: clientIp,
+        items: items.map((i: { productId: string; quantity: number }) => ({ productId: i.productId, quantity: i.quantity })),
       });
       // Code refusé : on le dit au client au lieu de facturer sans la remise qu'il voit dans son panier.
       if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 });
