@@ -125,6 +125,7 @@ Signature du (des) consommateur(s) (uniquement en cas de notification du présen
 
 <h2>Article 7. Livraison</h2>
 <p>Les livraisons sont faites à l'adresse indiquée lors de la commande, via La Poste (Colissimo) ou Chronopost, avec numéro de suivi. Les délais indiqués sur le site (par exemple l'expédition le jour même pour toute commande passée avant 20 h en semaine) sont estimatifs. Pendant les périodes de fermeture annoncées sur le site, la préparation des commandes peut être décalée d'environ vingt-quatre (24) heures.</p>
+<p><strong>Retards d'acheminement.</strong> Le délai de livraison indiqué sur le site (par exemple « lendemain » pour une livraison Chronopost) correspond au délai de transport estimé par le transporteur à compter de l'expédition du colis. Un retard d'acheminement imputable au transporteur, lorsqu'il reste limité, n'ouvre pas droit au remboursement des frais de livraison. ReparMonPhone peut néanmoins décider, à titre de geste commercial, de rembourser tout ou partie de ces frais, sans que ce geste constitue une reconnaissance de responsabilité ni un engagement pour les commandes suivantes. Ces stipulations sont sans préjudice des droits que le consommateur tient du Code de la consommation, notamment en cas de retard de livraison au-delà du délai prévu au contrat.</p>
 <p>Sauf indication contraire, la livraison intervient au plus tard trente (30) jours après la conclusion du contrat. En cas de retard, le consommateur peut enjoindre à ReparMonPhone de livrer dans un délai supplémentaire raisonnable et, à défaut de livraison, résoudre le contrat dans les conditions des articles L216-2 et suivants du Code de la consommation ; les sommes versées sont alors remboursées dans les quatorze (14) jours.</p>
 <p>À réception, il est conseillé de vérifier l'état de l'emballage et d'émettre des réserves précises auprès du transporteur en cas de dommage, puis de contacter ReparMonPhone sous trois (3) jours afin de faciliter le traitement du dossier. Cette démarche n'est pas une condition d'exercice des droits légaux du consommateur. En cas de retour pour livraison non conforme, les frais de renvoi sont remboursés.</p>
 
@@ -236,6 +237,7 @@ const LIVRAISON_HTML = `
 <li><strong>Livraison Chronopost</strong> : le lendemain avant 13h pour la majorité de la France métropolitaine.</li>
 <li><strong>Frais de port offerts</strong> à partir du montant de commande indiqué dans votre panier (France métropolitaine).</li>
 <li>Délais plus longs pour la Corse et les DOM-TOM.</li>
+<li>Les délais indiqués sont ceux estimés par le transporteur à compter de l'expédition. En cas de retard d'acheminement signalé par Chronopost, nous restons à votre écoute par e-mail et pouvons, selon la situation, proposer un geste commercial.</li>
 <li>Pendant les périodes de fermeture annoncées sur le site (vacances), la préparation de votre commande peut être décalée d'environ 24 heures.</li>
 <li>Un e-mail de suivi avec numéro de tracking est envoyé dès la prise en charge du colis par le transporteur.</li>
 </ul>
