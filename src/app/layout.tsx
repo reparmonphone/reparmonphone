@@ -17,6 +17,7 @@ import GoogleTagManagerLoader from '@/components/GoogleTagManagerLoader';
 import JsonLd from '@/components/JsonLd';
 import { InstallAppPrompt, InstallAppEarlyScript } from '@/components/install-app-prompt';
 import ProductTransition from '@/components/ProductTransition';
+import SeasonalTheme from '@/components/seasonal/SeasonalTheme';
 import CartTransition from '@/components/CartTransition';
 import { prisma } from '@/lib/prisma';
 import { getSiteMeta } from '@/lib/siteMeta';
@@ -254,6 +255,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <GoogleTagManagerLoader />
         <InstallAppPrompt />
         <ProductTransition />
+        {/* Thème saisonnier (Halloween, etc.) : activé depuis /admin/themes, invisible sinon */}
+        <SeasonalTheme />
         <CartTransition />
       </body>
     </html>
