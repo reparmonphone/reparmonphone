@@ -794,6 +794,8 @@ model PromoCode {
   // Code « non cumulable » : la remise ne s'applique pas aux produits déjà en promotion (prix barré :
   // prix < prix régulier). Un seul code promo reste de toute façon possible par commande.
   nonCumulable Boolean @default(false)
+  // Montant minimum de panier (produits, hors livraison) pour pouvoir utiliser le code. null = aucun minimum.
+  minOrderAmount Decimal? @db.Decimal(10, 2)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

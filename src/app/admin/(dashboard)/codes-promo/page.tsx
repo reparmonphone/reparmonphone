@@ -22,6 +22,9 @@ export default async function AdminCodesPromoPage() {
           maxUses: c.maxUses,
           usedCount: c.usedCount,
           nonCumulable: c.nonCumulable,
+          oncePerCustomer: c.oncePerCustomer,
+          requiresPriorOrder: c.requiresPriorOrder,
+          minOrderAmount: c.minOrderAmount !== null ? Number(c.minOrderAmount) : null,
         }))}
       />
     </div>

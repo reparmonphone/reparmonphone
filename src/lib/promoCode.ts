@@ -22,6 +22,15 @@ export async function validatePromoCode(codeInput: string, subtotal: number, ctx
     return { error: 'Ce code promo a atteint sa limite d’utilisation.' };
   }
 
+  // Montant minimum de panier (produits seuls, hors livraison et hors remise). Le sous-total est relu côté
+  // serveur par les routes de paiement ; seul l'aperçu du panier (/api/promo/validate) utilise la valeur envoyée.
+  const minOrder = promo.minOrderAmount !== null ? Number(promo.minOrderAmount) : null;
+  if (minOrder !== null && Math.round(subtotal * 100) < Math.round(minOrder * 100)) {
+    const fmt = minOrder.toLocaleString('fr-FR', { minimumFractionDigits: minOrder % 1 ? 2 : 0, maximumFractionDigits: 2 });
+    const missing = (minOrder - subtotal).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return { error: `Ce code est valable à partir de ${fmt} € d’achats (hors livraison) : il te manque ${missing} € dans ton panier.` };
+  }
+
   // Codes réservés aux clients fidèles (ex. REPARMONPHONEFIDELITY) : 2ème commande, 1 usage par client / IP.
   if (promo.requiresPriorOrder || promo.oncePerCustomer) {
     const email = ctx.email?.trim().toLowerCase() || null;
@@ -86,5 +95,5 @@ export async function validatePromoCode(codeInput: string, subtotal: number, ctx
   const discount = promo.type === 'PERCENT' ? Math.round(base * (value / 100) * 100) / 100 : Math.min(value, base);
   const note = promo.nonCumulable && excluded > 0 ? 'Remise appliquée uniquement sur les produits hors promotion (non cumulable).' : undefined;
 
-  return { ok: true as const, code: promo.code, discount, note, nonCumulable: promo.nonCumulable };
+  return { ok: true as const, code: promo.code, discount, note, nonCumulable: promo.nonCumulable, minOrderAmount: minOrder };
 }

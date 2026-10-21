@@ -14,6 +14,9 @@ type PromoCodeData = {
   maxUses: number | null;
   usedCount: number;
   nonCumulable: boolean;
+  oncePerCustomer: boolean;
+  requiresPriorOrder: boolean;
+  minOrderAmount: number | null;
 };
 
 export default function PromoCodesList({ codes }: { codes: PromoCodeData[] }) {
@@ -64,6 +67,8 @@ function PromoCodeRow({
   const [expiresAt, setExpiresAt] = useState(code.expiresAt);
   const [maxUses, setMaxUses] = useState(code.maxUses ? String(code.maxUses) : '');
   const [nonCumulable, setNonCumulable] = useState(code.nonCumulable);
+  const [oncePerCustomer, setOncePerCustomer] = useState(code.oncePerCustomer);
+  const [minOrderAmount, setMinOrderAmount] = useState(code.minOrderAmount ? String(code.minOrderAmount) : '');
 
   const isExpired = code.expiresAt && new Date(code.expiresAt) < new Date();
   const isMaxedOut = code.maxUses !== null && code.usedCount >= code.maxUses;
@@ -88,9 +93,17 @@ function PromoCodeRow({
             <input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Illimité" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Panier minimum en € (facultatif, produits hors livraison)</label>
+          <input type="number" step="0.01" min="0" value={minOrderAmount} onChange={(e) => setMinOrderAmount(e.target.value)} placeholder="Aucun minimum" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Actif
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={oncePerCustomer} onChange={(e) => setOncePerCustomer(e.target.checked)} />
+          Une seule utilisation par client (même e-mail, même compte ou même adresse IP)
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={nonCumulable} onChange={(e) => setNonCumulable(e.target.checked)} />
@@ -98,7 +111,7 @@ function PromoCodeRow({
         </label>
         <div className="flex gap-3">
           <button
-            onClick={() => run(async () => { const r = await updatePromoCode(code.id, { code: code.code, type, value, active, expiresAt, maxUses, nonCumulable }); if (!r.error) setEditing(false); return r; })}
+            onClick={() => run(async () => { const r = await updatePromoCode(code.id, { code: code.code, type, value, active, expiresAt, maxUses, nonCumulable, oncePerCustomer, minOrderAmount }); if (!r.error) setEditing(false); return r; })}
             disabled={pending}
             className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition disabled:opacity-60"
           >
@@ -119,6 +132,9 @@ function PromoCodeRow({
           {isExpired && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">expiré</span>}
           {isMaxedOut && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">épuisé</span>}
           {code.nonCumulable && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">non cumulable</span>}
+          {code.oncePerCustomer && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">1 usage / client</span>}
+          {code.requiresPriorOrder && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">2ème commande</span>}
+          {code.minOrderAmount ? <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">dès {code.minOrderAmount} €</span> : null}
         </div>
         <p className="text-sm text-gray-500">
           {code.type === 'PERCENT' ? `${code.value}%` : `${code.value.toFixed(2)}€`} de réduction
@@ -153,18 +169,22 @@ function NewPromoCodeForm({
   const [expiresAt, setExpiresAt] = useState('');
   const [maxUses, setMaxUses] = useState('');
   const [nonCumulable, setNonCumulable] = useState(false);
+  const [oncePerCustomer, setOncePerCustomer] = useState(false);
+  const [minOrderAmount, setMinOrderAmount] = useState('');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!code.trim()) return;
     run(async () => {
-      const r = await createPromoCode({ code, type, value, expiresAt, maxUses, nonCumulable });
+      const r = await createPromoCode({ code, type, value, expiresAt, maxUses, nonCumulable, oncePerCustomer, minOrderAmount });
       if (!r.error) {
         setCode('');
         setValue(10);
         setExpiresAt('');
         setMaxUses('');
         setNonCumulable(false);
+        setOncePerCustomer(false);
+        setMinOrderAmount('');
       }
       return r;
     });
@@ -193,6 +213,14 @@ function NewPromoCodeForm({
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={nonCumulable} onChange={(e) => setNonCumulable(e.target.checked)} />
         Non cumulable : ne s&apos;applique pas aux produits déjà en promotion (prix barré)
+      </label>
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Panier minimum en € (facultatif, produits hors livraison)</label>
+        <input type="number" step="0.01" min="0" value={minOrderAmount} onChange={(e) => setMinOrderAmount(e.target.value)} placeholder="Aucun minimum (ex : 99)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={oncePerCustomer} onChange={(e) => setOncePerCustomer(e.target.checked)} />
+        Une seule utilisation par client (même e-mail, même compte ou même adresse IP)
       </label>
       <button type="submit" disabled={pending} className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition disabled:opacity-60">
         + Créer le code

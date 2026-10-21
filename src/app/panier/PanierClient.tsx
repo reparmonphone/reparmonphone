@@ -86,7 +86,7 @@ export default function PanierClient({
 
   // Code promo
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number; note?: string } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number; note?: string; minOrderAmount?: number | null } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [checkingPromo, setCheckingPromo] = useState(false);
 
@@ -148,11 +148,49 @@ export default function PanierClient({
         setAppliedPromo(null);
         return;
       }
-      setAppliedPromo({ code: data.code, discount: data.discount, note: data.note });
+      setAppliedPromo({ code: data.code, discount: data.discount, note: data.note, minOrderAmount: data.minOrderAmount ?? null });
     } finally {
       setCheckingPromo(false);
     }
   }
+
+  // Le panier a changé (produit retiré/ajouté, quantité) : on revérifie le code auprès du serveur pour que la
+  // remise affichée reste exacte, et qu'un code avec panier minimum (ex. 99 €) disparaisse si le seuil n'est
+  // plus atteint — sinon le client verrait une remise que le paiement refuserait.
+  const appliedCode = appliedPromo?.code;
+  useEffect(() => {
+    if (!appliedCode) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/promo/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: appliedCode,
+            subtotal,
+            email: email.trim(),
+            items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setAppliedPromo(null);
+          setPromoError(data.error ?? 'Code invalide.');
+        } else {
+          setAppliedPromo((p) => (p && p.code === data.code ? { ...p, discount: data.discount, note: data.note, minOrderAmount: data.minOrderAmount ?? null } : p));
+        }
+      } catch {
+        /* réseau indisponible : le paiement revérifiera de toute façon */
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal, appliedCode]);
 
   function removePromoCode() {
     setAppliedPromo(null);
