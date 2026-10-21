@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import {
   THEMES,
+  STYLES,
   getTheme,
+  effectsForStyle,
   defaultOptions,
   resolveActiveTheme,
   type EffectDef,
@@ -16,7 +18,7 @@ import { saveSeasonalConfig } from './actions';
 const GROUPS: { id: EffectDef['group']; title: string; hint: string }[] = [
   { id: 'ambiance', title: 'Ambiance', hint: 'Le décor général, discret et élégant.' },
   { id: 'animations', title: 'Animations', hint: 'Ce qui bouge à l’écran.' },
-  { id: 'interactif', title: 'Interactif (option)', hint: 'Réagit à la souris ou à l’orage. Désactivé par défaut.' },
+  { id: 'interactif', title: 'Interactif', hint: 'Réagit à la souris ou à l’orage. Certains effets sont coupés par défaut.' },
   { id: 'commerce', title: 'Commerce', hint: 'Pour transformer l’événement en ventes.' },
 ];
 
@@ -146,7 +148,8 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
   const recommended = () => setOpts({ effects: defaultOptions(theme).effects, intensity: 'normal' });
   const allOff = () => setOpts({ effects: Object.fromEntries(theme.effects.map((e) => [e.key, false])) });
 
-  const activeCount = theme.effects.filter((e) => opts.effects[e.key]).length;
+  const visibleEffects = effectsForStyle(theme, opts.style);
+  const activeCount = visibleEffects.filter((e) => opts.effects[e.key]).length;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,460px)_minmax(0,1fr)] items-start">
@@ -194,6 +197,28 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
               <span className="text-2xl block">🎄 ❤️ 🛍️</span>
               Bientôt : Noël, Saint-Valentin, Soldes d’été, Black Friday, Rentrée…
             </div>
+          </div>
+        </section>
+
+        {/* Style */}
+        <section className="bg-white border border-gray-200 rounded-xl p-4">
+          <h2 className="font-semibold mb-1">Style du thème</h2>
+          <p className="text-xs text-gray-500 mb-3">Tu peux basculer à tout moment : l’aperçu change tout de suite.</p>
+          <div className="grid gap-2">
+            {STYLES.map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => setOpts({ style: st.id })}
+                className={`text-left rounded-lg border p-3 transition ${
+                  opts.style === st.id ? 'border-orange-400 bg-orange-50 ring-1 ring-orange-300' : 'border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <span className="font-medium">{st.emoji} {st.name}</span>
+                {st.id === 'premium' && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700">WebGL · haute définition</span>}
+                <span className="block text-xs text-gray-500 mt-0.5">{st.description}</span>
+              </button>
+            ))}
           </div>
         </section>
 
@@ -255,7 +280,7 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
         {/* Effets */}
         <section className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center justify-between gap-2 mb-1">
-            <h2 className="font-semibold">Effets ({activeCount}/{theme.effects.length})</h2>
+            <h2 className="font-semibold">Effets ({activeCount}/{visibleEffects.length})</h2>
             <div className="flex gap-2 text-xs">
               <button type="button" onClick={recommended} className="text-orange-600 hover:underline">Recommandé</button>
               <button type="button" onClick={allOff} className="text-gray-500 hover:underline">Tout couper</button>
@@ -263,26 +288,32 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
           </div>
 
           {GROUPS.map((g) => {
-            const list = theme.effects.filter((e) => e.group === g.id);
+            const list = visibleEffects.filter((e) => e.group === g.id);
             if (!list.length) return null;
             return (
               <div key={g.id} className="mt-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{g.title}</p>
                 <p className="text-xs text-gray-400 mb-1">{g.hint}</p>
                 <ul className="divide-y divide-gray-100">
-                  {list.map((e) => (
+                  {list.map((e) => {
+                    const prem = opts.style === 'premium' ? e.premium : undefined;
+                    const label = prem?.label ?? e.label;
+                    const description = prem?.description ?? e.description;
+                    return (
                     <li key={e.key} className="flex items-start gap-3 py-2.5">
-                      <Switch checked={!!opts.effects[e.key]} onChange={(v) => setEffect(e.key, v)} label={e.label} />
+                      <Switch checked={!!opts.effects[e.key]} onChange={(v) => setEffect(e.key, v)} label={label} />
                       <div className="min-w-0">
                         <p className="text-sm font-medium">
-                          {e.label}
+                          {label}
+                          {prem && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-normal text-violet-700">3D</span>}
                           {e.desktopOnly && <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-normal text-gray-500">ordinateur</span>}
                         </p>
-                        <p className="text-xs text-gray-500">{e.description}</p>
+                        <p className="text-xs text-gray-500">{description}</p>
                         {e.caution && <p className="text-xs text-amber-700 mt-0.5">⚠️ {e.caution}</p>}
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </div>
             );

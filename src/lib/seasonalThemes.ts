@@ -10,6 +10,25 @@
 
 export type ThemeId = 'halloween';
 
+/** Deux rendus par thème : Classique (illustré 2D, léger) et Premium (3D temps réel WebGL). */
+export type StyleId = 'classique' | 'premium';
+
+export const STYLES: { id: StyleId; name: string; emoji: string; description: string }[] = [
+  {
+    id: 'classique',
+    name: 'Classique',
+    emoji: '🦇',
+    description: 'Décor illustré et animé en 2D. Léger et rapide sur tous les appareils.',
+  },
+  {
+    id: 'premium',
+    name: 'Premium 3D',
+    emoji: '✨',
+    description:
+      'Vrai rendu 3D temps réel en haute définition (écrans 4K / Retina) : brume volumétrique, chauves-souris et citrouilles en 3D, braises avec profondeur, relief à la souris. Un peu plus gourmand : sur un appareil qui ne le supporte pas, le visiteur voit automatiquement le style Classique.',
+  },
+];
+
 export type EffectDef = {
   key: string;
   label: string;
@@ -22,6 +41,10 @@ export type EffectDef = {
   desktopOnly?: boolean;
   /** Effet qui clignote / flashe : désactivé d'office, à activer en connaissance de cause */
   caution?: string;
+  /** Si renseigné, l'effet n'existe que pour ces styles (ex. citrouille 3D = Premium seulement) */
+  styles?: StyleId[];
+  /** Libellé / description alternatifs quand le style Premium est choisi */
+  premium?: { label?: string; description: string };
 };
 
 export type Intensity = 'doux' | 'normal' | 'intense';
@@ -55,13 +78,21 @@ export const THEMES: ThemeDef[] = [
     suggestedEnd: '11-02',
     effects: [
       { key: 'vignette', group: 'ambiance', label: 'Lueur nocturne sur les bords', description: 'Liseré orange/violet animé en haut de l’écran et léger voile sombre sur les bords, comme une nuit qui tombe.', defaultOn: true },
-      { key: 'fog', group: 'ambiance', label: 'Brume mystérieuse', description: 'Deux couches de brume violette qui dérivent lentement au bas de l’écran.', defaultOn: true },
-      { key: 'graveyard', group: 'ambiance', label: 'Cimetière en pied de page', description: 'Silhouette de collines, croix, arbre mort, pleine lune et citrouilles dont la flamme vacille, au-dessus du footer.', defaultOn: true },
+      { key: 'fog', group: 'ambiance', label: 'Brume mystérieuse', description: 'Deux couches de brume violette qui dérivent lentement au bas de l’écran.', defaultOn: true,
+        premium: { label: 'Brume volumétrique', description: 'Brume calculée en temps réel par la carte graphique : elle ondule, se déforme et réagit à la souris, avec une lueur orange venue du bas.' } },
+      { key: 'graveyard', group: 'ambiance', label: 'Cimetière en pied de page', description: 'Silhouette de collines, croix, arbre mort, pleine lune et citrouilles dont la flamme vacille, au-dessus du footer.', defaultOn: true,
+        premium: { description: 'Collines, croix, arbre mort et pleine lune avec rayons de lune qui tournent lentement et brume rampante, au-dessus du footer.' } },
       { key: 'favicon', group: 'ambiance', label: 'Icône citrouille dans l’onglet', description: 'Remplace le logo de l’onglet du navigateur par une citrouille pendant l’événement.', defaultOn: true },
-      { key: 'bats', group: 'animations', label: 'Chauves-souris', description: 'Des chauves-souris aux ailes battantes traversent l’écran à intervalles irréguliers.', defaultOn: true },
-      { key: 'embers', group: 'animations', label: 'Braises et lucioles', description: 'Petites lueurs orange qui montent et scintillent doucement (animation légère, optimisée).', defaultOn: true },
+      { key: 'bats', group: 'animations', label: 'Chauves-souris', description: 'Des chauves-souris aux ailes battantes traversent l’écran à intervalles irréguliers.', defaultOn: true,
+        premium: { label: 'Chauves-souris 3D', description: 'Chauves-souris modélisées en 3D, aux ailes articulées, qui passent à des profondeurs différentes (certaines frôlent l’écran) avec un éclairage réaliste.' } },
+      { key: 'embers', group: 'animations', label: 'Braises et lucioles', description: 'Petites lueurs orange qui montent et scintillent doucement (animation légère, optimisée).', defaultOn: true,
+        premium: { label: 'Braises 3D', description: 'Centaines de braises en profondeur : nettes au premier plan, floues au loin, qui tourbillonnent et se décalent avec le relief.' } },
+      { key: 'swarm', group: 'animations', styles: ['premium'], label: 'Envolée de chauves-souris à l’arrivée', description: 'Une volée de chauves-souris 3D jaillit en bas de l’écran quand le visiteur arrive (une seule fois par visite).', defaultOn: true },
+      { key: 'pumpkins3d', group: 'animations', styles: ['premium'], label: 'Citrouilles 3D sur la colline', description: 'De vraies citrouilles en 3D, à la flamme vacillante, qui tournent doucement vers la souris dans le cimetière du pied de page.', defaultOn: true },
+      { key: 'pumpkinHero', group: 'animations', styles: ['premium'], label: 'Citrouille 3D flottante', description: 'Une grosse citrouille 3D lumineuse flotte en bas à gauche de l’écran et te suit du regard (grands écrans seulement).', defaultOn: true, desktopOnly: true },
       { key: 'spider', group: 'animations', label: 'Araignée sur son fil', description: 'Une araignée descend du haut de l’écran au bout de son fil, se balance, puis remonte.', defaultOn: true },
       { key: 'webs', group: 'animations', label: 'Toiles d’araignée dans les coins', description: 'Toiles fines dans les deux coins supérieurs de l’écran.', defaultOn: true },
+      { key: 'parallax', group: 'interactif', styles: ['premium'], label: 'Relief au mouvement de la souris', description: 'La brume, les braises et les chauves-souris se décalent légèrement selon la souris : effet de profondeur.', defaultOn: true, desktopOnly: true },
       { key: 'ghost', group: 'interactif', label: 'Fantôme qui suit la souris', description: 'Un petit fantôme flotte derrière le curseur avec un léger retard.', defaultOn: false, desktopOnly: true },
       { key: 'cursorTrail', group: 'interactif', label: 'Étincelles derrière le curseur', description: 'Traînée d’étincelles orange quand on bouge la souris.', defaultOn: false, desktopOnly: true },
       { key: 'lightning', group: 'interactif', label: 'Éclairs d’orage', description: 'Lueur d’éclair très douce, une fois toutes les 30 à 60 secondes.', defaultOn: false, caution: 'Effet lumineux : à éviter si tu as des visiteurs sensibles aux flashs. Il reste très atténué et rare.' },
@@ -88,6 +119,7 @@ export type BannerConfig = {
 };
 
 export type ThemeOptions = {
+  style: StyleId;
   intensity: Intensity;
   effects: Record<string, boolean>;
   banner: BannerConfig;
@@ -134,6 +166,7 @@ export function defaultOptions(theme: ThemeDef, year = new Date().getFullYear())
   const effects: Record<string, boolean> = {};
   for (const e of theme.effects) effects[e.key] = e.defaultOn;
   return {
+    style: 'classique',
     intensity: 'normal',
     effects,
     banner: {
@@ -183,6 +216,7 @@ export function normalizeConfig(raw: unknown, year = new Date().getFullYear()): 
     for (const e of t.effects) effects[e.key] = typeof savedEffects[e.key] === 'boolean' ? (savedEffects[e.key] as boolean) : d.effects[e.key];
     const sb = (saved.banner ?? {}) as Record<string, unknown>;
     options[t.id] = {
+      style: saved.style === 'premium' ? 'premium' : 'classique',
       intensity: saved.intensity === 'doux' || saved.intensity === 'intense' ? saved.intensity : 'normal',
       effects,
       banner: {
@@ -225,4 +259,9 @@ export function resolveActiveTheme(config: SeasonalConfig, now = new Date()): Pu
   const options = config.options[config.themeId];
   if (!options) return null;
   return { themeId: config.themeId, options };
+}
+
+/** Effets visibles dans l'admin / actifs pour le style choisi. */
+export function effectsForStyle(theme: ThemeDef, style: StyleId): EffectDef[] {
+  return theme.effects.filter((e) => !e.styles || e.styles.includes(style));
 }

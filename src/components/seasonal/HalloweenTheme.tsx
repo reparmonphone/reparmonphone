@@ -14,13 +14,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { safeHref, type ThemeOptions } from '@/lib/seasonalThemes';
+import type { PremiumFlags } from './Premium3D';
+
+// Rendu 3D (three.js) : téléchargé seulement si le style Premium est choisi et utilisable.
+const Premium3D = dynamic(() => import('./Premium3D'), { ssr: false });
 
 type Props = { options: ThemeOptions; preview: boolean; quiet?: boolean };
 
 // Effets coupés sur les pages de paiement (panier / checkout)
-const QUIET_OFF = new Set(['banner', 'spider', 'bats', 'ghost', 'cursorTrail', 'lightning', 'embers']);
+const QUIET_OFF = new Set(['banner', 'spider', 'bats', 'ghost', 'cursorTrail', 'lightning', 'embers', 'swarm', 'pumpkinHero']);
 
 const MULT = { doux: 0.55, normal: 1, intense: 1.7 } as const;
 
@@ -163,6 +168,33 @@ footer.hw-footer{position:relative;margin-top:7rem !important}
   .hw-spider{transform-origin:top;scale:.8}
 }
 
+/* ===== Style PREMIUM 3D ===== */
+.hw-root.prem .hw-vig{background:
+  radial-gradient(ellipse at 50% 40%,rgba(0,0,0,0) 50%,rgba(44,14,88,.22) 76%,rgba(14,3,38,.5) 100%),
+  radial-gradient(ellipse 80% 26% at 50% 114%,rgba(255,110,10,.30),rgba(255,110,10,0) 70%)}
+.hw-root.prem .hw-strip{height:4px;background:linear-gradient(90deg,#ff5a00,#ffb347,#8b5cf6,#ff3d00,#ffb347,#ff5a00);background-size:400% 100%;
+  box-shadow:0 0 22px rgba(255,110,0,.8),0 0 60px rgba(139,92,246,.35);animation-duration:7s}
+@property --hw-ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes hw-ang{to{--hw-ang:360deg}}
+@keyframes hw-shine{0%,62%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
+@keyframes hw-tick{from{transform:translateY(-5px);opacity:.3}to{transform:none;opacity:1}}
+.hw-banner.prem{border:1.5px solid transparent;border-radius:20px;overflow:hidden;
+  background:linear-gradient(135deg,rgba(16,6,32,.93),rgba(42,12,66,.93)) padding-box,
+    conic-gradient(from var(--hw-ang),#ff7a00,#8b5cf6,#ff3d00,#ffd27a,#ff7a00) border-box;
+  box-shadow:0 18px 60px rgba(10,0,30,.55),0 0 38px rgba(255,122,0,.32),inset 0 1px 0 rgba(255,255,255,.08);
+  animation:hw-pop .8s cubic-bezier(.2,1.3,.4,1) both,hw-ang 7s linear infinite}
+.hw-banner.prem::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.16) 50%,transparent 60%);animation:hw-shine 6s ease-in-out infinite}
+.hw-banner.prem .cd b{animation:hw-tick .45s ease-out}
+.hw-banner.prem .msg{letter-spacing:.01em}
+.hw-banner.prem .cta{background:linear-gradient(135deg,#ffc268,#ff6a00);box-shadow:0 6px 22px rgba(255,106,0,.55),inset 0 1px 0 rgba(255,255,255,.4)}
+.hw-grave.prem .mist{position:absolute;left:-30%;width:160%;bottom:0;height:62%;
+  background:radial-gradient(ellipse 18% 55% at 15% 70%,rgba(176,140,255,.38),transparent 70%),radial-gradient(ellipse 20% 50% at 48% 60%,rgba(200,170,255,.32),transparent 70%),radial-gradient(ellipse 18% 55% at 82% 72%,rgba(160,120,240,.36),transparent 70%);
+  animation:hw-fog 40s ease-in-out infinite alternate}
+.hw-grave.prem .mist.b{height:42%;opacity:.8;animation-duration:62s;animation-direction:alternate-reverse}
+.hw-rays{transform-origin:1340px 52px;animation:hw-spin 120s linear infinite}
+@keyframes hw-spin{to{transform:rotate(360deg)}}
+
 /* Visiteur qui demande moins d'animations : décor figé */
 .hw-calm *,.hw-calm{animation:none !important}
 .hw-calm .hw-spider{display:none}
@@ -263,10 +295,11 @@ function Ghost() {
   );
 }
 
-function Pumpkin({ x, y, s, cls }: { x: number; y: number; s: number; cls: string }) {
+function Pumpkin({ x, y, s, cls, glowOnly }: { x: number; y: number; s: number; cls: string; glowOnly?: boolean }) {
   return (
     <g transform={`translate(${x} ${y}) scale(${s})`}>
       <circle cx="0" cy="-22" r="62" fill="url(#hwGlow)" className={`hw-flick ${cls}`} />
+      {glowOnly ? null : (<>
       <ellipse cx="-17" cy="-24" rx="22" ry="25" fill="url(#hwPumpkin)" />
       <ellipse cx="17" cy="-24" rx="22" ry="25" fill="url(#hwPumpkin)" />
       <ellipse cx="0" cy="-24" rx="23" ry="27" fill="url(#hwPumpkin)" />
@@ -276,6 +309,7 @@ function Pumpkin({ x, y, s, cls }: { x: number; y: number; s: number; cls: strin
         <path d="M7,-28 L17,-28 L12,-39Z" />
         <path d="M-16,-16 L-10,-20 L-5,-14 L0,-20 L5,-14 L10,-20 L16,-16 Q10,-2 0,-2 Q-10,-2 -16,-16Z" />
       </g>
+      </>)}
     </g>
   );
 }
@@ -298,7 +332,7 @@ function Tomb({ x, y, w, h, cross }: { x: number; y: number; w: number; h: numbe
   );
 }
 
-function Graveyard() {
+function Graveyard({ glowOnly, premium }: { glowOnly: boolean; premium: boolean }) {
   const stars = useMemo(
     () => Array.from({ length: 22 }, (_, i) => ({ x: (i * 73 + 41) % 1580 + 10, y: (i * 37) % 70 + 8, r: i % 3 === 0 ? 1.8 : 1.2, d: (i % 7) * 0.45 })),
     [],
@@ -315,6 +349,10 @@ function Graveyard() {
           <stop offset="0" stopColor="#fff3b0" stopOpacity=".7" />
           <stop offset="1" stopColor="#fff3b0" stopOpacity="0" />
         </radialGradient>
+        <linearGradient id="hwRay" gradientUnits="userSpaceOnUse" x1="1340" y1="30" x2="1340" y2="-6">
+          <stop offset="0" stopColor="#fff3b0" stopOpacity=".5" />
+          <stop offset="1" stopColor="#fff3b0" stopOpacity="0" />
+        </linearGradient>
         <linearGradient id="hwPumpkin" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#ffa43a" />
           <stop offset="1" stopColor="#d84a00" />
@@ -325,7 +363,14 @@ function Graveyard() {
         <circle key={i} className="hw-star" style={{ animationDelay: `${s.d}s` }} cx={s.x} cy={s.y} r={s.r} fill="#fff8d6" />
       ))}
 
-      <circle className="hw-moonglow" cx="1340" cy="52" r="74" fill="url(#hwMoonGlow)" />
+      {premium && (
+        <g className="hw-rays" fill="url(#hwRay)">
+          {Array.from({ length: 12 }, (_, i) => (
+            <path key={i} transform={`rotate(${i * 30} 1340 52)`} d="M1340,52 L1331,-6 L1349,-6Z" />
+          ))}
+        </g>
+      )}
+      <circle className="hw-moonglow" cx="1340" cy="52" r={premium ? 80 : 74} fill="url(#hwMoonGlow)" />
       <circle cx="1340" cy="52" r="27" fill="#fdf0a6" />
       <circle cx="1331" cy="45" r="5" fill="#f1dc7e" opacity=".7" />
       <circle cx="1350" cy="62" r="3.4" fill="#f1dc7e" opacity=".7" />
@@ -354,10 +399,10 @@ function Graveyard() {
         <path d="M1480,124 V98 A12,12 0 0 1 1504,98 V124Z" />
       </g>
 
-      <Pumpkin x={560} y={140} s={0.62} cls="a" />
-      <Pumpkin x={846} y={141} s={0.9} cls="b" />
-      <Pumpkin x={940} y={142} s={0.48} cls="c" />
-      <Pumpkin x={1210} y={140} s={0.7} cls="b" />
+      <Pumpkin x={560} y={140} s={0.62} cls="a" glowOnly={glowOnly} />
+      <Pumpkin x={846} y={141} s={0.9} cls="b" glowOnly={glowOnly} />
+      <Pumpkin x={940} y={142} s={0.48} cls="c" glowOnly={glowOnly} />
+      <Pumpkin x={1210} y={140} s={0.7} cls="b" glowOnly={glowOnly} />
 
       {/* tombes (avant) */}
       <Tomb x={246} y={106} w={28} h={34} cross />
@@ -376,7 +421,7 @@ function Graveyard() {
 /*  Bandeau offre + compte à rebours                                   */
 /* ------------------------------------------------------------------ */
 
-function Banner({ opt, preview, calm }: { opt: ThemeOptions['banner']; preview: boolean; calm: boolean }) {
+function Banner({ opt, preview, calm, premium }: { opt: ThemeOptions['banner']; preview: boolean; calm: boolean; premium: boolean }) {
   const [closed, setClosed] = useState(false);
   const [now, setNow] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -406,10 +451,10 @@ function Banner({ opt, preview, calm }: { opt: ThemeOptions['banner']; preview: 
     cd = (
       <div className="cd" aria-label="Compte à rebours">
         <i>Plus que</i>
-        <b>{Math.floor(s / 86400)}<small>j</small></b>
-        <b>{pad(Math.floor((s % 86400) / 3600))}<small>h</small></b>
-        <b>{pad(Math.floor((s % 3600) / 60))}<small>m</small></b>
-        <b>{pad(s % 60)}<small>s</small></b>
+        <b key={`d${Math.floor(s / 86400)}`}>{Math.floor(s / 86400)}<small>j</small></b>
+        <b key={`h${Math.floor((s % 86400) / 3600)}`}>{pad(Math.floor((s % 86400) / 3600))}<small>h</small></b>
+        <b key={`m${Math.floor((s % 3600) / 60)}`}>{pad(Math.floor((s % 3600) / 60))}<small>m</small></b>
+        <b key={`s${s % 60}`}>{pad(s % 60)}<small>s</small></b>
       </div>
     );
   }
@@ -431,7 +476,7 @@ function Banner({ opt, preview, calm }: { opt: ThemeOptions['banner']; preview: 
 
   const href = safeHref(opt.ctaHref, '/boutique');
   return (
-    <div className={`hw-banner${calm ? ' hw-calm' : ''}`} role="region" aria-label="Offre Halloween">
+    <div className={`hw-banner${premium ? ' prem' : ''}${calm ? ' hw-calm' : ''}`} role="region" aria-label="Offre Halloween">
       <span className="pk" aria-hidden="true">🎃</span>
       <div className="tx">
         <div className="msg">{done ? opt.countdownDoneText : opt.text}</div>
@@ -805,18 +850,32 @@ export default function HalloweenTheme({ options, preview, quiet = false }: Prop
   const canvasOk = motion && !env.lite;
   const pointerOk = canvasOk && env.fine;
 
+  // Style Premium 3D : seulement si le visiteur accepte les animations ; si WebGL échoue, retour automatique au Classique.
+  const [glFail, setGlFail] = useState(false);
+  const p3d = options.style === 'premium' && canvasOk && !glFail;
+
   const batsRef = useRef<HTMLDivElement>(null);
   const embersRef = useRef<HTMLCanvasElement>(null);
   const trailRef = useRef<HTMLCanvasElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
 
-  useBats(batsRef, on('bats') && canvasOk, mult, env.mobile, preview);
-  useEmbers(embersRef, on('embers') && canvasOk, mult, env.mobile);
+  useBats(batsRef, on('bats') && canvasOk && !p3d, mult, env.mobile, preview);
+  useEmbers(embersRef, on('embers') && canvasOk && !p3d, mult, env.mobile);
   useCursorTrail(trailRef, on('cursorTrail') && pointerOk);
   useGhost(ghostRef, on('ghost') && pointerOk);
   useLightning(flashRef, on('lightning') && motion, preview);
   useFavicon(on('favicon'));
+
+  const premiumFlags: PremiumFlags = {
+    fog: on('fog'),
+    embers: on('embers'),
+    bats: on('bats'),
+    swarm: on('swarm'),
+    pumpkins3d: on('pumpkins3d'),
+    pumpkinHero: on('pumpkinHero'),
+    parallax: on('parallax'),
+  };
 
   // marqueur sur <html> + pied de page pour le cimetière
   const [footer, setFooter] = useState<HTMLElement | null>(null);
@@ -841,21 +900,38 @@ export default function HalloweenTheme({ options, preview, quiet = false }: Prop
     <>
       <style>{CSS}</style>
 
-      <div className={`hw-root${env.calm ? ' hw-calm' : ''}`} aria-hidden="true">
+      <div className={`hw-root${p3d ? ' prem' : ''}${env.calm ? ' hw-calm' : ''}`} aria-hidden="true">
         {on('vignette') && (<><div className="hw-vig" /><div className="hw-strip" /></>)}
-        {on('fog') && (<><div className="hw-fog b" /><div className="hw-fog" /></>)}
-        {on('embers') && canvasOk && <canvas ref={embersRef} className="hw-canvas" />}
+        {on('fog') && !p3d && (<><div className="hw-fog b" /><div className="hw-fog" /></>)}
+        {on('embers') && canvasOk && !p3d && <canvas ref={embersRef} className="hw-canvas" />}
         {on('webs') && (<><Web side="l" /><Web side="r" /></>)}
         {on('spider') && !env.lite && <Spider />}
-        {on('bats') && canvasOk && <div ref={batsRef} style={{ position: 'absolute', inset: 0 }} />}
+        {on('bats') && canvasOk && !p3d && <div ref={batsRef} style={{ position: 'absolute', inset: 0 }} />}
         {on('cursorTrail') && pointerOk && <canvas ref={trailRef} className="hw-canvas" />}
         {on('ghost') && pointerOk && (<div ref={ghostRef} className="hw-ghost"><Ghost /></div>)}
         {on('lightning') && motion && <div ref={flashRef} className="hw-flash" />}
       </div>
 
-      {footer && createPortal(<div className="hw-grave" aria-hidden="true"><Graveyard /></div>, footer)}
+      {p3d && (
+        <Premium3D
+          flags={premiumFlags}
+          mult={mult}
+          mobile={env.mobile}
+          preview={preview}
+          onFail={() => setGlFail(true)}
+        />
+      )}
 
-      {on('banner') && <Banner opt={options.banner} preview={preview} calm={env.calm} />}
+      {footer &&
+        createPortal(
+          <div className={`hw-grave${p3d ? ' prem' : ''}`} aria-hidden="true">
+            <Graveyard glowOnly={p3d && on('pumpkins3d')} premium={p3d} />
+            {p3d && (<><div className="mist b" /><div className="mist" /></>)}
+          </div>,
+          footer,
+        )}
+
+      {on('banner') && <Banner opt={options.banner} preview={preview} calm={env.calm} premium={p3d} />}
     </>
   );
 }
