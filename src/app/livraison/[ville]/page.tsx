@@ -25,6 +25,30 @@ const REGION_INTRO: Record<string, string> = {
   'Corse': 'Même en Corse, séparée par la mer, nos colis Chronopost arrivent généralement sous 48h.',
 };
 
+// Ces ~100 pages sont générées au déploiement et interrogent chacune la base de données. Si Supabase
+// coupe brièvement la connexion en plein déploiement (« Server has closed the connection »), on
+// réessaie quelques fois au lieu de faire échouer tout le déploiement. Si la base reste injoignable,
+// la page s'affiche sans la liste de produits ; elle est régénérée automatiquement toutes les heures
+// (revalidate) et retrouve alors ses produits.
+export const revalidate = 3600;
+
+async function withRetry<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt === 4) {
+        console.error('[livraison/ville] base de données injoignable, page générée sans produits', e);
+        return fallback;
+      }
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+  }
+  return fallback;
+}
+
+type TopProduct = { id: string; title: string; slug: string; price: unknown; imageUrl: string | null };
+
 export async function generateStaticParams() {
   return PREFECTURES.map((p) => ({ ville: p.slug }));
 }
@@ -46,23 +70,25 @@ export default async function VillePage({ params }: { params: { ville: string } 
 
   // Top des produits les plus vendus, calculé à la volée sur les commandes réelles — rend
   // chaque page dynamique et réellement utile plutôt qu'un simple gabarit avec le nom qui change.
-  const topProductIds = await prisma.orderItem.groupBy({
-    by: ['productId'],
-    _sum: { quantity: true },
-    orderBy: { _sum: { quantity: 'desc' } },
-    take: 6,
-  });
-  const topProducts = topProductIds.length
-    ? await prisma.product.findMany({
-        where: { id: { in: topProductIds.map((p) => p.productId) }, showInBoutique: true, inStock: true },
-        select: { id: true, title: true, slug: true, price: true, imageUrl: true },
-      })
-    : await prisma.product.findMany({
-        where: { showInBoutique: true, inStock: true },
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-        select: { id: true, title: true, slug: true, price: true, imageUrl: true },
-      });
+  const topProducts: TopProduct[] = await withRetry(async () => {
+    const topProductIds = await prisma.orderItem.groupBy({
+      by: ['productId'],
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: 6,
+    });
+    return topProductIds.length
+      ? await prisma.product.findMany({
+          where: { id: { in: topProductIds.map((p) => p.productId) }, showInBoutique: true, inStock: true },
+          select: { id: true, title: true, slug: true, price: true, imageUrl: true },
+        })
+      : await prisma.product.findMany({
+          where: { showInBoutique: true, inStock: true },
+          orderBy: { createdAt: 'desc' },
+          take: 6,
+          select: { id: true, title: true, slug: true, price: true, imageUrl: true },
+        });
+  }, []);
 
   const breadcrumbSchema = {
     '@context': 'https://schema.org',
@@ -105,6 +131,8 @@ export default async function VillePage({ params }: { params: { ville: string } 
         )}
       </div>
 
+      {topProducts.length > 0 && (
+        <>
       <h2 className="text-lg font-bold mb-4">Nos pièces les plus commandées en ce moment</h2>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
         {topProducts.map((product) => (
@@ -123,6 +151,8 @@ export default async function VillePage({ params }: { params: { ville: string } 
           </Link>
         ))}
       </div>
+        </>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-4 mb-10">
         <Link href="/boutique" className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-md transition">
