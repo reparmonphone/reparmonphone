@@ -64,8 +64,10 @@ export default async function AdminProduitsPage({
 
       <p className="text-sm text-gray-500 mb-4">
         Corrige directement la Marque / Gamme / Modèle d&apos;un produit mal classé depuis les menus déroulants
-        ci-dessous — enregistrement automatique, pas besoin d&apos;ouvrir la fiche. Clique sur{' '}
-        <strong>Modifier</strong> pour changer le prix, les photos ou les descriptions.
+        ci-dessous — enregistrement automatique, pas besoin d&apos;ouvrir la fiche. Passe la souris sur une
+        miniature pour l&apos;agrandir et repérer un filigrane ; <strong>clique sur la miniature</strong> pour ouvrir
+        directement l&apos;outil de retouche. Clique sur <strong>Modifier</strong> pour changer le prix, les photos
+        ou les descriptions.
       </p>
 
       <form className="flex flex-wrap gap-3 mb-6" action="/admin/produits" method="get">
@@ -96,6 +98,7 @@ export default async function AdminProduitsPage({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
+              <th className="px-4 py-3">Photo</th>
               <th className="px-4 py-3">Produit</th>
               <th className="px-4 py-3">Marque</th>
               <th className="px-4 py-3">Gamme</th>
@@ -118,6 +121,8 @@ export default async function AdminProduitsPage({
                   modelId: p.modelId,
                   brandId: p.model.productLine.brandId,
                   productLineId: p.model.productLineId,
+                  image: p.images[0] ?? p.imageUrl ?? null,
+                  imageCount: p.images.length,
                 }}
               />
             ))}

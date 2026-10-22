@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { updateProduct, deleteProduct } from '../actions';
@@ -55,6 +55,8 @@ export default function ProductEditForm({
   const [images, setImages] = useState(product.images);
   const [uploading, setUploading] = useState(false);
   const [eraserIndex, setEraserIndex] = useState<number | null>(null);
+  // Mode "retouche directe" : arrivée depuis la miniature de la liste (?retoucher=1&retour=...)
+  const [directReturn, setDirectReturn] = useState<string | null>(null);
 
   const [brandId, setBrandId] = useState(product.brandId);
   const [productLineId, setProductLineId] = useState(product.productLineId);
@@ -116,6 +118,48 @@ export default function ProductEditForm({
   function replaceImage(index: number, newUrl: string) {
     setImages((prev) => prev.map((u, i) => (i === index ? newUrl : u)));
     setEraserIndex(null);
+  }
+
+  // Ouvre l'outil de retouche automatiquement quand on vient de la miniature de la liste
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('retoucher') !== '1') return;
+    const retourParam = params.get('retour') ?? '';
+    const retour = retourParam.startsWith('/admin/produits') ? retourParam : '/admin/produits';
+    if (product.images.length > 0) {
+      setDirectReturn(retour);
+      setEraserIndex(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Retouche directe : on enregistre la nouvelle photo tout de suite puis on revient à la liste
+  function handleDirectSaved(index: number, newUrl: string) {
+    const retour = directReturn ?? '/admin/produits';
+    const nextImages = images.map((u, i) => (i === index ? newUrl : u));
+    setImages(nextImages);
+    setEraserIndex(null);
+    startTransition(async () => {
+      await updateProduct(product.id, {
+        title,
+        price,
+        stockQty,
+        inStock,
+        shortDescription,
+        description,
+        metaTitle,
+        metaDescription,
+        images: nextImages,
+        modelId,
+      });
+      router.push(retour);
+      router.refresh();
+    });
+  }
+
+  function handleEraserClose() {
+    setEraserIndex(null);
+    if (directReturn) router.push(directReturn);
   }
 
   function moveImage(index: number, dir: -1 | 1) {
@@ -335,8 +379,10 @@ export default function ProductEditForm({
         <ImageEraserModal
           imageUrl={images[eraserIndex]}
           productId={product.id}
-          onClose={() => setEraserIndex(null)}
-          onSaved={(newUrl) => replaceImage(eraserIndex, newUrl)}
+          onClose={handleEraserClose}
+          onSaved={(newUrl) =>
+            directReturn ? handleDirectSaved(eraserIndex, newUrl) : replaceImage(eraserIndex, newUrl)
+          }
         />
       )}
     </form>

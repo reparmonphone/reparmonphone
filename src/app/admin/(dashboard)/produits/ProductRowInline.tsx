@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { updateProductModel, deleteProduct } from './actions';
 import StockToggle from './StockToggle';
 import PriceEditable from './PriceEditable';
@@ -18,6 +19,8 @@ type ProductRow = {
   modelId: string;
   brandId: string;
   productLineId: string;
+  image: string | null;
+  imageCount: number;
 };
 
 export default function ProductRowInline({ product, brands }: { product: ProductRow; brands: BrandOpt[] }) {
@@ -28,6 +31,27 @@ export default function ProductRowInline({ product, brands }: { product: Product
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const router = useRouter();
+  // Zoom au survol : position fixe (le tableau a overflow-hidden et couperait un popover absolu)
+  const [zoom, setZoom] = useState<{ top: number; left: number } | null>(null);
+
+  const ZOOM_SIZE = 340;
+
+  function showZoom(el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = rect.right + 12;
+    if (left + ZOOM_SIZE > vw - 8) left = Math.max(8, rect.left - ZOOM_SIZE - 12);
+    let top = rect.top + rect.height / 2 - ZOOM_SIZE / 2;
+    top = Math.min(Math.max(8, top), Math.max(8, vh - ZOOM_SIZE - 8));
+    setZoom({ top, left });
+  }
+
+  function openEraser() {
+    const retour = window.location.pathname + window.location.search;
+    router.push(`/admin/produits/${product.id}?retoucher=1&retour=${encodeURIComponent(retour)}`);
+  }
 
   const selectedBrand = brands.find((b) => b.id === brandId);
   const availableLines = selectedBrand?.lines ?? [];
@@ -86,6 +110,52 @@ export default function ProductRowInline({ product, brands }: { product: Product
 
   return (
     <tr className="hover:bg-gray-50">
+      <td className="px-4 py-2 w-[72px]">
+        {product.image ? (
+          <button
+            type="button"
+            onClick={openEraser}
+            onMouseEnter={(e) => showZoom(e.currentTarget)}
+            onMouseLeave={() => setZoom(null)}
+            onFocus={(e) => showZoom(e.currentTarget)}
+            onBlur={() => setZoom(null)}
+            className="relative block w-14 h-14 rounded border border-gray-200 bg-white overflow-hidden hover:ring-2 hover:ring-brand focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
+            title="Cliquer pour retoucher la photo principale"
+            aria-label={`Retoucher la photo de ${product.title}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={product.image}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-contain"
+            />
+            {product.imageCount > 1 && (
+              <span className="absolute bottom-0 right-0 bg-gray-800/80 text-white text-[10px] leading-none px-1 py-0.5 rounded-tl">
+                {product.imageCount}
+              </span>
+            )}
+          </button>
+        ) : (
+          <Link
+            href={`/admin/produits/${product.id}`}
+            className="flex w-14 h-14 items-center justify-center rounded border border-dashed border-gray-300 text-[10px] text-gray-400 text-center leading-tight hover:border-brand hover:text-brand"
+            title="Aucune photo : ouvrir la fiche pour en ajouter"
+          >
+            Pas de photo
+          </Link>
+        )}
+        {zoom && product.image && (
+          <div
+            className="fixed z-50 pointer-events-none rounded-lg border border-gray-300 bg-white shadow-2xl p-1"
+            style={{ top: zoom.top, left: zoom.left, width: ZOOM_SIZE, height: ZOOM_SIZE }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={product.image} alt="" className="w-full h-full object-contain" />
+          </div>
+        )}
+      </td>
       <td className="px-4 py-3 font-medium text-gray-800 max-w-[220px] truncate">{product.title}</td>
       <td className="px-4 py-3">
         <select
