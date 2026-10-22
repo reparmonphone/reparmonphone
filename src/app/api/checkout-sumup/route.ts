@@ -4,6 +4,7 @@ import { createSumupCheckout } from '@/lib/sumup';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
 import { getClientIp } from '@/lib/clientIp';
+import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
 import { getFreeShippingConfig } from '@/lib/freeShipping';
 
@@ -14,6 +15,16 @@ export async function POST(req: NextRequest) {
   // message clair.
   try {
     const { items, shippingOptionId, customer, promoCode } = await req.json();
+
+    // Client banni (voir /admin/bannis) : aucune commande possible, quel que soit l'e-mail saisi.
+    const banned = await checkBanForRequest(req, {
+      email: customer?.email,
+      phone: customer?.phone,
+      addressLine1: customer?.addressLine1,
+      addressZip: customer?.addressZip,
+      moreAddresses: customer?.shipDifferent ? [{ line1: customer?.shipAddressLine1, zip: customer?.shipAddressZip }] : [],
+    });
+    if (banned) return banResponse();
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'Panier vide' }, { status: 400 });

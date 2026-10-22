@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
+import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 
 const schema = z.object({
   firstName: z.string().min(1),
@@ -20,6 +21,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Champs invalides ou manquants.' }, { status: 400 });
   }
   const data = parsed.data;
+
+  // Client banni (voir /admin/bannis) : impossible de recréer un compte avec un autre e-mail.
+  if (
+    await checkBanForRequest(req, {
+      email: data.email,
+      phone: data.phone,
+      addressLine1: data.addressLine1,
+      addressZip: data.addressZip,
+    })
+  ) {
+    return banResponse();
+  }
 
   // IP du client au moment de l'inscription (utile pour l'admin : détection fraude/doublons)
   const signupIp =

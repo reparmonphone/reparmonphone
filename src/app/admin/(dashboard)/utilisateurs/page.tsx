@@ -3,6 +3,8 @@ import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { prisma } from '@/lib/prisma';
 import DeleteUserButton from './DeleteUserButton';
+import BanUserButton from './BanUserButton';
+import { loadBanEntries, matchBan } from '@/lib/bannedClients';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +36,7 @@ export default async function AdminUtilisateursPage({
   }
 
   const users = data.users;
+  const banEntries = await loadBanEntries({ fresh: true });
 
   // Compte les commandes de chaque utilisateur en une seule requête groupée
   const orderCounts = await prisma.order.groupBy({
@@ -55,7 +58,10 @@ export default async function AdminUtilisateursPage({
         </div>
       </div>
       <p className="text-gray-500 mb-6 text-sm">
-        Comptes clients (hors admin), avec leurs coordonnées renseignées à l&apos;inscription.
+        Comptes clients (hors admin), avec leurs coordonnées renseignées à l&apos;inscription.{' '}
+        <Link href="/admin/bannis" className="text-brand hover:underline">
+          Voir la liste des clients bannis
+        </Link>
       </p>
 
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden overflow-x-auto">
@@ -77,10 +83,16 @@ export default async function AdminUtilisateursPage({
               const meta = u.user_metadata ?? {};
               const isAdmin = u.app_metadata?.role === 'admin';
               const fullName = [meta.first_name, meta.last_name].filter(Boolean).join(' ') || '—';
+              const isBanned = !!matchBan(banEntries, { userId: u.id, email: u.email });
               return (
                 <tr key={u.id} className="hover:bg-gray-50 align-top">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-800">{fullName}</div>
+                    {isBanned && (
+                      <span className="inline-block mt-1 mr-1 text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                        🚫 BANNI
+                      </span>
+                    )}
                     {isAdmin && (
                       <span className="inline-block mt-1 text-[10px] font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
                         ADMIN
@@ -114,6 +126,13 @@ export default async function AdminUtilisateursPage({
                     <Link href={`/admin/utilisateurs/${u.id}`} className="text-brand hover:underline mr-3">
                       Modifier
                     </Link>
+                    {!isAdmin && (
+                      <BanUserButton
+                        userId={u.id}
+                        name={fullName !== '—' ? fullName : u.email ?? 'ce client'}
+                        banned={isBanned}
+                      />
+                    )}
                     <DeleteUserButton userId={u.id} />
                   </td>
                 </tr>

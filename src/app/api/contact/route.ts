@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getResendClient } from '@/lib/resend';
+import { checkBanForRequest, banSilentOk } from '@/lib/bannedClients';
 
 const schema = z.object({
   name: z.string().min(2),
@@ -19,6 +20,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { name, email, requestType, subject, message } = parsed.data;
+
+  // Client banni (voir /admin/bannis) : le message n'est ni enregistré ni transmis (et il croit qu'il est parti : aucune alerte).
+  if (await checkBanForRequest(req, { email })) return banSilentOk();
 
   await prisma.contactMessage.create({
     data: { name, email, requestType, subject, message },

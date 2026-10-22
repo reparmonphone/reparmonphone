@@ -15,6 +15,22 @@ export default function MotDePasseOubliePage() {
     setLoading(true);
     setError(null);
 
+    // Pré-contrôle côté serveur : aucun e-mail Supabase n'est envoyé à certaines adresses (même message affiché).
+    try {
+      const pre = await fetch('/api/auth/precheck-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      }).then((r) => r.json());
+      if (pre?.skip) {
+        setLoading(false);
+        setSent(true);
+        return;
+      }
+    } catch {
+      // en cas de souci réseau on continue normalement
+    }
+
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/compte/nouveau-mot-de-passe`,

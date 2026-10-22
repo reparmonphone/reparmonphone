@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
+import { checkBanForAction, BAN_ACTION_ERROR } from '@/lib/bannedClients';
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
 const ADMIN_EMAIL = 'contact@reparmonphone.fr';
@@ -16,6 +17,7 @@ export async function submitClaim(orderId: string, description: string, photoUrl
   } = await supabase.auth.getUser();
 
   if (!user) return { error: 'Vous devez être connecté.' };
+  if (await checkBanForAction()) return BAN_ACTION_ERROR;
   if (!description.trim()) return { error: 'Merci de décrire le problème.' };
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });

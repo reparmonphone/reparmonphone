@@ -7,6 +7,7 @@ import { findBookingConflict, periodOfTime } from '@/lib/rdvAvailability';
 import { getVacationConfig } from '@/lib/vacation';
 import { formatRange, isDuringVacation } from '@/lib/vacationShared';
 import { googleCalendarTemplateUrl, syncAppointmentToCalendar } from '@/lib/googleCalendar';
+import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 
 const schema = z.object({
   customerName: z.string().min(2),
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
+
+  // Client banni (voir /admin/bannis) : aucun rendez-vous possible.
+  if (await checkBanForRequest(req, { email: data.customerEmail, phone: data.customerPhone })) return banResponse();
 
   // Vérifie côté serveur que le créneau n'a pas été fermé dans l'admin (matin / après-midi / journée)
   const slotDate = data.preferredDate.slice(0, 10);

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { checkBanForAction, BAN_ACTION_ERROR } from '@/lib/bannedClients';
 
 async function recomputeProductRating(productId: string) {
   const agg = await prisma.productReview.aggregate({
@@ -29,6 +30,7 @@ export async function createProductReview(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: 'Connecte-toi pour laisser un avis.' };
+  if (await checkBanForAction()) return BAN_ACTION_ERROR;
   if (data.rating < 1 || data.rating > 5) return { error: 'Note invalide.' };
 
   // Un avis ne peut être laissé qu'une fois la commande reçue (statut "Livrée")

@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validatePromoCode } from '@/lib/promoCode';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getClientIp } from '@/lib/clientIp';
+import { checkBanForRequest } from '@/lib/bannedClients';
 
 export async function POST(req: NextRequest) {
   const { code, subtotal, email, items } = await req.json();
+  if (await checkBanForRequest(req, { email: typeof email === 'string' ? email : null })) {
+    return NextResponse.json({ error: 'Ce code promo n’est pas valable.' }, { status: 400 });
+  }
   // Compte connecté (s'il y en a un) + adresse IP : servent aux codes limités à 1 usage par client.
   let userId: string | null = null;
   let userEmail: string | null = null;

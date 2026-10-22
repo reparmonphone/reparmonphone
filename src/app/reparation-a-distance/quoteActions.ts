@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getResendClient } from '@/lib/resend';
+import { checkBanForAction, BAN_ACTION_ERROR } from '@/lib/bannedClients';
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
@@ -14,6 +15,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.
 export async function respondToMailInRepairQuote(repairId: string, decision: 'ACCEPTED' | 'DECLINED') {
   const repair = await prisma.mailInRepair.findUnique({ where: { id: repairId } });
   if (!repair) return { error: 'Demande introuvable.' };
+  if (await checkBanForAction({ email: repair.customerEmail, phone: repair.customerPhone })) return BAN_ACTION_ERROR;
 
   if (repair.quoteDecision) {
     return { error: 'Ce devis a déjà été traité.' };

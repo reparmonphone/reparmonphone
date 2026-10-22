@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = 'products';
 
 export async function POST(req: NextRequest) {
+  // Client banni (compte ou IP) : aucun envoi de fichier.
+  if (await checkBanForRequest(req)) return banResponse();
+
   const formData = await req.formData();
   const file = formData.get('file');
 

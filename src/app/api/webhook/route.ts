@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { generateInvoicePdf } from '@/lib/invoicePdf';
 import { getResendClient } from '@/lib/resend';
 import { sendNewOrderAdminNotification, fidelityBlockHtml } from '@/lib/orderEmails';
+import { loadBanEntries, matchBan } from '@/lib/bannedClients';
 import Stripe from 'stripe';
 
 export async function POST(req: NextRequest) {
@@ -155,6 +156,32 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error('Impossible de mettre à jour la commande depuis le webhook', e);
+    }
+
+    // Client banni (voir /admin/bannis) qui a quand même réussi à payer (Stripe ne donne l'e-mail réel
+    // qu'à cette étape) : on laisse une note bien visible sur la commande pour pouvoir l'annuler / la rembourser.
+    if (updatedOrder && !wasAlreadyPaid) {
+      try {
+        const bannedHit = matchBan(await loadBanEntries(), {
+          userId: updatedOrder.userId,
+          ip: updatedOrder.ipAddress, // IP du client au moment de la commande (pas celle de Stripe)
+          email: updatedOrder.customerEmail,
+          phone: updatedOrder.customerPhone,
+          addressLine1: updatedOrder.shippingLine1,
+          addressZip: updatedOrder.shippingZip,
+          moreAddresses: [{ line1: updatedOrder.billingLine1, zip: updatedOrder.billingZip }],
+        });
+        if (bannedHit) {
+          await prisma.orderNote.create({
+            data: {
+              orderId: updatedOrder.id,
+              message: `🚫 ATTENTION — commande payée par un client BANNI (${bannedHit.label || 'liste noire'}). À annuler / rembourser.`,
+            },
+          });
+        }
+      } catch (e) {
+        console.error('Vérification bannissement (webhook) impossible', e);
+      }
     }
 
     // Envoi automatique de la facture par email si Resend est configuré (voir README)

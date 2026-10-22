@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getResendClient } from '@/lib/resend';
+import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 
 const schema = z.object({
   trackingNumber: z.string().trim().min(4, 'Numéro de suivi trop court.').max(60),
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!repair) {
     return NextResponse.json({ error: 'Demande introuvable.' }, { status: 404 });
   }
+
+  if (await checkBanForRequest(req, { email: repair.customerEmail, phone: repair.customerPhone })) return banResponse();
 
   const previousTracking = repair.inboundTrackingNumber;
   const previousCarrier = repair.inboundCarrier;

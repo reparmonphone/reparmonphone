@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { checkBanForRequest, banSilentOk } from '@/lib/bannedClients';
 
 const schema = z.object({ productId: z.string().min(1), email: z.string().email() });
 
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Email invalide.' }, { status: 400 });
   }
+
+  if (await checkBanForRequest(req, { email: parsed.data.email })) return banSilentOk();
 
   const product = await prisma.product.findUnique({
     where: { id: parsed.data.productId },

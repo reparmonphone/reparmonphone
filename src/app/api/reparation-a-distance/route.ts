@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
+import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 
 const schema = z.object({
   customerName: z.string().min(2),
@@ -24,6 +25,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
+
+  // Client banni (voir /admin/bannis) : aucune demande possible.
+  if (await checkBanForRequest(req, { email: data.customerEmail, phone: data.customerPhone })) return banResponse();
 
   // Si le client est connecté, on rattache la demande à son compte (sinon demande "invité")
   const supabase = await createSupabaseServerClient();
