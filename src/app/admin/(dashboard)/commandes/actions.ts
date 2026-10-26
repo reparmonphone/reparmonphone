@@ -149,6 +149,11 @@ export async function setNoReviewRequest(orderId: string, value: boolean) {
 
 export async function deleteOrder(orderId: string) {
   await requireAdminUser();
+  // Une commande qui a des renvois ne peut pas être supprimée (les renvois perdraient leur commande d'origine)
+  const renvois = await prisma.order.count({ where: { replacementOfId: orderId } });
+  if (renvois > 0) {
+    return { error: `Cette commande a ${renvois} renvoi(s) : supprime d’abord le(s) renvoi(s).` };
+  }
   await prisma.orderItem.deleteMany({ where: { orderId } });
   await prisma.order.delete({ where: { id: orderId } });
   revalidatePath('/admin/commandes');

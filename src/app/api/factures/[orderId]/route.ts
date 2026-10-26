@@ -13,6 +13,11 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
     return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 });
   }
 
+  // Un renvoi gratuit (nouvelle expédition d'une commande close) n'a pas de facture : l'originale fait foi.
+  if (order.replacementOfId) {
+    return NextResponse.json({ error: 'Pas de facture pour un renvoi gratuit' }, { status: 404 });
+  }
+
   // Contrôle d'accès : le propriétaire de la commande ou un admin uniquement.
   const supabase = await createSupabaseServerClient();
   const {

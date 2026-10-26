@@ -29,7 +29,7 @@ export default async function AdminDashboardPage() {
       prisma.appointment.count({ where: { status: 'REQUESTED' } }),
       prisma.contactMessage.count({ where: { handled: false } }),
       prisma.order.aggregate({
-        where: { status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] } },
+        where: { status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] }, replacementOfId: null },
         _sum: { total: true },
       }),
       // Chiffre d'affaires réparation par correspondance : on se base sur paidAt (paiement Stripe

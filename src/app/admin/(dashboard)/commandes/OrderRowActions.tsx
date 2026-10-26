@@ -20,7 +20,8 @@ export default function OrderRowActions({ orderId, isPending }: { orderId: strin
   function handleDelete() {
     if (!confirm('Supprimer définitivement cette commande ? Cette action est irréversible.')) return;
     startTransition(async () => {
-      await deleteOrder(orderId);
+      const res = await deleteOrder(orderId);
+      if (res && 'error' in res && res.error) alert(res.error);
     });
   }
 

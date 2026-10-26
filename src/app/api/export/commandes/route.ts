@@ -36,13 +36,14 @@ export async function GET() {
     `${o.shippingLine1}, ${o.shippingZip} ${o.shippingCity}`,
     o.trackingNumber ?? '',
     o.createdAt.toLocaleDateString('fr-FR'),
+    o.replacementOfId ? 'Renvoi gratuit' : 'Commande',
   ]);
 
   const csv = toCsv(
     [
       'N° facture', 'Client', 'Email', 'Téléphone', 'Statut', 'Paiement', 'Nb articles',
       'Sous-total', 'Livraison', 'Code promo', 'Réduction', 'Total', 'Adresse livraison',
-      'N° suivi', 'Date',
+      'N° suivi', 'Date', 'Type',
     ],
     rows
   );

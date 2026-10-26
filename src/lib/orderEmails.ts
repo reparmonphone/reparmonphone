@@ -10,6 +10,8 @@ const CARRIER_LABELS: Record<string, string> = {
   CHRONOPOST: 'Chronopost',
   COLISSIMO: 'Colissimo',
   MONDIAL_RELAY: 'Mondial Relay',
+  RELAIS_COLIS: 'Relais Colis',
+  AUTRE: 'Autre transporteur',
   UPS: 'UPS',
   DHL: 'DHL',
 };
@@ -101,14 +103,17 @@ function emailWrapper(headerColor: string, headerTitle: string, headerSubtitle: 
   `;
 }
 
-function orderItemsTableHtml(items: { quantity: number; unitPrice: unknown; product: { title: string } }[]) {
+function orderItemsTableHtml(
+  items: { quantity: number; unitPrice: unknown; product: { title: string } }[],
+  opts?: { free?: boolean } // true = renvoi gratuit : on affiche « Offert » au lieu du prix
+) {
   const rows = items
     .map(
       (item) => `
         <tr>
           <td style="padding: 8px 0; color:#374151; font-size: 14px;">${item.product.title}</td>
           <td style="padding: 8px 0; color:#6b7280; font-size: 14px; text-align: center;">×${item.quantity}</td>
-          <td style="padding: 8px 0; color:#111827; font-size: 14px; text-align: right; font-weight: 600;">${formatPrice(Number(item.unitPrice) * item.quantity)}</td>
+          <td style="padding: 8px 0; color:#111827; font-size: 14px; text-align: right; font-weight: 600;">${opts?.free ? 'Offert' : formatPrice(Number(item.unitPrice) * item.quantity)}</td>
         </tr>`
     )
     .join('');
@@ -227,6 +232,109 @@ export async function sendOrderConfirmedEmails(orderId: string) {
   await sendNewOrderAdminNotification(orderId);
 }
 
+// ---------- Renvoi (nouvelle expédition gratuite d'une commande déjà close) ----------
+// Trois moments, un seul gabarit :
+//  - announced : le renvoi vient d'être créé (en préparation) — « un nouvel envoi arrive »
+//  - shipped   : le renvoi passe en « Expédiée » (en livraison)
+//  - tracking  : un numéro de suivi vient d'être ajouté / modifié
+// Pas d'offre de fidélité ici (ce n'est pas un achat) et les articles sont marqués « Offert ».
+export type ReplacementEmailStage = 'announced' | 'shipped' | 'tracking';
+
+export async function sendReplacementEmail(orderId: string, stage: ReplacementEmailStage) {
+  const resend = getResendClient();
+  if (!resend) return;
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: { include: { product: { select: { title: true } } } },
+      replacementOf: { select: { id: true } },
+    },
+  });
+  if (!order) return;
+  if (stage === 'tracking' && !order.trackingNumber) return;
+
+  const ref = order.id.slice(-8);
+  const origRef = (order.replacementOf?.id ?? order.id).slice(-8);
+  const name = escapeHtml(order.customerName);
+  const trackingUrl = getTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
+  const carrierLabel = order.carrier ? CARRIER_LABELS[order.carrier] ?? order.carrier : null;
+  const itemsHtml = orderItemsTableHtml(order.items, { free: true });
+  const orderUrl = `${SITE_URL}/compte/commandes/${order.id}`;
+
+  const trackingBlock = order.trackingNumber
+    ? `
+      <div style="background:#eff6ff; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center;">
+        <p style="color:#6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 6px;">Numéro de suivi${carrierLabel ? ` — ${carrierLabel}` : ''}</p>
+        <p style="color:#111827; font-size: 18px; font-weight: 700; margin: 0; letter-spacing: 0.03em;">${escapeHtml(order.trackingNumber)}</p>
+      </div>`
+    : '';
+  const button = (href: string, label: string) =>
+    `<div style="text-align:center; margin-top: 16px;"><a href="${href}" style="display:inline-block; background:#2563eb; color:#fff; text-decoration:none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">${label}</a></div>`;
+  const itemsBlock = `
+    <div style="border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 12px 0; margin: 16px 0;">
+      ${itemsHtml}
+    </div>`;
+  const freeNote = `<p style="color:#374151; font-size: 14px; line-height: 1.6;">Cet envoi est <strong>entièrement offert</strong> : aucun paiement ni frais de port ne vous sont demandés.</p>`;
+
+  let subject: string;
+  let title: string;
+  let subtitle: string;
+  let body: string;
+
+  if (stage === 'announced') {
+    subject = `ReparMonPhone.fr - Un nouvel envoi est en préparation pour votre commande #${origRef}`;
+    title = 'Un nouvel envoi est en préparation 🔁';
+    subtitle = `Renvoi de votre commande #${origRef}`;
+    body = `
+      <p style="color:#374151; font-size: 14px; line-height: 1.6;">
+        Bonjour ${name}, nous préparons un <strong>nouvel envoi</strong> pour votre commande <strong>#${origRef}</strong>. Une nouvelle livraison devrait donc très prochainement vous parvenir.
+      </p>
+      ${itemsBlock}
+      ${freeNote}
+      ${
+        order.trackingNumber
+          ? `<p style="color:#374151; font-size: 14px; line-height: 1.6;">Voici déjà le suivi de ce colis${carrierLabel ? ` (${carrierLabel})` : ''} :</p>${trackingBlock}${trackingUrl ? button(trackingUrl, 'Suivre mon colis') : ''}`
+          : `<p style="color:#374151; font-size: 14px; line-height: 1.6;">Vous recevrez un e-mail avec le numéro de suivi dès que le colis sera expédié.</p>${button(orderUrl, 'Voir mon nouvel envoi')}`
+      }
+      <p style="color:#9ca3af; font-size: 12px; margin-top: 16px;">À réception, vous pourrez donner votre avis depuis votre compte, comme pour une commande classique.</p>`;
+  } else if (stage === 'shipped') {
+    subject = `ReparMonPhone.fr - Votre nouveau colis (commande #${origRef}) a été expédié 📦`;
+    title = 'Votre nouveau colis est en route 📦';
+    subtitle = `Renvoi de votre commande #${origRef}`;
+    body = `
+      <p style="color:#374151; font-size: 14px; line-height: 1.6;">
+        Bonjour ${name}, le nouvel envoi lié à votre commande <strong>#${origRef}</strong> vient d'être expédié${carrierLabel ? ` via <strong>${carrierLabel}</strong>` : ''}.
+      </p>
+      ${itemsBlock}
+      ${freeNote}
+      ${trackingBlock}
+      ${trackingUrl ? button(trackingUrl, 'Suivre mon colis') : button(orderUrl, 'Voir mon nouvel envoi')}
+      <p style="color:#9ca3af; font-size: 12px; margin-top: 16px;">À réception, vous pourrez donner votre avis depuis votre compte, comme pour une commande classique.</p>`;
+  } else {
+    subject = `ReparMonPhone.fr - Suivi de votre nouvel envoi (commande #${origRef})`;
+    title = 'Suivi de votre nouvel envoi 🔍';
+    subtitle = `Renvoi de votre commande #${origRef}`;
+    body = `
+      <p style="color:#374151; font-size: 14px; line-height: 1.6;">
+        Bonjour ${name}, le numéro de suivi de votre nouveau colis${carrierLabel ? ` (${carrierLabel})` : ''} est maintenant disponible.
+      </p>
+      ${trackingBlock}
+      ${trackingUrl ? button(trackingUrl, 'Suivre mon colis') : button(orderUrl, 'Voir mon nouvel envoi')}`;
+  }
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: order.customerEmail,
+      subject,
+      html: emailWrapper('#2563eb', title, subtitle, body),
+    });
+  } catch (e) {
+    console.error(`Erreur envoi email renvoi (${stage}) #${ref}`, e);
+  }
+}
+
 // ---------- 2. Commande expédiée ----------
 // À appeler depuis updateOrderStatus quand le nouveau statut est SHIPPED.
 export async function sendOrderShippedEmail(orderId: string) {
@@ -235,6 +343,8 @@ export async function sendOrderShippedEmail(orderId: string) {
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return;
+  // Renvoi (nouvelle expédition gratuite) : e-mail dédié « nouveau colis en route »
+  if (order.replacementOfId) return sendReplacementEmail(orderId, 'shipped');
 
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
   const trackingUrl = getTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
@@ -285,6 +395,8 @@ export async function sendTrackingNumberEmail(orderId: string) {
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order || !order.trackingNumber) return;
+  // Renvoi : e-mail de suivi dédié (sans offre de fidélité)
+  if (order.replacementOfId) return sendReplacementEmail(orderId, 'tracking');
 
   const orderRef = order.invoiceNumber || order.id.slice(-8).toUpperCase();
   const trackingUrl = getTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);

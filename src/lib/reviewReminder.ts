@@ -97,6 +97,19 @@ export async function sendReviewReminder(orderId: string, source: 'auto' | 'manu
 
   const itemsToReview = order.items.filter((i) => !reviewedProductIds.has(i.productId));
 
+  // Renvoi gratuit : si le client a déjà reçu une demande d'avis pour une autre de ses commandes et qu'il ne reste
+  // aucun produit à commenter, on n'envoie pas un deuxième mail « Trustpilot » identique — on le marque simplement traité.
+  if (order.replacementOfId && itemsToReview.length === 0) {
+    const alreadyAsked = await prisma.order.findFirst({
+      where: { customerEmail: order.customerEmail, id: { not: order.id }, reviewReminderSentAt: { not: null } },
+      select: { id: true },
+    });
+    if (alreadyAsked) {
+      await prisma.order.update({ where: { id: order.id }, data: { reviewReminderSentAt: new Date() } });
+      return { ok: true };
+    }
+  }
+
   const resend = getResendClient();
   if (!resend) {
     return { error: "Envoi d'email non configuré. Ajoute RESEND_API_KEY dans .env (voir README)." };

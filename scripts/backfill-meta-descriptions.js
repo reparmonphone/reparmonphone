@@ -48,6 +48,10 @@ function withDeliveryMention(text, maxLength = 160) {
   return mentionsDelivery(shortened) ? shortened : `${shortened} ${DELIVERY_LINE}.`;
 }
 
+// Types pour lesquels le libellé générique ("pièce détachée", "accessoire"...) dirait moins que le
+// titre du produit : on garde alors le titre comme sujet de la phrase.
+const GENERIC_TYPES = new Set(['OUTILLAGE', 'ACCESSOIRE', 'AUTRE']);
+
 function generateMetaDescription({ title, brandName, modelName, condition, quality, price, pieceLabel }) {
   const qualifiers = [quality, condition].filter((v) => !!v && v.trim() !== '');
   const qualifierText = qualifiers.length ? ` (${qualifiers.join(', ')})` : '';
@@ -56,7 +60,9 @@ function generateMetaDescription({ title, brandName, modelName, condition, quali
     ? `${pieceLabel.charAt(0).toUpperCase()}${pieceLabel.slice(1)}${qualifierText}`
     : `${title}${qualifierText}`;
 
-  const target = [brandName, modelName].filter((v) => v && v.trim() !== '').join(' ');
+  // Si le sujet (titre) cite déjà le modèle, inutile de le répéter avec "pour Marque Modèle".
+  const subjectHasModel = !pieceLabel && modelName && title.toLowerCase().includes(modelName.toLowerCase());
+  const target = subjectHasModel ? '' : [brandName, modelName].filter((v) => v && v.trim() !== '').join(' ');
   const forText = target ? ` pour ${target}` : '';
 
   const priceText = typeof price === 'number' && price > 0 ? ` À partir de ${price.toFixed(2).replace('.', ',')} €.` : '';
@@ -88,19 +94,25 @@ async function main() {
   console.log(`${products.length} produit(s) sans meta description (ou avec un texte provisoire à remplacer).\n`);
 
   let done = 0;
+  const shownPerType = {};
+  let shown = 0;
   for (const p of products) {
     const metaDescription = generateMetaDescription({
       title: p.title,
-      brandName: p.model.productLine.brand.name,
-      modelName: p.model.name,
+      // Un outil n'est pas lié à un modèle précis : pas de "pour Marque Modèle" dans sa description
+      brandName: p.pieceType === 'OUTILLAGE' ? '' : p.model.productLine.brand.name,
+      modelName: p.pieceType === 'OUTILLAGE' ? '' : p.model.name,
       condition: p.condition,
       quality: p.quality,
       price: Number(p.price),
-      pieceLabel: PIECE_TYPE_LABELS[p.pieceType] ?? null,
+      pieceLabel: GENERIC_TYPES.has(p.pieceType) ? null : PIECE_TYPE_LABELS[p.pieceType] ?? null,
     });
 
-    if (done < 10) {
-      console.log(`"${p.title}"`);
+    // Aperçu : 2 exemples par type de pièce, pour voir tous les cas de figure
+    if ((shownPerType[p.pieceType] ?? 0) < 2) {
+      shownPerType[p.pieceType] = (shownPerType[p.pieceType] ?? 0) + 1;
+      shown += 1;
+      console.log(`[${p.pieceType}] "${p.title}"`);
       console.log(`  → ${metaDescription}\n`);
     }
 
@@ -110,7 +122,7 @@ async function main() {
     done += 1;
   }
 
-  if (products.length > 10) console.log(`… et ${products.length - 10} autre(s).\n`);
+  if (products.length > shown) console.log(`… et ${products.length - shown} autre(s) du même genre.\n`);
 
   if (!APPLY) {
     console.log('Aperçu uniquement — relance avec --apply pour enregistrer ces meta descriptions.');

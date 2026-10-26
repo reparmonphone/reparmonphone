@@ -319,6 +319,15 @@ model Order {
   // montré au client. Null tant que non renseigné.
   actualShippingCost Decimal? @db.Decimal(10, 2)
 
+  // Renvoi : nouvelle expédition (gratuite) d'articles pour une commande déjà close — ex. produit
+  // défectueux renvoyé en remplacement. C'est une vraie commande (même suivi, mêmes e-mails, même
+  // demande d'avis) mais à 0 €, liée à la commande d'ORIGINE (jamais à un autre renvoi). Elle est exclue
+  // du chiffre d'affaires et des statistiques de ventes.
+  replacementOfId   String?
+  replacementOf     Order?  @relation("OrderReplacements", fields: [replacementOfId], references: [id], onDelete: Restrict)
+  replacements      Order[] @relation("OrderReplacements")
+  replacementReason String? @db.Text // motif interne (jamais montré au client)
+
   items     OrderItem[]
   claims    Claim[]
   shipments Shipment[]
@@ -328,6 +337,7 @@ model Order {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([replacementOfId])
   @@map("orders")
 }
 

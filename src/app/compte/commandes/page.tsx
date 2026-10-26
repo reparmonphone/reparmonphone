@@ -14,6 +14,15 @@ const STATUS_LABELS: Record<string, string> = {
   REFUNDED: 'Remboursée',
 };
 
+// Un renvoi (nouvelle expédition gratuite) s'affiche avec des statuts de livraison simples
+const REPLACEMENT_STATUS_LABELS: Record<string, string> = {
+  PAID: 'En préparation',
+  PROCESSING: 'En préparation',
+  SHIPPED: 'En livraison',
+  DELIVERED: 'Livré',
+  CANCELLED: 'Annulé',
+};
+
 export default async function MesCommandesPage() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -44,12 +53,16 @@ export default async function MesCommandesPage() {
             <div key={o.id} className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-md hover:border-brand transition">
               <Link href={`/compte/commandes/${o.id}`} className="block">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold">Commande #{o.id.slice(-8)}</span>
-                  <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full">{STATUS_LABELS[o.status]}</span>
+                  <span className="font-semibold">
+                    {o.replacementOfId ? '🔁 Renvoi' : 'Commande'} #{o.id.slice(-8)}
+                  </span>
+                  <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full">
+                    {o.replacementOfId ? (REPLACEMENT_STATUS_LABELS[o.status] ?? STATUS_LABELS[o.status]) : STATUS_LABELS[o.status]}
+                  </span>
                 </div>
                 <p className="text-sm text-gray-500 mb-2">{new Date(o.createdAt).toLocaleDateString('fr-FR')} — {o.items.length} article(s)</p>
                 <div className="flex items-center justify-between">
-                  <p className="font-bold">{formatPrice(Number(o.total))}</p>
+                  <p className="font-bold">{o.replacementOfId ? 'Offert' : formatPrice(Number(o.total))}</p>
                   <span className="text-brand text-sm font-medium">Voir le détail →</span>
                 </div>
               </Link>

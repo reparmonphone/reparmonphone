@@ -76,11 +76,14 @@ function trackingSummary(o: OrderForTracking): { label: string; color: string } 
 export default async function AdminCommandesPage({
   searchParams,
 }: {
-  searchParams: { statut?: string; q?: string; avis?: string };
+  searchParams: { statut?: string; q?: string; avis?: string; type?: string };
 }) {
   const where: Record<string, unknown> = {};
   const avisFilter = searchParams.avis ?? '';
   const onlyExcluded = avisFilter === 'exclus';
+  // Onglet « Renvois » : uniquement les nouvelles expéditions gratuites (commandes déjà closes)
+  const onlyReplacements = searchParams.type === 'renvoi';
+  if (onlyReplacements) where.replacementOfId = { not: null };
   if (searchParams.statut) where.status = searchParams.statut;
   if (onlyExcluded) where.noReviewRequest = true;
   // Envoyées : un e-mail de demande d'avis (auto ou manuel) est déjà parti
@@ -105,12 +108,13 @@ export default async function AdminCommandesPage({
     include: {
       items: true,
       shipments: { include: { items: true } },
+      replacementOf: { select: { id: true } },
     },
   });
 
   const tabBase = 'px-4 py-2 text-sm font-medium rounded-lg transition';
   const excludedEmails = await getReviewExcludedEmails();
-  const [eligibleReviewCount, allDeliveredCount, excludedOrdersCount, sentCount, toSendCount] = await Promise.all([
+  const [eligibleReviewCount, allDeliveredCount, excludedOrdersCount, sentCount, toSendCount, replacementsCount] = await Promise.all([
     countReviewReminderEligible(),
     prisma.order.count({
       where: {
@@ -122,6 +126,7 @@ export default async function AdminCommandesPage({
     prisma.order.count({ where: { noReviewRequest: true } }),
     prisma.order.count({ where: { reviewReminderSentAt: { not: null } } }),
     prisma.order.count({ where: { status: 'DELIVERED', reviewReminderSentAt: null, noReviewRequest: false } }),
+    prisma.order.count({ where: { replacementOfId: { not: null } } }),
   ]);
   const tabCls = (active: boolean, activeColor = 'bg-brand text-white') =>
     `${tabBase} ${active ? activeColor : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`;
@@ -140,8 +145,11 @@ export default async function AdminCommandesPage({
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <Link href="/admin/commandes" className={tabCls(!avisFilter)}>
+        <Link href="/admin/commandes" className={tabCls(!avisFilter && !onlyReplacements)}>
           Toutes les commandes
+        </Link>
+        <Link href="/admin/commandes?type=renvoi" className={tabCls(onlyReplacements, 'bg-purple-600 text-white')}>
+          🔁 Renvois ({replacementsCount})
         </Link>
         <Link href="/admin/commandes?avis=a-envoyer" className={tabCls(avisFilter === 'a-envoyer', 'bg-amber-500 text-white')}>
           ⏳ Avis à envoyer ({toSendCount})
@@ -162,6 +170,7 @@ export default async function AdminCommandesPage({
 
       <form className="flex flex-wrap gap-3 mb-6" action="/admin/commandes" method="get">
         {avisFilter && <input type="hidden" name="avis" value={avisFilter} />}
+        {onlyReplacements && <input type="hidden" name="type" value="renvoi" />}
         <input
           type="text"
           name="q"
@@ -209,13 +218,30 @@ export default async function AdminCommandesPage({
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-800">{o.customerName}</div>
                     <div className="text-gray-500 text-xs">{o.customerEmail}</div>
+                    {o.replacementOf && (
+                      <Link
+                        href={`/admin/commandes/${o.replacementOf.id}`}
+                        className="inline-block mt-1 text-[11px] font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full hover:bg-purple-200"
+                        title="Ouvrir la commande d'origine"
+                      >
+                        🔁 Renvoi de #{o.replacementOf.id.slice(-8)}
+                      </Link>
+                    )}
                   </td>
                   <td className="px-4 py-3">{o.items.length}</td>
-                  <td className="px-4 py-3 font-medium">{formatPrice(Number(o.total))}</td>
-                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{paymentLabel(o)}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {o.replacementOfId ? <span className="text-purple-700">Offert</span> : formatPrice(Number(o.total))}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                    {o.replacementOfId ? '—' : paymentLabel(o)}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[o.status]}`}>
-                      {STATUS_LABELS[o.status]}
+                      {o.replacementOfId && o.status === 'SHIPPED'
+                        ? 'En livraison'
+                        : o.replacementOfId && o.status === 'DELIVERED'
+                          ? 'Livré'
+                          : STATUS_LABELS[o.status]}
                     </span>
                     {o.status === 'PENDING' && o.reminderSentAt && (
                       <p className="text-[10px] text-gray-400 mt-1">

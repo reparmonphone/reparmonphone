@@ -98,6 +98,7 @@ export default async function AdminBeneficePage({ searchParams }: { searchParams
         createdAt: true,
         total: true,
         customerName: true,
+        replacementOfId: true,
         shippingCost: true,
         status: true,
         paymentProvider: true,
@@ -139,11 +140,12 @@ export default async function AdminBeneficePage({ searchParams }: { searchParams
     const costHT = o.items.reduce((s, it) => s + it.quantity * (it.costPrice != null ? Number(it.costPrice) : 0), 0);
     const shipping = shippingHT * (1 + VAT_RATE);
     const cost = costHT * (1 + VAT_RATE);
-    const fee = originalTotal * ((feeRates[o.paymentProvider] ?? 0) / 100) + (feeFixed[o.paymentProvider] ?? 0);
+    // Renvoi gratuit (0 €) : aucun frais de plateforme de paiement, mais le coût d'achat et le port réels restent à ta charge
+    const fee = o.replacementOfId ? 0 : originalTotal * ((feeRates[o.paymentProvider] ?? 0) / 100) + (feeFixed[o.paymentProvider] ?? 0);
     // Une commande remboursée n'est jamais "incomplète" : des coûts non saisis y sont normaux.
     const isIncomplete = !refunded && (o.actualShippingCost == null || o.items.some((it) => it.costPrice == null));
     return {
-      customerName: o.customerName,
+      customerName: o.replacementOfId ? `🔁 Renvoi — ${o.customerName}` : o.customerName,
       shippingPaid: Number(o.shippingCost ?? 0),
       status: o.status,
       id: o.id,

@@ -38,7 +38,8 @@ export default async function AdminStatistiquesPage() {
   const monthStart = startOfMonth(now);
   const yearStart = startOfYear(now);
 
-  const revenueWhere = { status: { in: [...REVENUE_STATUSES] } };
+  // replacementOfId: null → les renvois gratuits (0 €) ne comptent ni dans le CA, ni dans le nombre de ventes, ni dans le panier moyen
+  const revenueWhere = { status: { in: [...REVENUE_STATUSES] }, replacementOfId: null };
 
   const [
     totalRevenueAgg,
@@ -57,8 +58,8 @@ export default async function AdminStatistiquesPage() {
     prisma.order.aggregate({ where: { ...revenueWhere, createdAt: { gte: monthStart } }, _sum: { total: true } }),
     prisma.order.aggregate({ where: { ...revenueWhere, createdAt: { gte: yearStart } }, _sum: { total: true } }),
     prisma.order.count({ where: revenueWhere }),
-    prisma.order.count(),
-    prisma.order.groupBy({ by: ['status'], _count: { status: true } }),
+    prisma.order.count({ where: { replacementOfId: null } }),
+    prisma.order.groupBy({ by: ['status'], where: { replacementOfId: null }, _count: { status: true } }),
     prisma.order.findMany({
       where: { ...revenueWhere, createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 11, 1) } },
       select: { createdAt: true, total: true },

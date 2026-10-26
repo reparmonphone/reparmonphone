@@ -36,6 +36,8 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
         orderBy: { createdAt: 'asc' },
       },
       notes: { orderBy: { createdAt: 'desc' } },
+      replacementOf: { select: { id: true } },
+      replacements: { select: { id: true, status: true }, orderBy: { createdAt: 'desc' } },
     },
   });
 
@@ -44,6 +46,11 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
     notFound();
   }
 
+  const isReplacement = !!order.replacementOfId;
+  const statusLabel = isReplacement
+    ? ({ PROCESSING: 'En préparation', PAID: 'En préparation', SHIPPED: 'En livraison', DELIVERED: 'Livré', CANCELLED: 'Annulé' } as Record<string, string>)[order.status] ??
+      STATUS_LABELS[order.status]
+    : STATUS_LABELS[order.status];
   const trackingUrl = buildTrackingUrl(order.carrier, order.trackingNumber, order.trackingUrlOverride);
   // Livraison partielle : si la commande a été répartie en plusieurs envois, on affiche le détail
   // de chaque colis (articles + suivi) à la place du bloc de suivi unique classique.
@@ -64,10 +71,42 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
       <Link href="/compte/commandes" className="text-sm text-gray-500 hover:text-gray-800">← Mes commandes</Link>
 
       <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-2xl font-bold">Commande #{order.id.slice(-8)}</h1>
-        <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full font-medium">{STATUS_LABELS[order.status]}</span>
+        <h1 className="text-2xl font-bold">
+          {isReplacement ? '🔁 Renvoi' : 'Commande'} #{order.id.slice(-8)}
+        </h1>
+        <span className="text-xs bg-gray-100 px-2.5 py-1 rounded-full font-medium">{statusLabel}</span>
       </div>
       <p className="text-gray-500 mb-8">{new Date(order.createdAt).toLocaleString('fr-FR')}</p>
+
+      {/* Renvoi : nouvelle expédition gratuite liée à une commande d'origine */}
+      {isReplacement && order.replacementOf && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 mb-6">
+          <h2 className="font-semibold mb-1 text-purple-900">🔁 Nouvel envoi offert</h2>
+          <p className="text-sm text-gray-700">
+            Cet envoi est lié à votre commande{' '}
+            <Link href={`/compte/commandes/${order.replacementOf.id}`} className="text-brand font-medium hover:underline">
+              #{order.replacementOf.id.slice(-8)}
+            </Link>
+            . Il est <strong>entièrement offert</strong> : aucun paiement ni frais de port.
+          </p>
+        </div>
+      )}
+      {!isReplacement && order.replacements.length > 0 && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 mb-6">
+          <h2 className="font-semibold mb-1 text-purple-900">🔁 Un nouvel envoi est prévu pour cette commande</h2>
+          <ul className="text-sm text-gray-700 space-y-1">
+            {order.replacements.map((r) => (
+              <li key={r.id}>
+                <Link href={`/compte/commandes/${r.id}`} className="text-brand font-medium hover:underline">
+                  Suivre le renvoi #{r.id.slice(-8)}
+                </Link>{' '}
+                —{' '}
+                {({ PROCESSING: 'en préparation', PAID: 'en préparation', SHIPPED: 'en livraison', DELIVERED: 'livré', CANCELLED: 'annulé' } as Record<string, string>)[r.status] ?? r.status}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Notes de la boutique sur cette commande (imprévus, retards...) — toujours en premier, avant
           même le suivi de livraison, car c'est l'info la plus importante quand elle existe. */}
@@ -162,7 +201,7 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
                   <p className="text-sm font-medium text-gray-800">{item.product.title}</p>
                   <p className="text-xs text-gray-500">Qté : {item.quantity}</p>
                 </div>
-                <span className="font-medium text-sm">{formatPrice(Number(item.unitPrice) * item.quantity)}</span>
+                <span className="font-medium text-sm">{isReplacement ? 'Offert' : formatPrice(Number(item.unitPrice) * item.quantity)}</span>
               </div>
 
               {order.status === 'DELIVERED' && (
@@ -177,6 +216,12 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
             </div>
           ))}
         </div>
+        {isReplacement ? (
+          <div className="border-t border-gray-100 mt-4 pt-4 flex justify-between font-bold">
+            <span>Total</span>
+            <span>Offert</span>
+          </div>
+        ) : (
         <div className="border-t border-gray-100 mt-4 pt-4 space-y-1">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Sous-total</span>
@@ -199,9 +244,11 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
             <span>{formatPrice(Number(order.total))}</span>
           </div>
         </div>
+        )}
       </div>
 
-      {/* Facture */}
+      {/* Facture (pas de facture pour un renvoi gratuit) */}
+      {!isReplacement && (
       <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
         <h2 className="font-semibold mb-3">Facture</h2>
         {order.paymentBrand && (
@@ -217,6 +264,7 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
         )}
         <InvoiceActions orderId={order.id} />
       </div>
+      )}
 
       {/* Adresses */}
       <div className="grid sm:grid-cols-2 gap-4 mb-6">
@@ -240,7 +288,7 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
         </div>
       </div>
 
-      <ReorderButton
+      {!isReplacement && <ReorderButton
         items={order.items.map((item) => ({
           productId: item.productId,
           slug: item.product.slug,
@@ -250,7 +298,7 @@ export default async function CommandeDetailPage({ params }: { params: { id: str
           quantity: item.quantity,
           inStock: item.product.inStock,
         }))}
-      />
+      />}
     </div>
   );
 }
