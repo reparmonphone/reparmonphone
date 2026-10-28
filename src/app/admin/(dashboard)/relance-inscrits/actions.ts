@@ -5,7 +5,7 @@ import { requireAdminUser } from '@/lib/supabase-server';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { getResendClient } from '@/lib/resend';
 import { loadBanEntries, matchBan, normalizeEmail } from '@/lib/bannedClients';
-import { loadUnsubscribed, loadSentLog, saveSentLog, unsubUrl, ticketUrl, ticketNumber, setTicketCode, loadScratchLog, loadOpenLog, loadClickLog, openPixelUrl, resolvePromo, SITE_URL } from '@/lib/marketing';
+import { loadUnsubscribed, loadSentLog, saveSentLog, unsubUrl, ticketUrl, ticketNumber, setTicketCode, loadScratchLog, loadOpenLog, loadClickLog, openPixelUrl, phoneKey, resolvePromo, SITE_URL } from '@/lib/marketing';
 import { buildRelanceEmail, type RelancePromo } from '@/lib/relanceEmail';
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
@@ -26,7 +26,7 @@ export type RelanceRow = {
   openedAt: string | null; // e-mail ouvert (1re fois, ISO) : pixel, ou déduit d'un clic / grattage
   openCount: number; // nombre d'ouvertures enregistrées
   clickedAt: string | null; // a cliqué dans l'e-mail (page du ticket visitée), ISO
-  status: 'eligible' | 'recent' | 'noConsent' | 'unsubscribed' | 'banned';
+  status: 'eligible' | 'recent' | 'noConsent' | 'unsubscribed' | 'banned' | 'duplicate';
 };
 
 export type RelanceStats = {
@@ -37,6 +37,7 @@ export type RelanceStats = {
   noConsent: number; // pas de consentement : jamais contactés
   unsubscribed: number;
   banned: number;
+  duplicates: number; // même téléphone qu'un client ou qu'un autre inscrit : un seul ticket par personne
   alreadySent: number;
   // Suivi des envois (parmi les inscrits sans commande qui ont reçu la relance)
   sent: number;
@@ -69,7 +70,7 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
     loadAllUsers(),
     prisma.order.findMany({
       where: { status: { in: [...BUYER_STATUSES] } },
-      select: { userId: true, customerEmail: true },
+      select: { userId: true, customerEmail: true, customerPhone: true },
     }),
     prisma.newsletterSubscriber.findMany({ select: { email: true } }),
     loadBanEntries({ fresh: true }),
@@ -80,6 +81,7 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
     loadClickLog(),
   ]);
 
+  const buyerPhones = new Set(orders.map((o: { customerPhone?: string | null }) => phoneKey(o.customerPhone)).filter(Boolean) as string[]);
   const buyerIds = new Set(orders.map((o: { userId: string | null }) => o.userId).filter(Boolean) as string[]);
   const buyerEmails = new Set(orders.map((o: { customerEmail: string }) => normalizeEmail(o.customerEmail)));
   const newsletterEmails = new Set(newsletter.map((n: { email: string }) => normalizeEmail(n.email)));
@@ -93,6 +95,7 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
     noConsent: 0,
     unsubscribed: 0,
     banned: 0,
+    duplicates: 0,
     alreadySent: 0,
     sent: 0,
     opened: 0,
@@ -101,6 +104,10 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
   };
   const eligible: Candidate[] = [];
   const rows: RelanceRow[] = [];
+
+  // Du plus ancien au plus récent : en cas de doublon (même téléphone), le compte le plus ancien garde son ticket
+  users.sort((a: { created_at?: string }, b: { created_at?: string }) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+  const phonesSeen = new Set<string>(); // téléphones des inscrits déjà joignables (éligibles ou déjà relancés)
 
   for (const u of users) {
     const email = (u.email ?? '').trim();
@@ -152,6 +159,16 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
       row.status = 'noConsent';
       continue;
     }
+    // Un seul ticket par personne : même téléphone qu'un client existant (réinscription avec une autre adresse) ou qu'un
+    // autre inscrit déjà joignable → pas de second ticket. (L'adresse IP n'est utilisée qu'à la commande, pas ici :
+    // une box ou un réseau mobile est partagé par plusieurs personnes.)
+    const pk = phoneKey(meta.phone);
+    if (pk && (buyerPhones.has(pk) || phonesSeen.has(pk))) {
+      stats.duplicates++;
+      row.status = 'duplicate';
+      continue;
+    }
+    if (pk) phonesSeen.add(pk);
     const last = sentLog[norm];
     if (last && new Date(last).getTime() > sinceMs) {
       stats.alreadySent++;
@@ -193,6 +210,7 @@ export async function sendRelanceToOne(code: string | null, email: string, varia
   if (!row) return { error: 'Inscrit introuvable (ou il a déjà commandé).' };
   if (row.status === 'banned') return { error: 'Cet inscrit ne peut pas être contacté.' };
   if (row.status === 'unsubscribed') return { error: 'Cet inscrit s’est désinscrit des e-mails promotionnels.' };
+  if (row.status === 'duplicate') return { error: 'Même numéro de téléphone qu’un client ou qu’un autre inscrit : un seul ticket par personne.' };
   if (row.status === 'noConsent') return { error: 'Cet inscrit n’a pas accepté de recevoir des offres.' };
   try {
     await sendOne({ email: row.email, firstName: row.name.split(' ')[0] ?? '' }, r.promo, variant);

@@ -214,9 +214,9 @@ export function buildTicketRelanceEmail(opts: {
 
     <tr><td align="center" style="padding:4px 16px 10px 16px;">
       <a href="${siteUrl}" style="text-decoration:none;">
-        <img src="${siteUrl}/email/logo-anim.gif" width="480" alt="ReparMonPhone · Pièces détachées &amp; accessoires" style="display:block;width:100%;max-width:480px;height:auto;border:0;font-size:22px;font-weight:800;color:#7fb5ff;text-align:center;">
+        <img src="${siteUrl}/email/logo-anim.gif" width="280" alt="ReparMonPhone · Pièces détachées &amp; accessoires" style="display:block;margin:0 auto;width:100%;max-width:280px;height:auto;border:0;border-radius:20px;font-size:22px;font-weight:800;color:#7fb5ff;text-align:center;">
       </a>
-      <p style="margin:2px 0 0 0;font-size:12px;color:#6f86a8;">Atelier de réparation · Sainte-Maxime</p>
+      <p style="margin:10px 0 0 0;font-size:12px;color:#6f86a8;">Atelier de réparation · Sainte-Maxime</p>
     </td></tr>
 
     <tr><td align="center" style="padding:6px 20px 4px 20px;">

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getTicketCode, loadScratchLog, markClicked, resolvePromo, verifyUnsubToken } from '@/lib/marketing';
+import { getTicketCode, hasUsedPromo, loadScratchLog, markClicked, personalCode, resolvePromo, verifyUnsubToken } from '@/lib/marketing';
 import { normalizeEmail } from '@/lib/bannedClients';
 import ScratchCard from './ScratchCard';
 
@@ -17,6 +17,7 @@ export default async function TicketPage({ searchParams }: { searchParams: { e?:
 
   let promo: { code: string; label: string; conditions: string[] } | null = null;
   let already = false;
+  let used = false;
   if (valid) {
     // Il a cliqué dans l'e-mail : indicateur « a cliqué » dans l'admin (sans bloquer la page en cas de souci)
     try {
@@ -27,7 +28,19 @@ export default async function TicketPage({ searchParams }: { searchParams: { e?:
     const code = await getTicketCode();
     if (code) {
       const r = await resolvePromo(code);
-      if (!('error' in r) && r.promo) promo = r.promo;
+      if (!('error' in r) && r.promo) {
+        // Code PERSONNEL (BASE-XXXXXX) lié à ce compte, à usage unique : le code de base ne s'affiche jamais
+        promo = {
+          ...r.promo,
+          code: personalCode(r.promo.code, email),
+          conditions: ['Code personnel : valable uniquement sur ton compte (connecte-toi avant de payer), une seule fois', ...r.promo.conditions.filter((c) => !/une seule fois par client/i.test(c))],
+        };
+        try {
+          used = await hasUsedPromo(r.promo.code, { emails: [email] });
+        } catch {
+          used = false;
+        }
+      }
     }
     const log = await loadScratchLog();
     already = !!log[normalizeEmail(email)];
@@ -36,7 +49,15 @@ export default async function TicketPage({ searchParams }: { searchParams: { e?:
   return (
     <div className="min-h-[70vh] bg-[#0b1b33] px-4 py-12">
       <div className="max-w-md mx-auto text-center">
-        {valid && promo ? (
+        {valid && promo && used ? (
+          <div className="bg-white rounded-xl p-8">
+            <h1 className="text-xl font-bold mb-2">Ton ticket a déjà été utilisé 🎟️</h1>
+            <p className="text-gray-600 text-sm mb-5">Ton cadeau de bienvenue a déjà servi sur une commande. Il n’est valable qu’une seule fois.</p>
+            <Link href="/boutique" className="text-brand font-medium hover:underline">
+              Voir les pièces détachées
+            </Link>
+          </div>
+        ) : valid && promo ? (
           <>
             <p className="text-xs tracking-[0.2em] uppercase text-[#7fb5ff] font-bold mb-2">ReparMonPhone</p>
             <h1 className="text-3xl font-extrabold text-white mb-2">Ton ticket à gratter 🎟️</h1>

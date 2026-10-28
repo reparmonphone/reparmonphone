@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { hasUsedPromo, loadTicketOnly, parsePersonalCode, verifyPersonalCode } from './marketing';
 
 // Commandes réellement payées (une commande PENDING/annulée ne « consomme » ni n'ouvre aucun droit).
 const PAID_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const;
@@ -6,16 +7,35 @@ const PAID_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const;
 export type PromoContext = {
   email?: string | null; // e-mail saisi dans le panier (ou celui du compte connecté)
   userId?: string | null; // compte connecté, si présent
+  accountEmail?: string | null; // e-mail du compte connecté (≠ e-mail saisi dans le panier) : sert aux codes personnels des tickets
+  phone?: string | null; // téléphone du compte connecté
   ip?: string | null; // adresse IP du visiteur
   items?: { productId: string; quantity: number }[]; // contenu du panier (pour les codes non cumulables)
 };
 
 export async function validatePromoCode(codeInput: string, subtotal: number, ctx: PromoContext = {}) {
-  const code = codeInput.trim().toUpperCase();
+  let code = codeInput.trim().toUpperCase();
   if (!code) return { error: 'Code invalide.' };
 
-  const promo = await prisma.promoCode.findUnique({ where: { code } });
+  let promo = await prisma.promoCode.findUnique({ where: { code } });
+  // Code personnel d'un ticket à gratter : « BASE-XXXXXX » (voir lib/marketing.ts)
+  let personalSuffix: string | null = null;
+  if (!promo) {
+    const pc = parsePersonalCode(code);
+    if (pc) {
+      const base = await prisma.promoCode.findUnique({ where: { code: pc.base } });
+      if (base && (await loadTicketOnly()).has(base.code)) {
+        promo = base;
+        personalSuffix = pc.suffix;
+        code = base.code;
+      }
+    }
+  }
   if (!promo) return { error: 'Ce code promo n’existe pas.' };
+  // Un code « ticket » ne s'utilise jamais seul : seulement sous sa forme personnelle (liée au compte)
+  if (!personalSuffix && (await loadTicketOnly()).has(promo.code)) {
+    return { error: 'Ce code est personnel : utilise le code de ton ticket à gratter, reçu par e-mail.' };
+  }
   if (!promo.active) return { error: 'Ce code promo n’est plus actif.' };
   if (promo.expiresAt && promo.expiresAt < new Date()) return { error: 'Ce code promo a expiré.' };
   if (promo.maxUses !== null && promo.usedCount >= promo.maxUses) {
@@ -29,6 +49,19 @@ export async function validatePromoCode(codeInput: string, subtotal: number, ctx
     const fmt = minOrder.toLocaleString('fr-FR', { minimumFractionDigits: minOrder % 1 ? 2 : 0, maximumFractionDigits: 2 });
     const missing = (minOrder - subtotal).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return { error: `Ce code est valable à partir de ${fmt} € d’achats (hors livraison) : il te manque ${missing} € dans ton panier.` };
+  }
+
+  // Code personnel de ticket : lié au COMPTE qui a reçu le ticket, et utilisable une seule fois.
+  if (personalSuffix) {
+    const account = ctx.accountEmail?.trim().toLowerCase() || null;
+    if (!ctx.userId || !account) {
+      return { error: 'Ce code est personnel : connecte-toi d’abord à ton compte ReparMonPhone pour l’utiliser.' };
+    }
+    if (!verifyPersonalCode(personalSuffix, account)) {
+      return { error: 'Ce code ne correspond pas à ton compte : il n’est valable que pour la personne qui a reçu le ticket.' };
+    }
+    const used = await hasUsedPromo(promo.code, { userId: ctx.userId, emails: [account, ctx.email], phone: ctx.phone, ip: ctx.ip });
+    if (used) return { error: 'Ton code a déjà été utilisé : il n’est valable qu’une seule fois par client.' };
   }
 
   // Codes réservés aux clients fidèles (ex. REPARMONPHONEFIDELITY) : 2ème commande, 1 usage par client / IP.

@@ -11,6 +11,7 @@ const STATUS_BADGE: Record<RelanceRow['status'], { label: string; cls: string }>
   noConsent: { label: 'Sans consentement', cls: 'bg-amber-100 text-amber-700' },
   unsubscribed: { label: 'Désinscrit', cls: 'bg-gray-200 text-gray-600' },
   banned: { label: 'Banni', cls: 'bg-red-100 text-red-700' },
+  duplicate: { label: 'Doublon (même téléphone)', cls: 'bg-orange-100 text-orange-700' },
 };
 
 function fmt(iso: string | null) {
@@ -123,6 +124,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
         {card('Désinscrits', stats.unsubscribed)}
         {card('Relancés il y a < 60 jours', stats.alreadySent)}
         {card('Bannis (exclus)', stats.banned)}
+        {card('Doublons (même téléphone)', stats.duplicates, 'bg-orange-50', 'Même numéro qu’un client ou qu’un autre inscrit : un seul ticket par personne')}
       </div>
       {stats.noConsent > 0 && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -146,7 +148,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
         {previewError && <p className="text-sm text-red-600">{previewError}</p>}
         {code ? (
           <p className="text-xs text-gray-500">
-            🎟️ Avec un code promo, l&apos;e-mail contient un <strong>ticket à gratter</strong> : le client clique, gratte sur une page dédiée et découvre son code. Tous les tickets sont gagnants (même offre pour tous).
+            🎟️ Avec un code promo, l&apos;e-mail contient un <strong>ticket à gratter</strong> : le client clique, gratte sur une page dédiée et découvre <strong>son code personnel</strong> (ex. {code}-A1B2C3). Ce code ne marche que sur <strong>son compte connecté</strong> et <strong>une seule fois</strong> ; le code « {code} » seul devient inutilisable. Tous les tickets sont gagnants (même offre pour tous).
           </p>
         ) : (
           <p className="text-xs text-amber-700">Sans code promo, c&apos;est l&apos;e-mail simple (pas de ticket à gratter) qui est envoyé.</p>

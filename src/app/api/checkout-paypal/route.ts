@@ -96,6 +96,8 @@ export async function POST(req: NextRequest) {
       const validation = await validatePromoCode(promoCode, subtotal, {
         email: customer?.email || user?.email || null,
         userId: user?.id ?? null,
+        accountEmail: user?.email ?? null,
+        phone: typeof user?.user_metadata?.phone === 'string' ? user.user_metadata.phone : null,
         ip: clientIp,
         items: items.map((i: { productId: string; quantity: number }) => ({ productId: i.productId, quantity: i.quantity })),
       });

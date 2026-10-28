@@ -21,7 +21,7 @@ function secret(): string {
 }
 
 // Jeton signé (HMAC) lié à une adresse ET à un usage : un lien de désinscription ne peut pas servir à ouvrir un ticket, et inversement.
-export type TokenPurpose = 'unsub' | 'ticket' | 'open';
+export type TokenPurpose = 'unsub' | 'ticket' | 'open' | 'promo';
 
 export function unsubToken(email: string, purpose: TokenPurpose = 'unsub'): string {
   const norm = normalizeEmail(email);
@@ -105,6 +105,77 @@ export const SCRATCH_KEY = 'ticket_scratched'; // { adresse: date ISO du premier
 
 export async function setTicketCode(code: string) {
   await writeJson(TICKET_CODE_KEY, code);
+  // Le code choisi devient un « code ticket » : il ne fonctionne plus seul, seulement sous sa forme personnelle CODE-XXXXXX
+  await addTicketOnly(code);
+}
+
+// ───────── Codes personnels (un par inscrit, liés à son compte, à usage unique) ─────────
+// Le ticket ne révèle PAS le code promo « de base » mais un code personnel : BASE-XXXXXX, où XXXXXX est calculé
+// (HMAC secret) à partir de l'adresse e-mail du compte. Conséquences :
+//  - le code d'une personne ne marche que sur SON compte connecté (le transmettre à un tiers ne sert à rien) ;
+//  - le code « de base » (ex. BIENVENUE5) devient inutilisable seul : même s'il fuite, il ne donne rien ;
+//  - aucun stockage nécessaire : le code se recalcule à partir de l'adresse e-mail.
+export const TICKET_ONLY_KEY = 'ticket_only_codes';
+
+export async function loadTicketOnly(): Promise<Set<string>> {
+  const list = await readJson<string[]>(TICKET_ONLY_KEY, []);
+  return new Set((Array.isArray(list) ? list : []).map((c) => String(c).trim().toUpperCase()));
+}
+export async function addTicketOnly(code: string) {
+  const set = await loadTicketOnly();
+  const c = code.trim().toUpperCase();
+  if (!c || set.has(c)) return;
+  set.add(c);
+  await writeJson(TICKET_ONLY_KEY, [...set]);
+}
+
+function promoSuffix(email: string): string {
+  return unsubToken(email, 'promo').slice(0, 6).toUpperCase();
+}
+export function personalCode(base: string, email: string): string {
+  return `${base.trim().toUpperCase()}-${promoSuffix(email)}`;
+}
+// « BIENVENUE5-1A2B3C » → { base: 'BIENVENUE5', suffix: '1A2B3C' } (null si le format ne correspond pas)
+export function parsePersonalCode(code: string): { base: string; suffix: string } | null {
+  const m = /^(.+)-([0-9A-F]{6})$/.exec(code.trim().toUpperCase());
+  return m ? { base: m[1], suffix: m[2] } : null;
+}
+export function verifyPersonalCode(suffix: string, email: string): boolean {
+  try {
+    const a = Buffer.from(promoSuffix(email));
+    const b = Buffer.from(String(suffix ?? '').toUpperCase());
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+// Clé de comparaison d'un numéro de téléphone (9 derniers chiffres : 06 12 34 56 78, +33 6 12 34 56 78 → même clé)
+export function phoneKey(phone: unknown): string | null {
+  const d = String(phone ?? '').replace(/\D/g, '');
+  return d.length >= 9 ? d.slice(-9) : null;
+}
+
+// Ce client a-t-il déjà utilisé ce code promo sur une commande payée ? Reconnu par compte, e-mail, téléphone ou
+// adresse IP de la commande (donc aussi s'il s'est réinscrit avec une autre adresse).
+const USED_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'REFUNDED'] as const;
+export async function hasUsedPromo(
+  base: string,
+  who: { userId?: string | null; emails?: (string | null | undefined)[]; phone?: unknown; ip?: string | null }
+): Promise<boolean> {
+  const orders = (await prisma.order.findMany({
+    where: { promoCode: base, status: { in: [...USED_STATUSES] } },
+    select: { userId: true, customerEmail: true, customerPhone: true, ipAddress: true },
+  })) as { userId: string | null; customerEmail: string; customerPhone: string | null; ipAddress: string | null }[];
+  const emails = new Set((who.emails ?? []).filter((e): e is string => !!e).map((e) => normalizeEmail(e)));
+  const pk = phoneKey(who.phone);
+  return orders.some(
+    (o) =>
+      (!!who.userId && o.userId === who.userId) ||
+      emails.has(normalizeEmail(o.customerEmail)) ||
+      (!!pk && phoneKey(o.customerPhone) === pk) ||
+      (!!who.ip && !!o.ipAddress && o.ipAddress === who.ip)
+  );
 }
 export async function getTicketCode(): Promise<string | null> {
   const v = await readJson<string | null>(TICKET_CODE_KEY, null);
