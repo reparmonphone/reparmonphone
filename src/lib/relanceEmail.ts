@@ -32,7 +32,7 @@ function buildPlainRelanceEmail(opts: {
     : 'Votre compte ReparMonPhone est prêt : pièces détachées et réparation à Sainte-Maxime';
   const preheader = promo
     ? `Utilisez le code ${promo.code} sur votre première commande de pièces détachées.`
-    : 'Pièces détachées pour smartphones et tablettes, livrées en 24h partout en France.';
+    : 'Pièces détachées pour smartphones et tablettes, avec livraison Chronopost 24h en option.';
 
   const promoBlock = promo
     ? `
@@ -99,7 +99,7 @@ function buildPlainRelanceEmail(opts: {
     <tr><td style="padding:22px 32px 4px 32px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e5e7eb;">
         <tr><td colspan="2" style="padding-top:18px;"><p style="margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:${BRAND_DARK};font-weight:700;">Pourquoi ReparMonPhone</p></td></tr>
-        ${benefit('📦', 'Livraison rapide', 'Expédition Chronopost 24h en France métropolitaine.')}
+        ${benefit('📦', 'Livraison rapide', 'Livraison express Chronopost 24h disponible en option au moment de la commande.')}
         ${benefit('📱', 'Toutes les grandes marques', 'Apple, Samsung, Huawei, Xiaomi et d’autres sur demande.')}
         ${benefit('🔧', 'Un atelier près de chez vous', 'Réparation en atelier à Sainte-Maxime, ou à domicile selon votre secteur.')}
         ${benefit('🔒', 'Paiement sécurisé', 'Carte bancaire ou PayPal, avec suivi de votre commande dans votre compte.')}
@@ -169,8 +169,9 @@ export function buildTicketRelanceEmail(opts: {
   ticketUrl: string;
   ticketNumber: string;
   subjectVariant?: number;
+  openPixelUrl?: string; // pixel invisible pour savoir si l'e-mail a été ouvert
 }): { subject: string; html: string; text: string } {
-  const { siteUrl, promo, unsubscribeUrl, ticketUrl, ticketNumber } = opts;
+  const { siteUrl, promo, unsubscribeUrl, ticketUrl, ticketNumber, openPixelUrl } = opts;
   // Sans code promo, pas de ticket : on retombe sur l'e-mail simple
   if (!promo) return buildPlainRelanceEmail({ firstName: opts.firstName, siteUrl, promo, unsubscribeUrl });
 
@@ -211,9 +212,11 @@ export function buildTicketRelanceEmail(opts: {
 <tr><td align="center" style="padding:20px 10px;">
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;font-family:Arial,Helvetica,sans-serif;">
 
-    <tr><td align="center" style="padding:6px 16px 18px 16px;">
-      <p style="margin:0;font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:#7fb5ff;font-weight:700;">ReparMonPhone</p>
-      <p style="margin:4px 0 0 0;font-size:12px;color:#6f86a8;">Pièces détachées &amp; réparation · Sainte-Maxime</p>
+    <tr><td align="center" style="padding:4px 16px 10px 16px;">
+      <a href="${siteUrl}" style="text-decoration:none;">
+        <img src="${siteUrl}/email/logo-anim.gif" width="480" alt="ReparMonPhone · Pièces détachées &amp; accessoires" style="display:block;width:100%;max-width:480px;height:auto;border:0;font-size:22px;font-weight:800;color:#7fb5ff;text-align:center;">
+      </a>
+      <p style="margin:2px 0 0 0;font-size:12px;color:#6f86a8;">Atelier de réparation · Sainte-Maxime</p>
     </td></tr>
 
     <tr><td align="center" style="padding:6px 20px 4px 20px;">
@@ -236,13 +239,7 @@ export function buildTicketRelanceEmail(opts: {
         </td></tr>
         <tr><td align="center" style="padding:6px 18px;">
           <a href="${ticketUrl}" style="text-decoration:none;display:block;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#c9ced6" style="background:#c9ced6;background-image:linear-gradient(135deg,#eceef2 0%,#aab1bd 40%,#e4e7ec 60%,#98a0ad 100%);border-radius:12px;border:2px dashed #7b8494;">
-              <tr><td align="center" style="padding:26px 10px 24px 10px;">
-                <p style="margin:0 0 6px 0;font-size:34px;line-height:1;">🪙 ✨ 🪙</p>
-                <p style="margin:0;font-size:24px;line-height:1.1;font-weight:900;letter-spacing:.12em;color:#4a5160;text-transform:uppercase;">Gratte ici</p>
-                <p style="margin:6px 0 0 0;font-size:13px;color:#5d6575;">100&nbsp;% gagnant · cadeau de bienvenue</p>
-              </td></tr>
-            </table>
+            <img src="${siteUrl}/email/ticket-gratte.gif" width="520" alt="🪙 GRATTE ICI · 100 % gagnant" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:12px;background:#c9ced6;font-size:24px;font-weight:900;color:#4a5160;text-align:center;line-height:90px;">
           </a>
         </td></tr>
         <tr><td align="center" style="padding:6px 18px 14px 18px;">
@@ -266,7 +263,7 @@ export function buildTicketRelanceEmail(opts: {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             ${step('🪙', 'Tu grattes', 'Au doigt ou à la souris')}
             ${step('🎁', 'Tu découvres', 'Ton code cadeau s’affiche')}
-            ${step('📦', 'Tu commandes', 'Livré en 24h partout en France')}
+            ${step('📦', 'Tu commandes', 'Livraison Chronopost 24h en option')}
           </tr></table>
         </td></tr>
       </table>
@@ -276,7 +273,7 @@ export function buildTicketRelanceEmail(opts: {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff;border-radius:14px;">
         <tr><td style="padding:16px 10px 8px 10px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            ${perk('📦', 'Expédition Chronopost 24h')}
+            ${perk('📦', 'Chronopost 24h en option')}
             ${perk('🔧', 'Atelier à Sainte-Maxime')}
             ${perk('🔒', 'Paiement 100&nbsp;% sécurisé')}
           </tr></table>
@@ -306,6 +303,7 @@ export function buildTicketRelanceEmail(opts: {
   </table>
 </td></tr>
 </table>
+${openPixelUrl ? `<img src="${openPixelUrl}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;">` : ''}
 </body>
 </html>`;
 

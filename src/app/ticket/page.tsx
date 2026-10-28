@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getTicketCode, loadScratchLog, resolvePromo, verifyUnsubToken } from '@/lib/marketing';
+import { getTicketCode, loadScratchLog, markClicked, resolvePromo, verifyUnsubToken } from '@/lib/marketing';
 import { normalizeEmail } from '@/lib/bannedClients';
 import ScratchCard from './ScratchCard';
 
@@ -18,6 +18,12 @@ export default async function TicketPage({ searchParams }: { searchParams: { e?:
   let promo: { code: string; label: string; conditions: string[] } | null = null;
   let already = false;
   if (valid) {
+    // Il a cliqué dans l'e-mail : indicateur « a cliqué » dans l'admin (sans bloquer la page en cas de souci)
+    try {
+      await markClicked(email);
+    } catch {
+      // ignoré
+    }
     const code = await getTicketCode();
     if (code) {
       const r = await resolvePromo(code);

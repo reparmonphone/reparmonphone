@@ -207,6 +207,27 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-3">
         <h2 className="font-semibold">Suivi des inscrits sans commande</h2>
+        {stats.sent > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              ['✉️ Envoyés', stats.sent, null],
+              ['👁️ Ont ouvert', stats.opened, stats.opened],
+              ['🖱️ Ont cliqué', stats.clicked, stats.clicked],
+              ['🎟️ Ont gratté', stats.scratched, stats.scratched],
+            ].map(([label, n, pct]) => (
+              <div key={String(label)} className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                <p className="text-xl font-bold">
+                  {String(n)}
+                  {pct !== null && <span className="text-xs font-medium text-gray-400 ml-1">({Math.round((Number(pct) / Math.max(1, stats.sent)) * 100)} %)</span>}
+                </p>
+                <p className="text-xs text-gray-500">{String(label)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-gray-400">
+          Ouverture = image invisible chargée par la messagerie : fiable pour « a cliqué » et « a gratté », mais approximative pour « a ouvert » (Gmail et Outlook peuvent bloquer les images ; Apple Mail peut compter une ouverture automatique). Un client qui clique ou gratte est toujours compté comme ayant ouvert.
+        </p>
         <p className="text-xs text-gray-500">
           {sentCount} inscrit(s) ont déjà reçu la relance, dont {scratchedCount} ont gratté leur ticket. Une ligne « ✅ Déjà envoyé » ne reçoit plus rien pendant 60 jours avec l&apos;envoi groupé ; tu peux la renvoyer à la main avec le bouton.
         </p>
@@ -231,7 +252,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
                 <th className="px-3 py-2">Inscrit le</th>
                 <th className="px-3 py-2">État</th>
                 <th className="px-3 py-2">Dernier envoi</th>
-                <th className="px-3 py-2">Ticket</th>
+                <th className="px-3 py-2">Suivi</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -256,7 +277,21 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(r.sentAt)}</td>
                     <td className="px-3 py-2 text-xs whitespace-nowrap">
-                      {r.scratchedAt ? <span className="text-green-700 font-medium" title={fmt(r.scratchedAt)}>🎟️ Gratté le {fmt(r.scratchedAt)}</span> : r.sentAt ? <span className="text-gray-400">Pas encore gratté</span> : <span className="text-gray-300">—</span>}
+                      {r.sentAt ? (
+                        <div className="flex gap-1.5">
+                          <span className={`px-2 py-0.5 rounded-full ${r.openedAt ? 'bg-sky-100 text-sky-700 font-medium' : 'bg-gray-100 text-gray-400'}`} title={r.openedAt ? `Ouvert le ${fmt(r.openedAt)}${r.openCount > 1 ? ` (${r.openCount} fois)` : ''}` : 'Pas d’ouverture enregistrée'}>
+                            👁️ {r.openedAt ? `Ouvert${r.openCount > 1 ? ` ×${r.openCount}` : ''}` : 'Pas ouvert'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full ${r.clickedAt || r.scratchedAt ? 'bg-violet-100 text-violet-700 font-medium' : 'bg-gray-100 text-gray-400'}`} title={r.clickedAt ? `Cliqué le ${fmt(r.clickedAt)}` : ''}>
+                            🖱️ {r.clickedAt || r.scratchedAt ? 'Cliqué' : 'Pas cliqué'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full ${r.scratchedAt ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-100 text-gray-400'}`} title={r.scratchedAt ? `Gratté le ${fmt(r.scratchedAt)}` : ''}>
+                            🎟️ {r.scratchedAt ? 'Gratté' : 'Pas gratté'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right">
                       {canSend && (

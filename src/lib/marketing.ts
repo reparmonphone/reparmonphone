@@ -21,7 +21,7 @@ function secret(): string {
 }
 
 // Jeton signé (HMAC) lié à une adresse ET à un usage : un lien de désinscription ne peut pas servir à ouvrir un ticket, et inversement.
-export type TokenPurpose = 'unsub' | 'ticket';
+export type TokenPurpose = 'unsub' | 'ticket' | 'open';
 
 export function unsubToken(email: string, purpose: TokenPurpose = 'unsub'): string {
   const norm = normalizeEmail(email);
@@ -46,6 +46,11 @@ export function unsubUrl(email: string): string {
 // Lien personnel du ticket à gratter (page /ticket)
 export function ticketUrl(email: string): string {
   return `${SITE_URL}/ticket?e=${encodeURIComponent(email)}&t=${unsubToken(email, 'ticket')}`;
+}
+
+// Pixel invisible (1×1) placé dans l'e-mail : sert à savoir si l'e-mail a été ouvert
+export function openPixelUrl(email: string): string {
+  return `${SITE_URL}/api/email/open?e=${encodeURIComponent(email)}&t=${unsubToken(email, 'open')}`;
 }
 
 // Numéro de ticket affiché (décoratif, propre à chaque adresse)
@@ -117,6 +122,50 @@ export async function markScratched(email: string) {
     await writeJson(SCRATCH_KEY, log);
   }
 }
+
+// ───────── Suivi d'ouverture et de clic ─────────
+// Une ligne SiteSetting PAR adresse (et non un gros JSON commun) : deux ouvertures simultanées ne s'écrasent pas.
+const OPEN_PREFIX = 'relance_open:';
+const CLICK_PREFIX = 'relance_click:';
+export type TrackInfo = { first: string; last: string; count: number };
+
+async function bump(prefix: string, email: string) {
+  const key = prefix + normalizeEmail(email);
+  const now = new Date().toISOString();
+  let cur: TrackInfo | null = null;
+  try {
+    const row = await prisma.siteSetting.findUnique({ where: { key } });
+    cur = row?.value ? (JSON.parse(row.value) as TrackInfo) : null;
+  } catch {
+    cur = null;
+  }
+  const next: TrackInfo = { first: cur?.first ?? now, last: now, count: (cur?.count ?? 0) + 1 };
+  const v = JSON.stringify(next);
+  await prisma.siteSetting.upsert({ where: { key }, update: { value: v }, create: { key, value: v } });
+}
+
+async function loadTrack(prefix: string): Promise<Record<string, TrackInfo>> {
+  const out: Record<string, TrackInfo> = {};
+  try {
+    const rows = await prisma.siteSetting.findMany({ where: { key: { startsWith: prefix } }, select: { key: true, value: true } });
+    for (const r of rows as { key: string; value: string }[]) {
+      try {
+        const info = JSON.parse(r.value) as TrackInfo;
+        if (info && info.first) out[r.key.slice(prefix.length)] = info;
+      } catch {
+        // ligne illisible : ignorée
+      }
+    }
+  } catch {
+    // table indisponible : pas de suivi, rien ne casse
+  }
+  return out;
+}
+
+export const markOpened = (email: string) => bump(OPEN_PREFIX, email);
+export const markClicked = (email: string) => bump(CLICK_PREFIX, email);
+export const loadOpenLog = () => loadTrack(OPEN_PREFIX);
+export const loadClickLog = () => loadTrack(CLICK_PREFIX);
 
 // Lit un code promo et le met en forme pour l'e-mail / la page du ticket.
 export async function resolvePromo(code: string | null): Promise<{ promo: RelancePromo | null } | { error: string }> {

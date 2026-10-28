@@ -5,7 +5,7 @@ import { requireAdminUser } from '@/lib/supabase-server';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { getResendClient } from '@/lib/resend';
 import { loadBanEntries, matchBan, normalizeEmail } from '@/lib/bannedClients';
-import { loadUnsubscribed, loadSentLog, saveSentLog, unsubUrl, ticketUrl, ticketNumber, setTicketCode, loadScratchLog, resolvePromo, SITE_URL } from '@/lib/marketing';
+import { loadUnsubscribed, loadSentLog, saveSentLog, unsubUrl, ticketUrl, ticketNumber, setTicketCode, loadScratchLog, loadOpenLog, loadClickLog, openPixelUrl, resolvePromo, SITE_URL } from '@/lib/marketing';
 import { buildRelanceEmail, type RelancePromo } from '@/lib/relanceEmail';
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
@@ -23,6 +23,9 @@ export type RelanceRow = {
   consent: boolean;
   sentAt: string | null; // dernière relance envoyée (ISO), null = jamais
   scratchedAt: string | null; // ticket gratté par le client (ISO), null = pas encore
+  openedAt: string | null; // e-mail ouvert (1re fois, ISO) : pixel, ou déduit d'un clic / grattage
+  openCount: number; // nombre d'ouvertures enregistrées
+  clickedAt: string | null; // a cliqué dans l'e-mail (page du ticket visitée), ISO
   status: 'eligible' | 'recent' | 'noConsent' | 'unsubscribed' | 'banned';
 };
 
@@ -35,6 +38,11 @@ export type RelanceStats = {
   unsubscribed: number;
   banned: number;
   alreadySent: number;
+  // Suivi des envois (parmi les inscrits sans commande qui ont reçu la relance)
+  sent: number;
+  opened: number;
+  clicked: number;
+  scratched: number;
 };
 
 async function loadAllUsers() {
@@ -57,7 +65,7 @@ async function loadAllUsers() {
 }
 
 async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; rows: RelanceRow[] }> {
-  const [users, orders, newsletter, bans, unsub, sentLog, scratchLog] = await Promise.all([
+  const [users, orders, newsletter, bans, unsub, sentLog, scratchLog, openLog, clickLog] = await Promise.all([
     loadAllUsers(),
     prisma.order.findMany({
       where: { status: { in: [...BUYER_STATUSES] } },
@@ -68,6 +76,8 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
     loadUnsubscribed(),
     loadSentLog(),
     loadScratchLog(),
+    loadOpenLog(),
+    loadClickLog(),
   ]);
 
   const buyerIds = new Set(orders.map((o: { userId: string | null }) => o.userId).filter(Boolean) as string[]);
@@ -84,6 +94,10 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
     unsubscribed: 0,
     banned: 0,
     alreadySent: 0,
+    sent: 0,
+    opened: 0,
+    clicked: 0,
+    scratched: 0,
   };
   const eligible: Candidate[] = [];
   const rows: RelanceRow[] = [];
@@ -108,8 +122,19 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
       consent: optin,
       sentAt: sentLog[norm] ?? null,
       scratchedAt: scratchLog[norm] ?? null,
+      openedAt: null,
+      openCount: openLog[norm]?.count ?? 0,
+      clickedAt: clickLog[norm]?.first ?? null,
       status: 'eligible',
     };
+    // Ouvert = pixel chargé, OU (images bloquées par le client mail) il a cliqué / gratté : forcément ouvert
+    row.openedAt = [openLog[norm]?.first, row.clickedAt, row.scratchedAt].filter((x): x is string => !!x).sort()[0] ?? null;
+    if (row.sentAt) {
+      stats.sent++;
+      if (row.openedAt) stats.opened++;
+      if (row.clickedAt || row.scratchedAt) stats.clicked++;
+      if (row.scratchedAt) stats.scratched++;
+    }
     rows.push(row);
     if ((bannedUntil && new Date(bannedUntil).getTime() > Date.now()) || matchBan(bans, { userId: u.id, email, phone: typeof meta.phone === 'string' ? meta.phone : null })) {
       stats.banned++;
@@ -211,6 +236,7 @@ async function sendOne(c: Candidate, promo: RelancePromo | null, variant: number
     ticketUrl: ticketUrl(c.email),
     ticketNumber: ticketNumber(c.email),
     subjectVariant: variant,
+    openPixelUrl: openPixelUrl(c.email),
   });
   const res = await resend.emails.send({
     from: FROM,
