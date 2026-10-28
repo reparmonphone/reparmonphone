@@ -14,7 +14,7 @@ type UserData = {
   addressLine1: string;
   addressCity: string;
   addressZip: string;
-  marketingOptin: boolean;
+  marketingOptin?: boolean; // optionnel : une ancienne copie de la page (page0.tsx) ne le fournit pas
 };
 
 export default function ProfileForm({ user }: { user: UserData }) {
@@ -39,7 +39,7 @@ export default function ProfileForm({ user }: { user: UserData }) {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const [marketingOptin, setMarketingOptin] = useState(user.marketingOptin);
+  const [marketingOptin, setMarketingOptin] = useState(user.marketingOptin === true);
   const [savingOptin, setSavingOptin] = useState(false);
   const [optinSaved, setOptinSaved] = useState(false);
 
