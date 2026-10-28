@@ -35,6 +35,7 @@ const NAV: NavItem[] = [
   { href: '/admin/rdv', label: '📅 Rendez-vous', badgeKey: 'appointments' },
   { href: '/admin/reparation-a-distance', label: '📮 Réparation par correspondance', badgeKey: 'mailInRepairs' },
   { href: '/admin/utilisateurs', label: '👥 Utilisateurs' },
+  { href: '/admin/relance-inscrits', label: '📣 Relance inscrits' },
   { href: '/admin/bannis', label: '🚫 Clients bannis' },
   { href: '/admin/messages', label: '✉️ Messages de contact', badgeKey: 'messages' },
   { href: '/admin/pages', label: '📄 Pages de contenu' },

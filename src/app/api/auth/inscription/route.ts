@@ -12,6 +12,8 @@ const schema = z.object({
   addressLine1: z.string().min(3),
   addressCity: z.string().min(1),
   addressZip: z.string().min(4),
+  // Case « Je souhaite recevoir les offres » (décochée par défaut) : consentement aux e-mails commerciaux
+  marketingOptin: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -55,6 +57,8 @@ export async function POST(req: NextRequest) {
       address_city: data.addressCity,
       address_zip: data.addressZip,
       signup_ip: signupIp,
+      marketing_optin: data.marketingOptin === true,
+      marketing_optin_at: data.marketingOptin === true ? new Date().toISOString() : null,
     },
   });
 

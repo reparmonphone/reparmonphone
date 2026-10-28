@@ -26,6 +26,7 @@ export default async function ComptePage() {
           addressLine1: (user.user_metadata?.address_line1 as string | undefined) ?? '',
           addressCity: (user.user_metadata?.address_city as string | undefined) ?? '',
           addressZip: (user.user_metadata?.address_zip as string | undefined) ?? '',
+          marketingOptin: user.user_metadata?.marketing_optin === true,
         }}
       />
 

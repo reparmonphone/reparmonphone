@@ -14,6 +14,7 @@ type UserData = {
   addressLine1: string;
   addressCity: string;
   addressZip: string;
+  marketingOptin: boolean;
 };
 
 export default function ProfileForm({ user }: { user: UserData }) {
@@ -37,6 +38,10 @@ export default function ProfileForm({ user }: { user: UserData }) {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const [marketingOptin, setMarketingOptin] = useState(user.marketingOptin);
+  const [savingOptin, setSavingOptin] = useState(false);
+  const [optinSaved, setOptinSaved] = useState(false);
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -105,6 +110,23 @@ export default function ProfileForm({ user }: { user: UserData }) {
     setInfoSaved(true);
     router.refresh();
     setTimeout(() => setInfoSaved(false), 2000);
+  }
+
+  // Consentement aux e-mails commerciaux (offres, nouveautés) — modifiable à tout moment
+  async function handleOptinChange(checked: boolean) {
+    setMarketingOptin(checked);
+    setSavingOptin(true);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.auth.updateUser({
+      data: { marketing_optin: checked, marketing_optin_at: checked ? new Date().toISOString() : null },
+    });
+    setSavingOptin(false);
+    if (error) {
+      setMarketingOptin(!checked);
+      return;
+    }
+    setOptinSaved(true);
+    setTimeout(() => setOptinSaved(false), 2000);
   }
 
   async function handlePasswordSubmit(e: React.FormEvent) {
@@ -245,6 +267,25 @@ export default function ProfileForm({ user }: { user: UserData }) {
           {infoSaved && <span className="text-green-600 text-sm">✅ Enregistré</span>}
         </div>
       </form>
+
+      {/* E-mails commerciaux */}
+      <div className="bg-white border border-gray-100 rounded-xl p-6">
+        <h2 className="font-semibold mb-3">E-mails</h2>
+        <label className="flex items-start gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={marketingOptin}
+            disabled={savingOptin}
+            onChange={(e) => handleOptinChange(e.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            Je souhaite recevoir les offres et nouveautés de ReparMonPhone par e-mail.
+            <span className="block text-xs text-gray-400">Les e-mails liés à tes commandes et rendez-vous sont toujours envoyés.</span>
+          </span>
+        </label>
+        {optinSaved && <p className="text-green-600 text-sm mt-2">✅ Préférence enregistrée</p>}
+      </div>
 
       {/* Mot de passe */}
       <form onSubmit={handlePasswordSubmit} className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">

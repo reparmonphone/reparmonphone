@@ -27,6 +27,7 @@ function InscriptionForm() {
   const [addressLine1, setAddressLine1] = useState('');
   const [addressCity, setAddressCity] = useState('');
   const [addressZip, setAddressZip] = useState('');
+  const [marketingOptin, setMarketingOptin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -39,7 +40,7 @@ function InscriptionForm() {
       const res = await fetch('/api/auth/inscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, email, password, phone, addressLine1, addressCity, addressZip }),
+        body: JSON.stringify({ firstName, lastName, email, password, phone, addressLine1, addressCity, addressZip, marketingOptin }),
       });
       const result = await res.json();
 
@@ -109,6 +110,13 @@ function InscriptionForm() {
             <input required value={addressCity} onChange={(e) => setAddressCity(e.target.value)} placeholder="Ville" className="w-full border border-gray-200 rounded-lg px-3 py-2" />
           </div>
         </div>
+
+        <label className="flex items-start gap-2 text-sm text-gray-600">
+          <input type="checkbox" checked={marketingOptin} onChange={(e) => setMarketingOptin(e.target.checked)} className="mt-1" />
+          <span>
+            Je souhaite recevoir les offres et nouveautés de ReparMonPhone par e-mail. <span className="text-gray-400">(facultatif, désinscription possible à tout moment)</span>
+          </span>
+        </label>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
