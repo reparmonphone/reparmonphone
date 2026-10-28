@@ -5,7 +5,7 @@ import { requireAdminUser } from '@/lib/supabase-server';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { getResendClient } from '@/lib/resend';
 import { loadBanEntries, matchBan, normalizeEmail } from '@/lib/bannedClients';
-import { loadUnsubscribed, loadSentLog, saveSentLog, unsubUrl, SITE_URL } from '@/lib/marketing';
+import { loadUnsubscribed, loadSentLog, saveSentLog, unsubUrl, ticketUrl, ticketNumber, setTicketCode, loadScratchLog, resolvePromo, SITE_URL } from '@/lib/marketing';
 import { buildRelanceEmail, type RelancePromo } from '@/lib/relanceEmail';
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>';
@@ -22,6 +22,7 @@ export type RelanceRow = {
   createdAt: string | null;
   consent: boolean;
   sentAt: string | null; // dernière relance envoyée (ISO), null = jamais
+  scratchedAt: string | null; // ticket gratté par le client (ISO), null = pas encore
   status: 'eligible' | 'recent' | 'noConsent' | 'unsubscribed' | 'banned';
 };
 
@@ -56,7 +57,7 @@ async function loadAllUsers() {
 }
 
 async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; rows: RelanceRow[] }> {
-  const [users, orders, newsletter, bans, unsub, sentLog] = await Promise.all([
+  const [users, orders, newsletter, bans, unsub, sentLog, scratchLog] = await Promise.all([
     loadAllUsers(),
     prisma.order.findMany({
       where: { status: { in: [...BUYER_STATUSES] } },
@@ -66,6 +67,7 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
     loadBanEntries({ fresh: true }),
     loadUnsubscribed(),
     loadSentLog(),
+    loadScratchLog(),
   ]);
 
   const buyerIds = new Set(orders.map((o: { userId: string | null }) => o.userId).filter(Boolean) as string[]);
@@ -105,6 +107,7 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
       createdAt: u.created_at ?? null,
       consent: optin,
       sentAt: sentLog[norm] ?? null,
+      scratchedAt: scratchLog[norm] ?? null,
       status: 'eligible',
     };
     rows.push(row);
@@ -136,24 +139,6 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; 
   return { stats, eligible, rows };
 }
 
-async function resolvePromo(code: string | null): Promise<{ promo: RelancePromo | null } | { error: string }> {
-  const c = (code ?? '').trim().toUpperCase();
-  if (!c) return { promo: null };
-  const p = await prisma.promoCode.findUnique({ where: { code: c } });
-  if (!p) return { error: `Le code « ${c} » n’existe pas. Crée-le d’abord dans « Codes promo ».` };
-  if (!p.active) return { error: `Le code « ${c} » est désactivé.` };
-  if (p.expiresAt && p.expiresAt.getTime() < Date.now()) return { error: `Le code « ${c} » est expiré.` };
-  if (p.maxUses != null && p.usedCount >= p.maxUses) return { error: `Le code « ${c} » a atteint son nombre maximum d’utilisations.` };
-  const value = Number(p.value);
-  const label = p.type === 'PERCENT' ? `-${value.toString().replace('.', ',')} %` : `-${value.toFixed(2).replace('.', ',').replace(',00', '')} €`;
-  const conditions: string[] = [];
-  if (p.oncePerCustomer) conditions.push('Utilisable une seule fois par client');
-  if (p.minOrderAmount != null) conditions.push(`Dès ${Number(p.minOrderAmount).toFixed(2).replace('.', ',').replace(',00', '')} € d’achat`);
-  if (p.nonCumulable) conditions.push('Hors produits déjà en promotion');
-  if (p.expiresAt) conditions.push(`Valable jusqu’au ${p.expiresAt.toLocaleDateString('fr-FR')}`);
-  return { promo: { code: p.code, label, conditions } };
-}
-
 export async function getRelanceData(): Promise<{ stats: RelanceStats; rows: RelanceRow[] } | { error: string }> {
   await requireAdminUser();
   try {
@@ -169,7 +154,7 @@ export async function getRelanceData(): Promise<{ stats: RelanceStats; rows: Rel
 
 // Envoi individuel (bouton « Envoyer » / « Renvoyer » d'une ligne). Même garde-fous que l'envoi groupé :
 // consentement, désinscription, bannissement — sauf le délai de 60 jours, que l'admin peut passer volontairement.
-export async function sendRelanceToOne(code: string | null, email: string): Promise<{ ok: true; sentAt: string } | { error: string }> {
+export async function sendRelanceToOne(code: string | null, email: string, variant = 0): Promise<{ ok: true; sentAt: string } | { error: string }> {
   await requireAdminUser();
   const r = await resolvePromo(code);
   if ('error' in r) return r;
@@ -185,7 +170,7 @@ export async function sendRelanceToOne(code: string | null, email: string): Prom
   if (row.status === 'unsubscribed') return { error: 'Cet inscrit s’est désinscrit des e-mails promotionnels.' };
   if (row.status === 'noConsent') return { error: 'Cet inscrit n’a pas accepté de recevoir des offres.' };
   try {
-    await sendOne({ email: row.email, firstName: row.name.split(' ')[0] ?? '' }, r.promo);
+    await sendOne({ email: row.email, firstName: row.name.split(' ')[0] ?? '' }, r.promo, variant);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Erreur lors de l'envoi." };
   }
@@ -196,7 +181,7 @@ export async function sendRelanceToOne(code: string | null, email: string): Prom
   return { ok: true, sentAt };
 }
 
-export async function previewRelanceEmail(code: string | null): Promise<{ subject: string; html: string } | { error: string }> {
+export async function previewRelanceEmail(code: string | null, variant = 0): Promise<{ subject: string; html: string } | { error: string }> {
   await requireAdminUser();
   const r = await resolvePromo(code);
   if ('error' in r) return r;
@@ -205,15 +190,28 @@ export async function previewRelanceEmail(code: string | null): Promise<{ subjec
     siteUrl: SITE_URL,
     promo: r.promo,
     unsubscribeUrl: `${SITE_URL}/desinscription`,
+    ticketUrl: `${SITE_URL}/ticket`,
+    ticketNumber: 'A1B2C3',
+    subjectVariant: variant,
   });
   return { subject: mail.subject, html: mail.html };
 }
 
-async function sendOne(c: Candidate, promo: RelancePromo | null, to?: string) {
+async function sendOne(c: Candidate, promo: RelancePromo | null, variant: number, to?: string) {
   const resend = getResendClient();
   if (!resend) throw new Error("Envoi d'e-mail non configuré (RESEND_API_KEY manquante).");
   const url = unsubUrl(c.email);
-  const mail = buildRelanceEmail({ firstName: c.firstName, siteUrl: SITE_URL, promo, unsubscribeUrl: url });
+  // Le ticket révèle le code choisi ici : on le mémorise pour la page /ticket
+  if (promo) await setTicketCode(promo.code);
+  const mail = buildRelanceEmail({
+    firstName: c.firstName,
+    siteUrl: SITE_URL,
+    promo,
+    unsubscribeUrl: url,
+    ticketUrl: ticketUrl(c.email),
+    ticketNumber: ticketNumber(c.email),
+    subjectVariant: variant,
+  });
   const res = await resend.emails.send({
     from: FROM,
     to: to ?? c.email,
@@ -225,14 +223,14 @@ async function sendOne(c: Candidate, promo: RelancePromo | null, to?: string) {
   if (res.error) throw new Error(res.error.message ?? 'Erreur Resend');
 }
 
-export async function sendRelanceTest(code: string | null, to: string, firstName = 'Marie'): Promise<{ ok: true } | { error: string }> {
+export async function sendRelanceTest(code: string | null, to: string, firstName = 'Marie', variant = 0): Promise<{ ok: true } | { error: string }> {
   await requireAdminUser();
   const email = to.trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'Adresse e-mail invalide.' };
   const r = await resolvePromo(code);
   if ('error' in r) return r;
   try {
-    await sendOne({ email, firstName: firstName.trim().slice(0, 40) }, r.promo, email);
+    await sendOne({ email, firstName: firstName.trim().slice(0, 40) }, r.promo, variant, email);
     return { ok: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Erreur lors de l'envoi." };
@@ -243,7 +241,8 @@ export async function sendRelanceTest(code: string | null, to: string, firstName
 // skipEmails = adresses déjà en échec pendant cette session (évite de boucler sur la même).
 export async function sendRelanceBatch(
   code: string | null,
-  skipEmails: string[] = []
+  skipEmails: string[] = [],
+  variant = 0
 ): Promise<{ sent: number; failed: string[]; remaining: number; lastError?: string } | { error: string }> {
   await requireAdminUser();
   const r = await resolvePromo(code);
@@ -265,7 +264,7 @@ export async function sendRelanceBatch(
   let lastError: string | undefined;
   for (const c of batch) {
     try {
-      await sendOne(c, r.promo);
+      await sendOne(c, r.promo, variant);
       log[normalizeEmail(c.email)] = new Date().toISOString();
       sent++;
     } catch (e) {

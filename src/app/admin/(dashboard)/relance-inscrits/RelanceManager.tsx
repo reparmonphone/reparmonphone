@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { SUBJECT_VARIANTS } from '@/lib/relanceEmail';
 import { previewRelanceEmail, sendRelanceBatch, sendRelanceTest, sendRelanceToOne, type RelanceStats, type RelanceRow } from './actions';
 
 const STATUS_BADGE: Record<RelanceRow['status'], { label: string; cls: string }> = {
@@ -24,6 +25,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
   const [testTo, setTestTo] = useState('contact@reparmonphone.fr');
   const [testName, setTestName] = useState('Krys');
   const [mobile, setMobile] = useState(false);
+  const [variant, setVariant] = useState(0);
   const [rows, setRows] = useState(initialRows);
   const [filter, setFilter] = useState<'all' | 'todo' | 'sent' | 'other'>('all');
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
   useEffect(() => {
     let cancelled = false;
     setPreviewError(null);
-    previewRelanceEmail(code || null).then((r) => {
+    previewRelanceEmail(code || null, variant).then((r) => {
       if (cancelled) return;
       if ('error' in r) {
         setPreview(null);
@@ -46,12 +48,12 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, variant]);
 
   function sendTest() {
     setTestMsg(null);
     startTest(async () => {
-      const r = await sendRelanceTest(code || null, testTo, testName);
+      const r = await sendRelanceTest(code || null, testTo, testName, variant);
       setTestMsg('error' in r ? `❌ ${r.error}` : `✅ E-mail de test envoyé à ${testTo}`);
     });
   }
@@ -62,7 +64,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
     if (!confirm(`${again ? 'Renvoyer' : 'Envoyer'} la relance à ${row.email} ${promoText} ?${again ? `\n\nElle l'a déjà reçue le ${fmt(row.sentAt)}.` : ''}`)) return;
     setRowBusy(row.email);
     setRowMsg(null);
-    const r = await sendRelanceToOne(code || null, row.email);
+    const r = await sendRelanceToOne(code || null, row.email, variant);
     setRowBusy(null);
     if ('error' in r) {
       setRowMsg(`❌ ${row.email} : ${r.error}`);
@@ -76,6 +78,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
     filter === 'all' ? true : filter === 'todo' ? r.status === 'eligible' : filter === 'sent' ? !!r.sentAt : r.status !== 'eligible' && r.status !== 'recent'
   );
   const sentCount = rows.filter((r) => r.sentAt).length;
+  const scratchedCount = rows.filter((r) => r.scratchedAt).length;
 
   async function sendAll() {
     if (stats.eligible === 0) return;
@@ -86,7 +89,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
     const failed: string[] = [];
     let total = 0;
     for (let i = 0; i < 200; i++) {
-      const r = await sendRelanceBatch(code || null, failed);
+      const r = await sendRelanceBatch(code || null, failed, variant);
       if ('error' in r) {
         setLog((l) => [...l, `❌ ${r.error}`]);
         break;
@@ -141,6 +144,23 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
           <span className="text-xs text-gray-400">Le code et sa remise s&apos;affichent dans l&apos;e-mail.</span>
         </div>
         {previewError && <p className="text-sm text-red-600">{previewError}</p>}
+        {code ? (
+          <p className="text-xs text-gray-500">
+            🎟️ Avec un code promo, l&apos;e-mail contient un <strong>ticket à gratter</strong> : le client clique, gratte sur une page dédiée et découvre son code. Tous les tickets sont gagnants (même offre pour tous).
+          </p>
+        ) : (
+          <p className="text-xs text-amber-700">Sans code promo, c&apos;est l&apos;e-mail simple (pas de ticket à gratter) qui est envoyé.</p>
+        )}
+        <div>
+          <label className="block text-sm font-medium mb-1">Objet de l&apos;e-mail (avec emoji)</label>
+          <select value={variant} onChange={(e) => setVariant(Number(e.target.value))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full max-w-lg">
+            {SUBJECT_VARIANTS.map((v, i) => (
+              <option key={i} value={i}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-3">
@@ -188,7 +208,7 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
       <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-3">
         <h2 className="font-semibold">Suivi des inscrits sans commande</h2>
         <p className="text-xs text-gray-500">
-          {sentCount} inscrit(s) ont déjà reçu la relance. Une ligne « ✅ Déjà envoyé » ne reçoit plus rien pendant 60 jours avec l&apos;envoi groupé ; tu peux la renvoyer à la main avec le bouton.
+          {sentCount} inscrit(s) ont déjà reçu la relance, dont {scratchedCount} ont gratté leur ticket. Une ligne « ✅ Déjà envoyé » ne reçoit plus rien pendant 60 jours avec l&apos;envoi groupé ; tu peux la renvoyer à la main avec le bouton.
         </p>
         <div className="flex flex-wrap gap-2 text-xs">
           {([
@@ -211,13 +231,14 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
                 <th className="px-3 py-2">Inscrit le</th>
                 <th className="px-3 py-2">État</th>
                 <th className="px-3 py-2">Dernier envoi</th>
+                <th className="px-3 py-2">Ticket</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {shownRows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-gray-400">Aucun inscrit dans cette liste.</td>
+                  <td colSpan={6} className="px-3 py-4 text-gray-400">Aucun inscrit dans cette liste.</td>
                 </tr>
               )}
               {shownRows.map((r) => {
@@ -234,6 +255,9 @@ export default function RelanceManager({ stats, rows: initialRows, promos }: { s
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${b.cls}`}>{b.label}</span>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(r.sentAt)}</td>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">
+                      {r.scratchedAt ? <span className="text-green-700 font-medium" title={fmt(r.scratchedAt)}>🎟️ Gratté le {fmt(r.scratchedAt)}</span> : r.sentAt ? <span className="text-gray-400">Pas encore gratté</span> : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       {canSend && (
                         <button type="button" onClick={() => sendOne(r)} disabled={rowBusy === r.email || running} className="text-brand text-xs font-medium hover:underline disabled:opacity-50">
