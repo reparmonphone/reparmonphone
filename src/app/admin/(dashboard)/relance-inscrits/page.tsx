@@ -1,15 +1,15 @@
 import Link from 'next/link';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { prisma } from '@/lib/prisma';
-import { getRelanceStats } from './actions';
+import { getRelanceData } from './actions';
 import RelanceManager from './RelanceManager';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminRelanceInscritsPage() {
   await requireAdminUser();
-  const [stats, promos] = await Promise.all([
-    getRelanceStats(),
+  const [data, promos] = await Promise.all([
+    getRelanceData(),
     prisma.promoCode.findMany({ where: { active: true }, orderBy: { createdAt: 'desc' }, select: { code: true, type: true, value: true } }),
   ]);
 
@@ -21,11 +21,12 @@ export default async function AdminRelanceInscritsPage() {
         Seuls les inscrits qui ont <strong>accepté de recevoir les offres</strong> (case à cocher à l&apos;inscription ou dans « Mon compte », ou inscription à la newsletter) sont contactés.
         Chaque e-mail contient un lien de désinscription, et une même personne n&apos;est jamais relancée deux fois en moins de 60 jours.
       </p>
-      {'error' in stats ? (
-        <p className="text-red-600">Erreur : {stats.error}</p>
+      {'error' in data ? (
+        <p className="text-red-600">Erreur : {data.error}</p>
       ) : (
         <RelanceManager
-          stats={stats}
+          stats={data.stats}
+          rows={data.rows}
           promos={promos.map((p: { code: string; type: string; value: unknown }) => ({
             code: p.code,
             label: p.type === 'PERCENT' ? `${Number(p.value)} %` : `${Number(p.value)} €`,

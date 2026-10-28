@@ -2,14 +2,32 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { previewRelanceEmail, sendRelanceBatch, sendRelanceTest, type RelanceStats } from './actions';
+import { previewRelanceEmail, sendRelanceBatch, sendRelanceTest, sendRelanceToOne, type RelanceStats, type RelanceRow } from './actions';
 
-export default function RelanceManager({ stats, promos }: { stats: RelanceStats; promos: { code: string; label: string }[] }) {
+const STATUS_BADGE: Record<RelanceRow['status'], { label: string; cls: string }> = {
+  eligible: { label: '⏳ À envoyer', cls: 'bg-green-100 text-green-700' },
+  recent: { label: '✅ Déjà envoyé', cls: 'bg-blue-100 text-blue-700' },
+  noConsent: { label: 'Sans consentement', cls: 'bg-amber-100 text-amber-700' },
+  unsubscribed: { label: 'Désinscrit', cls: 'bg-gray-200 text-gray-600' },
+  banned: { label: 'Banni', cls: 'bg-red-100 text-red-700' },
+};
+
+function fmt(iso: string | null) {
+  return iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+}
+
+export default function RelanceManager({ stats, rows: initialRows, promos }: { stats: RelanceStats; rows: RelanceRow[]; promos: { code: string; label: string }[] }) {
   const router = useRouter();
   const [code, setCode] = useState(promos.find((p) => /BIENVENUE/i.test(p.code))?.code ?? '');
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [testTo, setTestTo] = useState('contact@reparmonphone.fr');
+  const [testName, setTestName] = useState('Krys');
+  const [mobile, setMobile] = useState(false);
+  const [rows, setRows] = useState(initialRows);
+  const [filter, setFilter] = useState<'all' | 'todo' | 'sent' | 'other'>('all');
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [rowMsg, setRowMsg] = useState<string | null>(null);
   const [testMsg, setTestMsg] = useState<string | null>(null);
   const [testing, startTest] = useTransition();
   const [running, setRunning] = useState(false);
@@ -33,10 +51,31 @@ export default function RelanceManager({ stats, promos }: { stats: RelanceStats;
   function sendTest() {
     setTestMsg(null);
     startTest(async () => {
-      const r = await sendRelanceTest(code || null, testTo);
+      const r = await sendRelanceTest(code || null, testTo, testName);
       setTestMsg('error' in r ? `❌ ${r.error}` : `✅ E-mail de test envoyé à ${testTo}`);
     });
   }
+
+  async function sendOne(row: RelanceRow) {
+    const again = !!row.sentAt;
+    const promoText = code ? `avec le code ${code}` : 'sans code promo';
+    if (!confirm(`${again ? 'Renvoyer' : 'Envoyer'} la relance à ${row.email} ${promoText} ?${again ? `\n\nElle l'a déjà reçue le ${fmt(row.sentAt)}.` : ''}`)) return;
+    setRowBusy(row.email);
+    setRowMsg(null);
+    const r = await sendRelanceToOne(code || null, row.email);
+    setRowBusy(null);
+    if ('error' in r) {
+      setRowMsg(`❌ ${row.email} : ${r.error}`);
+      return;
+    }
+    setRows((all) => all.map((x) => (x.email === row.email ? { ...x, sentAt: r.sentAt, status: 'recent' } : x)));
+    setRowMsg(`✅ Envoyé à ${row.email}`);
+  }
+
+  const shownRows = rows.filter((r) =>
+    filter === 'all' ? true : filter === 'todo' ? r.status === 'eligible' : filter === 'sent' ? !!r.sentAt : r.status !== 'eligible' && r.status !== 'recent'
+  );
+  const sentCount = rows.filter((r) => r.sentAt).length;
 
   async function sendAll() {
     if (stats.eligible === 0) return;
@@ -111,7 +150,20 @@ export default function RelanceManager({ stats, promos }: { stats: RelanceStats;
             <p className="text-sm text-gray-600">
               <span className="text-gray-400">Objet :</span> <strong>{preview.subject}</strong>
             </p>
-            <iframe title="Aperçu de l'e-mail" srcDoc={preview.html} className="w-full h-[720px] border border-gray-200 rounded-lg bg-gray-100" />
+            <div className="flex gap-2 text-xs">
+              <button type="button" onClick={() => setMobile(false)} className={`px-3 py-1 rounded-full border ${!mobile ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-200 text-gray-600'}`}>
+                🖥️ Ordinateur
+              </button>
+              <button type="button" onClick={() => setMobile(true)} className={`px-3 py-1 rounded-full border ${mobile ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-200 text-gray-600'}`}>
+                📱 Téléphone
+              </button>
+            </div>
+            <iframe
+              title="Aperçu de l'e-mail"
+              srcDoc={preview.html}
+              style={{ width: mobile ? 375 : '100%', maxWidth: '100%' }}
+              className="h-[720px] border border-gray-200 rounded-lg bg-gray-100 mx-auto block"
+            />
           </>
         ) : (
           !previewError && <p className="text-sm text-gray-400">Chargement de l&apos;aperçu…</p>
@@ -119,13 +171,81 @@ export default function RelanceManager({ stats, promos }: { stats: RelanceStats;
       </div>
 
       <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-3">
-        <h2 className="font-semibold">3. Envoyer un test</h2>
+        <h2 className="font-semibold">3. Envoyer un test (rendu réel dans ta boîte mail)</h2>
+        <p className="text-xs text-gray-500">
+          Reçois exactement l&apos;e-mail que verront les inscrits (objet précédé de « [TEST] »), pour le vérifier dans Gmail, Outlook ou sur ton téléphone. Le lien de désinscription du test est valide : il te désinscrirait vraiment, évite de cliquer dessus avec ton adresse.
+        </p>
         <div className="flex flex-wrap items-center gap-3">
+          <input value={testName} onChange={(e) => setTestName(e.target.value)} placeholder="Prénom" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-32" />
           <input value={testTo} onChange={(e) => setTestTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-72" />
           <button type="button" onClick={sendTest} disabled={testing} className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-700 disabled:opacity-60">
             {testing ? 'Envoi…' : 'Envoyer le test'}
           </button>
           {testMsg && <span className="text-sm">{testMsg}</span>}
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-3">
+        <h2 className="font-semibold">Suivi des inscrits sans commande</h2>
+        <p className="text-xs text-gray-500">
+          {sentCount} inscrit(s) ont déjà reçu la relance. Une ligne « ✅ Déjà envoyé » ne reçoit plus rien pendant 60 jours avec l&apos;envoi groupé ; tu peux la renvoyer à la main avec le bouton.
+        </p>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {([
+            ['all', `Tous (${rows.length})`],
+            ['todo', `À envoyer (${rows.filter((r) => r.status === 'eligible').length})`],
+            ['sent', `Déjà envoyé (${sentCount})`],
+            ['other', `Non contactables (${rows.filter((r) => r.status !== 'eligible' && r.status !== 'recent').length})`],
+          ] as const).map(([k, l]) => (
+            <button key={k} type="button" onClick={() => setFilter(k)} className={`px-3 py-1 rounded-full border ${filter === k ? 'bg-brand text-white border-brand' : 'border-gray-200 text-gray-600'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        {rowMsg && <p className="text-sm">{rowMsg}</p>}
+        <div className="overflow-x-auto max-h-[480px] overflow-y-auto border border-gray-100 rounded-lg">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-left sticky top-0">
+              <tr>
+                <th className="px-3 py-2">Inscrit</th>
+                <th className="px-3 py-2">Inscrit le</th>
+                <th className="px-3 py-2">État</th>
+                <th className="px-3 py-2">Dernier envoi</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {shownRows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-3 py-4 text-gray-400">Aucun inscrit dans cette liste.</td>
+                </tr>
+              )}
+              {shownRows.map((r) => {
+                const b = STATUS_BADGE[r.status];
+                const canSend = r.status === 'eligible' || r.status === 'recent';
+                return (
+                  <tr key={r.email}>
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-gray-800">{r.name || '—'}</div>
+                      <div className="text-xs text-gray-500">{r.email}</div>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(r.createdAt)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${b.cls}`}>{b.label}</span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(r.sentAt)}</td>
+                    <td className="px-3 py-2 text-right">
+                      {canSend && (
+                        <button type="button" onClick={() => sendOne(r)} disabled={rowBusy === r.email || running} className="text-brand text-xs font-medium hover:underline disabled:opacity-50">
+                          {rowBusy === r.email ? '…' : r.sentAt ? 'Renvoyer' : 'Envoyer'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 

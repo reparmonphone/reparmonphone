@@ -15,6 +15,16 @@ const BUYER_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'REFUNDED'
 
 type Candidate = { email: string; firstName: string };
 
+// Une ligne par inscrit sans commande, avec son état vis-à-vis de la relance
+export type RelanceRow = {
+  email: string;
+  name: string;
+  createdAt: string | null;
+  consent: boolean;
+  sentAt: string | null; // dernière relance envoyée (ISO), null = jamais
+  status: 'eligible' | 'recent' | 'noConsent' | 'unsubscribed' | 'banned';
+};
+
 export type RelanceStats = {
   totalUsers: number;
   buyers: number; // ont déjà commandé (exclus)
@@ -28,7 +38,14 @@ export type RelanceStats = {
 
 async function loadAllUsers() {
   const admin = createSupabaseAdminClient();
-  const users: Awaited<ReturnType<typeof admin.auth.admin.listUsers>>['data']['users'] = [];
+  // Type local volontairement simple (indépendant de la version de supabase-js)
+  const users: {
+    id: string;
+    email?: string;
+    created_at?: string;
+    banned_until?: string | null;
+    user_metadata?: Record<string, unknown>;
+  }[] = [];
   for (let page = 1; page <= 50; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw new Error(error.message);
@@ -38,7 +55,7 @@ async function loadAllUsers() {
   return users;
 }
 
-async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[] }> {
+async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[]; rows: RelanceRow[] }> {
   const [users, orders, newsletter, bans, unsub, sentLog] = await Promise.all([
     loadAllUsers(),
     prisma.order.findMany({
@@ -67,6 +84,7 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[] }
     alreadySent: 0,
   };
   const eligible: Candidate[] = [];
+  const rows: RelanceRow[] = [];
 
   for (const u of users) {
     const email = (u.email ?? '').trim();
@@ -78,30 +96,44 @@ async function compute(): Promise<{ stats: RelanceStats; eligible: Candidate[] }
     }
     stats.noOrder++;
     const meta = (u.user_metadata ?? {}) as Record<string, unknown>;
-    const bannedUntil = (u as { banned_until?: string | null }).banned_until;
+    const bannedUntil = u.banned_until;
+    const optin = meta.marketing_optin === true || (meta.marketing_optin !== false && newsletterEmails.has(norm));
+    const name = [meta.first_name, meta.last_name].filter((x) => typeof x === 'string' && x).join(' ');
+    const row: RelanceRow = {
+      email,
+      name,
+      createdAt: u.created_at ?? null,
+      consent: optin,
+      sentAt: sentLog[norm] ?? null,
+      status: 'eligible',
+    };
+    rows.push(row);
     if ((bannedUntil && new Date(bannedUntil).getTime() > Date.now()) || matchBan(bans, { userId: u.id, email, phone: typeof meta.phone === 'string' ? meta.phone : null })) {
       stats.banned++;
+      row.status = 'banned';
       continue;
     }
     if (unsub.has(norm)) {
       stats.unsubscribed++;
+      row.status = 'unsubscribed';
       continue;
     }
     // Consentement : case cochée à l'inscription / dans « Mon compte » (le client l'a décochée → false), OU inscription à la newsletter
-    const optin = meta.marketing_optin === true || (meta.marketing_optin !== false && newsletterEmails.has(norm));
     if (!optin) {
       stats.noConsent++;
+      row.status = 'noConsent';
       continue;
     }
     const last = sentLog[norm];
     if (last && new Date(last).getTime() > sinceMs) {
       stats.alreadySent++;
+      row.status = 'recent';
       continue;
     }
     stats.eligible++;
     eligible.push({ email, firstName: typeof meta.first_name === 'string' ? meta.first_name : '' });
   }
-  return { stats, eligible };
+  return { stats, eligible, rows };
 }
 
 async function resolvePromo(code: string | null): Promise<{ promo: RelancePromo | null } | { error: string }> {
@@ -122,13 +154,46 @@ async function resolvePromo(code: string | null): Promise<{ promo: RelancePromo 
   return { promo: { code: p.code, label, conditions } };
 }
 
-export async function getRelanceStats(): Promise<RelanceStats | { error: string }> {
+export async function getRelanceData(): Promise<{ stats: RelanceStats; rows: RelanceRow[] } | { error: string }> {
   await requireAdminUser();
   try {
-    return (await compute()).stats;
+    const { stats, rows } = await compute();
+    // À envoyer d'abord, puis déjà envoyés (les plus récents en premier), puis le reste
+    const rank = (r: RelanceRow) => (r.status === 'eligible' ? 0 : r.status === 'recent' ? 1 : 2);
+    rows.sort((a, b) => rank(a) - rank(b) || (b.sentAt ?? '').localeCompare(a.sentAt ?? '') || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+    return { stats, rows };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Erreur de chargement.' };
   }
+}
+
+// Envoi individuel (bouton « Envoyer » / « Renvoyer » d'une ligne). Même garde-fous que l'envoi groupé :
+// consentement, désinscription, bannissement — sauf le délai de 60 jours, que l'admin peut passer volontairement.
+export async function sendRelanceToOne(code: string | null, email: string): Promise<{ ok: true; sentAt: string } | { error: string }> {
+  await requireAdminUser();
+  const r = await resolvePromo(code);
+  if ('error' in r) return r;
+  let rows: RelanceRow[];
+  try {
+    rows = (await compute()).rows;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Erreur de chargement.' };
+  }
+  const row = rows.find((x) => normalizeEmail(x.email) === normalizeEmail(email));
+  if (!row) return { error: 'Inscrit introuvable (ou il a déjà commandé).' };
+  if (row.status === 'banned') return { error: 'Cet inscrit ne peut pas être contacté.' };
+  if (row.status === 'unsubscribed') return { error: 'Cet inscrit s’est désinscrit des e-mails promotionnels.' };
+  if (row.status === 'noConsent') return { error: 'Cet inscrit n’a pas accepté de recevoir des offres.' };
+  try {
+    await sendOne({ email: row.email, firstName: row.name.split(' ')[0] ?? '' }, r.promo);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Erreur lors de l'envoi." };
+  }
+  const log = await loadSentLog();
+  const sentAt = new Date().toISOString();
+  log[normalizeEmail(row.email)] = sentAt;
+  await saveSentLog(log);
+  return { ok: true, sentAt };
 }
 
 export async function previewRelanceEmail(code: string | null): Promise<{ subject: string; html: string } | { error: string }> {
@@ -160,14 +225,14 @@ async function sendOne(c: Candidate, promo: RelancePromo | null, to?: string) {
   if (res.error) throw new Error(res.error.message ?? 'Erreur Resend');
 }
 
-export async function sendRelanceTest(code: string | null, to: string): Promise<{ ok: true } | { error: string }> {
+export async function sendRelanceTest(code: string | null, to: string, firstName = 'Marie'): Promise<{ ok: true } | { error: string }> {
   await requireAdminUser();
   const email = to.trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'Adresse e-mail invalide.' };
   const r = await resolvePromo(code);
   if ('error' in r) return r;
   try {
-    await sendOne({ email, firstName: 'Marie' }, r.promo, email);
+    await sendOne({ email, firstName: firstName.trim().slice(0, 40) }, r.promo, email);
     return { ok: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Erreur lors de l'envoi." };
