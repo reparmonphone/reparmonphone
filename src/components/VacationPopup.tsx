@@ -34,13 +34,21 @@ export default function VacationPopup() {
         }
         if (closed) return;
         setData(json as VacationPayload);
-        setTimeout(() => !cancelled && setOpen(true), 600);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [excluded, data]);
+
+  // Ouverture légèrement différée, une fois les données reçues.
+  // (Elle était auparavant dans l'effet ci-dessus : à l'arrivée des données, React relançait cet effet, ce qui
+  // « annulait » l'ouverture programmée → le pop-up ne s'affichait jamais aux visiteurs.)
+  useEffect(() => {
+    if (!data || excluded) return;
+    const t = setTimeout(() => setOpen(true), 600);
+    return () => clearTimeout(t);
+  }, [data, excluded]);
 
   function close() {
     setOpen(false);
