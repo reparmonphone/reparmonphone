@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
+import { checkCartFreshness } from '@/lib/cartCheck';
 import { getClientIp } from '@/lib/clientIp';
 import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
@@ -35,6 +36,10 @@ export async function POST(req: NextRequest) {
     // du tarif de livraison, car le seuil de livraison gratuite dépend du sous-total réel.
     const productIds = items.map((i: { productId: string }) => i.productId);
     const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+
+    // Panier périmé (produit retiré / en rupture / prix modifié depuis) : refus avec un message neutre, le navigateur vide le panier.
+    const freshness = checkCartFreshness(items, products);
+    if (!freshness.ok) return NextResponse.json({ error: freshness.error, cartOutdated: true }, { status: 409 });
 
     const orderItemsData = items.map((item: { productId: string; quantity: number }) => {
       const product = products.find((p: { id: string }) => p.id === item.productId);

@@ -62,7 +62,8 @@ export default function PanierClient({
   initialCustomer: InitialCustomer;
   isGuest?: boolean;
 }) {
-  const { items, removeItem, setQuantity, totalPrice } = useCart();
+  const { items, removeItem, setQuantity, totalPrice, clear } = useCart();
+  const [cartGoneMsg, setCartGoneMsg] = useState<string | null>(null); // panier devenu indisponible (produits retirés / mis à jour)
   const [loading, setLoading] = useState<'stripe' | 'sumup' | 'paypal' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shippingId, setShippingId] = useState(shippingOptions[0]?.id ?? '');
@@ -274,11 +275,17 @@ export default function PanierClient({
       // Le serveur renvoie toujours du JSON (même en cas d'erreur) — mais en cas de coupure réseau ou
       // de souci serveur imprévu, la réponse peut être vide ou illisible. On l'attrape ici pour afficher
       // un message clair plutôt que de planter silencieusement (ex: "Unexpected end of JSON input").
-      let data: { url?: string; error?: string };
+      let data: { url?: string; error?: string; cartOutdated?: boolean };
       try {
         data = await res.json();
       } catch {
         setError('Erreur de connexion au serveur de paiement. Réessaie dans quelques instants, ou contacte-nous si ça persiste.');
+        return;
+      }
+      if (data.cartOutdated) {
+        // Panier périmé : on le vide et on l'explique simplement (voir lib/cartCheck.ts)
+        setCartGoneMsg(data.error ?? 'Ton panier initial n’est plus disponible.');
+        clear();
         return;
       }
       if (data.url) window.location.href = data.url;
@@ -293,6 +300,9 @@ export default function PanierClient({
   if (items.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        {cartGoneMsg && (
+          <p className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-5 py-4 mb-6 text-sm leading-relaxed">{cartGoneMsg}</p>
+        )}
         <p className="text-gray-500 text-lg">Ton panier est vide.</p>
         <Link href="/boutique" className="text-brand font-medium hover:underline mt-3 inline-block">
           Retour à la boutique

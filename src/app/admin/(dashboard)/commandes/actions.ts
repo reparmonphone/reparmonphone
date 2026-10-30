@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { stripe } from '@/lib/stripe';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { sendPendingOrderReminder } from '@/lib/orderReminder';
 import { sendReviewReminder, reviewReminderEligibleWhere, reviewReminderAllDeliveredWhere } from '@/lib/reviewReminder';
@@ -153,6 +154,16 @@ export async function deleteOrder(orderId: string) {
   const renvois = await prisma.order.count({ where: { replacementOfId: orderId } });
   if (renvois > 0) {
     return { error: `Cette commande a ${renvois} renvoi(s) : supprime d’abord le(s) renvoi(s).` };
+  }
+  // Commande en attente de paiement : on ferme la page de paiement Stripe encore ouverte, sinon le client pourrait
+  // encore payer (jusqu'à 24 h) une commande qui n'existe plus.
+  const toDelete = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true, stripeSessionId: true } });
+  if (toDelete?.status === 'PENDING' && toDelete.stripeSessionId) {
+    try {
+      await stripe.checkout.sessions.expire(toDelete.stripeSessionId);
+    } catch {
+      // déjà expirée, déjà payée ou introuvable : sans conséquence
+    }
   }
   await prisma.orderItem.deleteMany({ where: { orderId } });
   await prisma.order.delete({ where: { id: orderId } });

@@ -158,6 +158,27 @@ export async function POST(req: NextRequest) {
       console.error('Impossible de mettre à jour la commande depuis le webhook', e);
     }
 
+    // Paiement reçu mais commande introuvable (ex. commande en attente supprimée dans l'admin alors que le client avait
+    // encore la page de paiement ouverte) : on prévient tout de suite pour pouvoir rembourser le client.
+    if (!updatedOrder) {
+      try {
+        const resendAlert = getResendClient();
+        if (resendAlert) {
+          const amount = ((session.amount_total ?? 0) / 100).toFixed(2);
+          await resendAlert.emails.send({
+            from: process.env.RESEND_FROM_EMAIL ?? 'ReparMonPhone <contact@reparmonphone.fr>',
+            to: 'contact@reparmonphone.fr',
+            subject: `⚠️ Paiement Stripe reçu (${amount} €) mais commande introuvable — à rembourser`,
+            html: `<p>Un paiement Stripe vient d'être reçu mais aucune commande correspondante n'existe (supprimée ?).</p>
+<p>Montant : <strong>${amount} €</strong><br>Client : ${session.customer_details?.email ?? 'inconnu'} ${session.customer_details?.name ?? ''}<br>Session Stripe : ${session.id}<br>Commande attendue : ${orderId ?? 'inconnue'}</p>
+<p>👉 À rembourser dans le tableau de bord Stripe (Paiements), ou à recréer à la main.</p>`,
+          });
+        }
+      } catch (e) {
+        console.error("Impossible d'envoyer l'alerte « paiement sans commande »", e);
+      }
+    }
+
     // Client banni (voir /admin/bannis) qui a quand même réussi à payer (Stripe ne donne l'e-mail réel
     // qu'à cette étape) : on laisse une note bien visible sur la commande pour pouvoir l'annuler / la rembourser.
     if (updatedOrder && !wasAlreadyPaid) {
