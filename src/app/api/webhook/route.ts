@@ -5,6 +5,7 @@ import { generateInvoicePdf } from '@/lib/invoicePdf';
 import { getResendClient } from '@/lib/resend';
 import { sendNewOrderAdminNotification, fidelityBlockHtml } from '@/lib/orderEmails';
 import { loadBanEntries, matchBan } from '@/lib/bannedClients';
+import { isFullName } from '@/lib/fullName';
 import Stripe from 'stripe';
 
 export async function POST(req: NextRequest) {
@@ -202,6 +203,21 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) {
         console.error('Vérification bannissement (webhook) impossible', e);
+      }
+    }
+
+    // Nom incomplet saisi sur la page Stripe (prénom seul) : note bien visible sur la commande pour pouvoir
+    // recontacter le client avant l'expédition (sans nom de famille, impossible d'adresser le colis).
+    if (updatedOrder && !wasAlreadyPaid && !isFullName(updatedOrder.customerName)) {
+      try {
+        await prisma.orderNote.create({
+          data: {
+            orderId: updatedOrder.id,
+            message: `⚠️ Nom incomplet (« ${updatedOrder.customerName} ») : il manque le nom de famille. Contacter le client avant d'expédier.`,
+          },
+        });
+      } catch (e) {
+        console.error("Impossible d'ajouter la note « nom incomplet »", e);
       }
     }
 

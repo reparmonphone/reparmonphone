@@ -4,6 +4,7 @@ import { createPaypalOrder } from '@/lib/paypal';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { validatePromoCode } from '@/lib/promoCode';
 import { checkCartFreshness } from '@/lib/cartCheck';
+import { isFullName, FULL_NAME_MESSAGE } from '@/lib/fullName';
 import { getClientIp } from '@/lib/clientIp';
 import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
     }
     if (!customer?.name || !customer?.email || !customer?.addressLine1 || !customer?.addressZip || !customer?.addressCity) {
       return NextResponse.json({ error: 'Coordonnées et adresse obligatoires pour un paiement PayPal.' }, { status: 400 });
+    }
+    // Nom ET prénom obligatoires (du client, et du destinataire si la livraison est à une autre adresse)
+    if (!isFullName(customer.name) || (customer.shipDifferent && !isFullName(customer.shipName))) {
+      return NextResponse.json({ error: FULL_NAME_MESSAGE }, { status: 400 });
     }
 
     // Recalcul des prix côté serveur (ne jamais faire confiance au panier client) — fait AVANT le calcul

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useCart } from '@/store/cart';
 import { formatPrice } from '@/lib/format';
+import { isFullName, FULL_NAME_MESSAGE } from '@/lib/fullName';
 import TrustBadges from '@/components/TrustBadges';
 import { trackBeginCheckout } from '@/lib/gtmEvents';
 import {
@@ -205,7 +206,7 @@ export default function PanierClient({
 
   function billingValid() {
     return (
-      name.trim() &&
+      isFullName(name) &&
       emailLooksValid &&
       phone.trim() &&
       addressLine1.trim() &&
@@ -215,7 +216,7 @@ export default function PanierClient({
   }
   function shippingValid() {
     if (!shipDifferent) return true;
-    return shipName.trim() && shipAddressLine1.trim() && shipAddressZip.trim() && shipAddressCity.trim();
+    return isFullName(shipName) && shipAddressLine1.trim() && shipAddressZip.trim() && shipAddressCity.trim();
   }
 
   async function checkout(provider: 'stripe' | 'sumup' | 'paypal') {
@@ -225,6 +226,10 @@ export default function PanierClient({
     }
     if (provider !== 'stripe' && email.trim() && !emailLooksValid) {
       setError('Ton adresse email semble incorrecte : vérifie-la pour recevoir ta confirmation et ta facture.');
+      return;
+    }
+    if (provider !== 'stripe' && ((name.trim() && !isFullName(name)) || (shipDifferent && shipName.trim() && !isFullName(shipName)))) {
+      setError(FULL_NAME_MESSAGE);
       return;
     }
     if (provider !== 'stripe' && (!billingValid() || !shippingValid())) {
@@ -357,7 +362,7 @@ export default function PanierClient({
           </p>
 
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet *" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Prénom et nom de famille *" autoComplete="name" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
             <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Nom de l'entreprise (facultatif)" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
           </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
@@ -378,7 +383,7 @@ export default function PanierClient({
           {shipDifferent && (
             <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
               <h3 className="font-semibold text-sm mb-3">Adresse de livraison</h3>
-              <input value={shipName} onChange={(e) => setShipName(e.target.value)} placeholder="Nom complet du destinataire *" className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-3" />
+              <input value={shipName} onChange={(e) => setShipName(e.target.value)} placeholder="Prénom et nom du destinataire *" className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-3" />
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <input value={shipAddressLine1} onChange={(e) => setShipAddressLine1(e.target.value)} placeholder="Numéro et nom de rue *" className="col-span-2 border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
                 <input value={shipAddressZip} onChange={(e) => setShipAddressZip(e.target.value)} placeholder="Code postal *" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
