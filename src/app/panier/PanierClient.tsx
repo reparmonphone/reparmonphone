@@ -341,16 +341,31 @@ export default function PanierClient({
         {/* Colonne gauche */}
         <div>
           {isGuest && (
-            <div className="mb-6 bg-brand-light border border-brand/20 rounded-xl px-4 py-3 text-sm text-gray-700">
-              ✅ <strong>Pas besoin de compte pour commander.</strong> Remplis tes coordonnées, choisis ta livraison,
-              puis ton moyen de paiement.
-              <span className="block text-xs text-gray-500 mt-1">
-                Tu as déjà un compte ?{' '}
-                <Link href="/compte/connexion?redirect=/panier" className="text-brand font-medium hover:underline">
-                  Connecte-toi
-                </Link>{' '}
-                pour pré-remplir tes informations.
-              </span>
+            <div className="mb-6 rounded-2xl border-2 border-brand/30 bg-gradient-to-br from-brand-light to-white px-5 py-5">
+              <p className="text-base font-bold text-brand-dark mb-1">🎁 Crée ton compte gratuit : ça prend 30 secondes</p>
+              <p className="text-sm text-gray-600 mb-3">
+                Ton panier est conservé. Avec un compte, tu profites de tout ce qu&apos;un invité ne peut pas avoir :
+              </p>
+              <ul className="grid sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-gray-700 mb-4">
+                <li className="flex gap-2"><span aria-hidden="true">📦</span><span>Suivi de ton colis en direct, sur le site</span></li>
+                <li className="flex gap-2"><span aria-hidden="true">🧾</span><span>Historique de tes commandes et factures</span></li>
+                <li className="flex gap-2"><span aria-hidden="true">⚡</span><span>Adresse enregistrée : recommande en 2 clics</span></li>
+                <li className="flex gap-2"><span aria-hidden="true">🎟️</span><span>Offres exclusives et cadeaux surprise réservés aux membres</span></li>
+              </ul>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href="/compte/inscription?redirect=/panier"
+                  className="inline-block bg-brand text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand-dark transition"
+                >
+                  Créer mon compte gratuit
+                </Link>
+                <Link href="/compte/connexion?redirect=/panier" className="text-sm text-brand font-medium hover:underline">
+                  J&apos;ai déjà un compte
+                </Link>
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Tu préfères aller vite ? Tu peux aussi <strong>commander sans compte</strong> : remplis simplement les champs ci-dessous.
+              </p>
             </div>
           )}
 
@@ -545,6 +560,16 @@ export default function PanierClient({
             </Link>{' '}
             si tu as opté pour une réparation à domicile ou en atelier (minimum 24h après, suivant disponibilités).
           </div>
+
+          {isGuest && (
+            <p className="text-xs text-gray-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5 mb-4 leading-relaxed">
+              💡 Sans compte, tu ne pourras pas suivre ton colis ni retrouver tes commandes depuis le site.{' '}
+              <Link href="/compte/inscription?redirect=/panier" className="text-brand font-semibold underline">
+                Créer mon compte
+              </Link>{' '}
+              (ton panier est conservé).
+            </p>
+          )}
 
           <label className="flex items-start gap-2 text-sm mb-4 cursor-pointer">
             <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} className="mt-0.5" />
