@@ -67,3 +67,9 @@ export async function getSumupCheckout(id: string) {
   if (!ok) throw new Error(data?.message || 'Erreur lors de la récupération du checkout SumUp');
   return data as SumupCheckout;
 }
+
+// Désactive un checkout encore ouvert (le client ne peut plus payer sur sa page de paiement SumUp).
+export async function deactivateSumupCheckout(id: string) {
+  const { ok } = await sumupFetch(`/v0.1/checkouts/${id}`, { method: 'DELETE' });
+  return ok;
+}

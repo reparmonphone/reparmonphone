@@ -1,5 +1,6 @@
 'use server';
 
+import { closePendingPaymentsForProduct } from '@/lib/pendingPayments';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -79,6 +80,14 @@ export async function updateProduct(
   if (data.inStock && before && !before.inStock) {
     await notifyBackInStock(productId);
   }
+  // Passage en rupture : on ferme les pages de paiement ouvertes des commandes en attente qui contiennent ce produit
+  if (!data.inStock) {
+    try {
+      await closePendingPaymentsForProduct(productId);
+    } catch (e) {
+      console.error('Fermeture des paiements en attente impossible', e);
+    }
+  }
 }
 
 // Suppression définitive d'un produit. Bloquée par la base elle-même (contrainte de clé étrangère,
@@ -117,6 +126,14 @@ export async function toggleStock(productId: string, inStock: boolean) {
   // sur "Alerte Stock" pour ce produit — voir src/lib/stockNotifications.ts.
   if (inStock && before && !before.inStock) {
     await notifyBackInStock(productId);
+  }
+  // Passage en rupture : on ferme les pages de paiement ouvertes des commandes en attente qui contiennent ce produit
+  if (!inStock) {
+    try {
+      await closePendingPaymentsForProduct(productId);
+    } catch (e) {
+      console.error('Fermeture des paiements en attente impossible', e);
+    }
   }
 }
 
