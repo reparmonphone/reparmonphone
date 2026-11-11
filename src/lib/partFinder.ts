@@ -34,6 +34,8 @@ export async function getFinderBrands(): Promise<FinderBrand[]> {
   });
   const map = new Map<string, FinderBrand>();
   for (const l of lines) {
+    // « Outils » (outillage) n'est pas une marque de téléphone : on ne l'affiche pas dans le trouveur.
+    if (/outil/i.test(l.brand.slug) || /outil/i.test(l.brand.name)) continue;
     const b: FinderBrand = map.get(l.brand.slug) ?? { slug: l.brand.slug, name: l.brand.name, lines: [] };
     b.lines.push({ slug: l.slug, name: l.name });
     map.set(l.brand.slug, b);
