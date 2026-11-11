@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import './globals.css';
+import { MODE_SOMBRE_ACTIF } from '@/data/options';
 import Header from '@/components/Header';
 import TopUtilityBar from '@/components/TopUtilityBar';
 import VerifiedReviewsFloatingBadge from '@/components/VerifiedReviewsFloatingBadge';
@@ -152,6 +153,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               "}catch(e){}})();",
           }}
         />
+        {/* Mode sombre : applique le choix mémorisé du visiteur avant l'affichage (évite un flash blanc). */}
+        {MODE_SOMBRE_ACTIF && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html:
+                "(function(){try{if(localStorage.getItem('rmp-theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}})();",
+            }}
+          />
+        )}
         {/* Appli installable (PWA) : doit s'exécuter en tout premier pour capter la fenêtre d'installation du navigateur */}
         <InstallAppEarlyScript />
         {/* Google Tag Manager (noscript) — le conteneur lui-même (GoogleTagManagerLoader, plus bas)

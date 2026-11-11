@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function TopUtilityBar() {
   return (
@@ -16,6 +17,7 @@ export default function TopUtilityBar() {
             <Link href="/boutique" className="underline font-medium">En savoir plus</Link>
           </span>
           <div className="flex items-center gap-2 text-sm">
+            <ThemeToggle />
             <a href="https://www.facebook.com/830284890366434" target="_blank" rel="noopener noreferrer" aria-label="Facebook" suppressHydrationWarning>📘</a>
             <a href="https://www.instagram.com/repar_mon_phone/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" suppressHydrationWarning>📷</a>
           </div>

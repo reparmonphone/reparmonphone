@@ -968,3 +968,18 @@ model StudyTask {
   @@index([studyId])
   @@map("study_tasks")
 }
+
+// ---------- Mes appareils (espace client) ----------
+// Les téléphones/tablettes que le client enregistre dans son compte (max 5), pour retrouver d'un clic les
+// pièces en stock compatibles. userId = uuid Supabase Auth ; modelId = Model.id, volontairement SANS relation
+// Prisma : supprimer un modèle du catalogue n'a alors aucun effet de bord (la ligne est simplement ignorée).
+model UserDevice {
+  id        String   @id @default(cuid())
+  userId    String
+  modelId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, modelId])
+  @@index([userId])
+  @@map("user_devices")
+}

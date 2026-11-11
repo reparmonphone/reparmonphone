@@ -21,7 +21,23 @@ export default function ProductReassurance({
   const retour = DELAI_RETOUR ? `retours sous ${DELAI_RETOUR}` : 'conditions de retour';
 
   return (
-    <ul className="mt-4 space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
+    <>
+    {/* Bandeau de réassurance : les 3 promesses qui rassurent juste sous le bouton d'achat */}
+    <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-semibold text-gray-800">
+      <div className="rounded-xl border border-gray-100 bg-white px-2 py-2.5 shadow-sm">
+        <div className="text-lg" aria-hidden="true">🚚</div>
+        Chronopost 24h
+      </div>
+      <div className="rounded-xl border border-gray-100 bg-white px-2 py-2.5 shadow-sm">
+        <div className="text-lg" aria-hidden="true">🔒</div>
+        Paiement sécurisé
+      </div>
+      <div className="rounded-xl border border-gray-100 bg-white px-2 py-2.5 shadow-sm">
+        <div className="text-lg" aria-hidden="true">🛡️</div>
+        {garantie}
+      </div>
+    </div>
+    <ul className="mt-3 space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
       <li className="flex gap-2">
         <span aria-hidden="true">✅</span>
         <span>
@@ -54,10 +70,7 @@ export default function ProductReassurance({
           </span>
         </li>
       )}
-      <li className="flex gap-2">
-        <span aria-hidden="true">💳</span>
-        <span>Paiement sécurisé. Livraison Chronopost 24h en France métropolitaine.</span>
-      </li>
     </ul>
+    </>
   );
 }

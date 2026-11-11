@@ -19,6 +19,7 @@ import VisitorCounter from '@/components/VisitorCounter';
 import IntroSplash from '@/components/IntroSplash';
 import HomeFaq from '@/components/HomeFaq';
 import HomeProfiles from '@/components/HomeProfiles';
+import PartFinder from '@/components/PartFinder';
 
 // Découpe une phrase en mots qui arrivent un par un (animations .hero-word dans globals.css).
 // Le texte reste identique pour Google et les lecteurs d'écran.
@@ -121,6 +122,8 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <PartFinder />
 
       <div className="max-w-6xl mx-auto px-4 pt-4">
   <HeroSlider />

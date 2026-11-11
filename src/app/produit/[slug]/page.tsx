@@ -16,6 +16,9 @@ import JsonLd from '@/components/JsonLd';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
 import ProductReassurance from '@/components/ProductReassurance';
+import ShipCountdown from '@/components/ShipCountdown';
+import ToolKitUpsell from '@/components/ToolKitUpsell';
+import { findToolKit, pickGuide, type ToolKitItem } from '@/lib/toolKit';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
@@ -103,6 +106,23 @@ export default async function ProductPage({ params }: { params: { slug: string }
     orderBy: { viewCount: 'desc' },
     take: 4,
   });
+
+  // Guide le plus adapté à CETTE pièce (écran → guide écran…), et « kit outils » correspondant : les outils
+  // listés dans le guide, retrouvés dans la boutique. Jamais bloquant : en cas d'erreur, pas de kit.
+  const mainGuide = pickGuide(relatedGuides, product.pieceType);
+  let toolKit: ToolKitItem[] = [];
+  if (
+    product.inStock &&
+    mainGuide &&
+    mainGuide.toolsNeeded.length > 0 &&
+    !['OUTILLAGE', 'ACCESSOIRE', 'AUTRE'].includes(product.pieceType)
+  ) {
+    try {
+      toolKit = await findToolKit(mainGuide.toolsNeeded, product.id);
+    } catch {
+      toolKit = [];
+    }
+  }
 
   // Vente additionnelle : pour un écran, on propose jusqu'à 3 verres trempés du même modèle exact au
   // moment de l'ajout au panier (voir AddToCartButton) — plusieurs choix plutôt qu'un seul, pour que
@@ -205,7 +225,16 @@ export default async function ProductPage({ params }: { params: { slug: string }
           </div>
 
           <div className="flex gap-2 mb-6 text-sm flex-wrap">
-            {product.quality && <span className="bg-gray-100 px-3 py-1 rounded-full">{product.quality}</span>}
+            {!['OUTILLAGE', 'ACCESSOIRE', 'AUTRE'].includes(product.pieceType) && (
+              <span className="bg-green-50 text-green-800 border border-green-200 px-3 py-1 rounded-full font-medium">
+                ✓ Compatible {product.model.name}
+              </span>
+            )}
+            {product.quality && (
+              <span className="bg-brand-light text-brand-dark px-3 py-1 rounded-full font-medium">
+                ★ {product.quality}
+              </span>
+            )}
             {product.condition && <span className="bg-gray-100 px-3 py-1 rounded-full">{product.condition}</span>}
             <span className={`px-3 py-1 rounded-full ${product.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
               {product.inStock ? 'En stock' : '⚠️ Alerte Stock — Rupture'}
@@ -229,22 +258,21 @@ export default async function ProductPage({ params }: { params: { slug: string }
             <ShareButton title={product.title} url={`${SITE_URL}/produit/${product.slug}`} />
           </div>
 
-          {product.inStock && (
-            <p className="mt-3 flex items-start gap-2 text-sm text-gray-700">
-              <span aria-hidden="true">🚚</span>
-              <span>
-                <strong className="font-semibold text-gray-900">Commandez avant 20h</strong> : livraison estimée sous 24h par
-                Chronopost en France métropolitaine.
-              </span>
-            </p>
-          )}
+          {product.inStock && <ShipCountdown />}
 
           <ProductReassurance
             brand={product.model.productLine.brand.name}
             modelName={product.model.name}
             isScreen={product.pieceType === 'ECRAN'}
-            guide={relatedGuides[0] ? { slug: relatedGuides[0].slug, title: relatedGuides[0].title } : null}
+            guide={mainGuide ? { slug: mainGuide.slug, title: mainGuide.title } : null}
           />
+
+          {toolKit.length > 0 && (
+            <ToolKitUpsell
+              tools={toolKit}
+              guide={mainGuide ? { slug: mainGuide.slug, title: mainGuide.title } : null}
+            />
+          )}
 
           {!product.inStock && <StockNotifyForm productId={product.id} />}
 

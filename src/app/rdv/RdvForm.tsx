@@ -28,12 +28,15 @@ export default function RdvForm({
   booked,
   vacation,
   today,
+  prefill,
 }: {
   zones: Zone[];
   blocks: RdvBlockLite[];
   booked: BookedLite[];
   vacation: { start: string; end: string } | null;
   today: string;
+  // Pré-remplissage venant du devis instantané (/devis-reparation)
+  prefill?: { brand?: string; model?: string; issue?: string };
 }) {
   const [type, setType] = useState<'ATELIER' | 'DOMICILE'>('ATELIER');
   const [city, setCity] = useState(zones[0]?.cityName ?? '');
@@ -195,11 +198,11 @@ export default function RdvForm({
       <input name="customerEmail" required type="email" placeholder="E-mail" className="w-full border border-gray-200 rounded-lg px-3 py-2" />
 
       <div className="grid grid-cols-2 gap-4">
-        <input name="deviceBrand" required placeholder="Marque (ex: Apple)" className="border border-gray-200 rounded-lg px-3 py-2" />
-        <input name="deviceModel" required placeholder="Modèle (ex: iPhone 14)" className="border border-gray-200 rounded-lg px-3 py-2" />
+        <input name="deviceBrand" required defaultValue={prefill?.brand} placeholder="Marque (ex: Apple)" className="border border-gray-200 rounded-lg px-3 py-2" />
+        <input name="deviceModel" required defaultValue={prefill?.model} placeholder="Modèle (ex: iPhone 14)" className="border border-gray-200 rounded-lg px-3 py-2" />
       </div>
 
-      <textarea name="issueDescription" required placeholder="Décrivez la panne..." rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+      <textarea name="issueDescription" required defaultValue={prefill?.issue} placeholder="Décrivez la panne..." rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2" />
 
       <div className="space-y-3">
         <div>

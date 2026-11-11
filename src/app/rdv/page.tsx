@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { todayInParis } from '@/lib/rdvAvailability';
 import { getVacationConfig } from '@/lib/vacation';
@@ -7,7 +8,11 @@ import RdvForm from './RdvForm';
 // Les créneaux fermés se modifient depuis l'admin : la page doit toujours être lue à jour.
 export const dynamic = 'force-dynamic';
 
-export default async function RdvPage() {
+export default async function RdvPage({
+  searchParams,
+}: {
+  searchParams?: { marque?: string; modele?: string; panne?: string };
+}) {
   const today = todayInParis();
   const vacationConfig = await getVacationConfig();
   const vacation =
@@ -29,10 +34,21 @@ export default async function RdvPage() {
     return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
   });
 
+  const clean = (v?: string) => (typeof v === 'string' ? v.slice(0, 120) : undefined);
+  const prefill = { brand: clean(searchParams?.marque), model: clean(searchParams?.modele), issue: clean(searchParams?.panne) };
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
       <h1 className="text-2xl font-bold mb-2">Prendre rendez-vous</h1>
-      <p className="text-gray-600 mb-8">Réparation en atelier ou à domicile, sur Sainte-Maxime et le Golfe de Saint-Tropez.</p>
+      <p className="text-gray-600 mb-8">Réparation en atelier ou à domicile, sur Sainte-Maxime et le Golfe de Saint-Tropez.{' '}
+        <Link href="/devis-reparation" className="text-brand hover:underline">
+          Estimer le prix de ma réparation
+        </Link>
+        {' · '}
+        <Link href="/suivi-reparation" className="text-brand hover:underline">
+          Suivre ma réparation
+        </Link>
+      </p>
 
       <RdvForm
         zones={zones.map((z) => ({ cityName: z.cityName, extraFee: Number(z.extraFee) }))}
@@ -40,6 +56,7 @@ export default async function RdvPage() {
         booked={booked}
         vacation={vacation}
         today={today}
+        prefill={prefill}
       />
     </div>
   );
