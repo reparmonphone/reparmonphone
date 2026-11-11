@@ -9,6 +9,9 @@ import {
   defaultOptions,
   resolveActiveTheme,
   inMonthDayWindow,
+  applyBannerPhase,
+  phaseSchedule,
+  themeWindow,
   type EffectDef,
   type Intensity,
   type SeasonalConfig,
@@ -105,10 +108,22 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
   const liveTheme = liveNow ? getTheme(liveNow.themeId) : undefined;
   const savedEnabledButOutOfDates = saved.enabled && (saved.scheduleEnabled || saved.autoCalendar) && !liveNow;
   const todayMD = today.slice(5);
+  const todayYear = Number(today.slice(0, 4));
   const calendarTheme = THEMES.find((t) => {
     const o = config.options[t.id] ?? defaultOptions(t);
-    return inMonthDayWindow(todayMD, o.from, o.to);
+    const w = themeWindow(t, o, todayYear);
+    return inMonthDayWindow(todayMD, w.from, w.to);
   });
+  // Opération en étapes (Black Friday) : calendrier de l'année et étape en cours aujourd'hui
+  const phased = !!theme.banner.phases && opts.banner.phasesEnabled;
+  const schedule = phased ? phaseSchedule(theme, todayYear) : [];
+  const currentPhaseKey = schedule.length
+    ? ([...schedule].reverse().find((p) => p.start <= today) ?? schedule[0]).def.key
+    : null;
+  const [previewPhase, setPreviewPhase] = useState<string | null>(null);
+  useEffect(() => setPreviewPhase(null), [theme.id]);
+  const setPhase = (key: string, patch: Partial<{ text: string; showCode: boolean }>) =>
+    setBanner({ phases: opts.banner.phases.map((p) => (p.key === key ? { ...p, ...patch } : p)) });
   const setWindow = (id: string, patch: { from?: string; to?: string }) =>
     setConfig((c) => {
       const t = getTheme(id) ?? THEMES[0];
@@ -136,8 +151,8 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
   }, []);
 
   const previewTheme = useMemo(
-    () => (withTheme ? { themeId: theme.id, options: opts } : null),
-    [withTheme, theme.id, opts],
+    () => (withTheme ? { themeId: theme.id, options: applyBannerPhase(theme, opts, today, previewPhase) } : null),
+    [withTheme, theme, opts, today, previewPhase],
   );
 
   const post = useCallback(() => {
@@ -306,12 +321,23 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
                           {t.emoji} {t.name}
                           {calendarTheme?.id === t.id && <span className="ml-2 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-normal text-orange-700">aujourd’hui</span>}
                         </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600">
-                          <span>du</span>
-                          <DayMonth value={o.from} onChange={(md) => setWindow(t.id, { from: md })} label={`${t.name} début`} />
-                          <span>au</span>
-                          <DayMonth value={o.to} onChange={(md) => setWindow(t.id, { to: md })} label={`${t.name} fin`} />
-                        </div>
+                        {t.banner.phases && o.banner.phasesEnabled ? (
+                          <p className="mt-1 text-xs text-gray-600">
+                            {(() => {
+                              const sch = phaseSchedule(t, todayYear);
+                              return sch.length
+                                ? `Du ${fmtDate(sch[0].start)} au ${fmtDate(sch[sch.length - 1].end)} : dates calculées d’après le Black Friday (étapes ci-dessous).`
+                                : '';
+                            })()}
+                          </p>
+                        ) : (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600">
+                            <span>du</span>
+                            <DayMonth value={o.from} onChange={(md) => setWindow(t.id, { from: md })} label={`${t.name} début`} />
+                            <span>au</span>
+                            <DayMonth value={o.to} onChange={(md) => setWindow(t.id, { to: md })} label={`${t.name} fin`} />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -414,19 +440,85 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
         {opts.effects.banner && (
           <section className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
             <h2 className="font-semibold">Bandeau d’offre</h2>
-            <label className="block text-xs text-gray-600">
-              Message
-              <textarea value={opts.banner.text} maxLength={200} rows={2} onChange={(e) => setBanner({ text: e.target.value })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
-            </label>
+            {theme.banner.phases && (
+              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <div className="flex items-start gap-3">
+                  <Switch
+                    checked={opts.banner.phasesEnabled}
+                    onChange={(v) => setBanner({ phasesEnabled: v })}
+                    label="Opération en plusieurs étapes"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">Opération en plusieurs étapes</p>
+                    <p className="text-xs text-gray-600">
+                      Le bandeau change tout seul : teasing, avant-première, jour J, Cyber Monday. Les dates se recalculent chaque année d’après le Black Friday.
+                    </p>
+                  </div>
+                </div>
+                {phased && (
+                  <ul className="space-y-2">
+                    {schedule.map(({ def, start, end }) => {
+                      const cfg = opts.banner.phases.find((p) => p.key === def.key) ?? { key: def.key, text: def.text, showCode: def.showCode };
+                      return (
+                        <li key={def.key} className={`rounded-lg border bg-white p-2 ${currentPhaseKey === def.key ? 'border-orange-300' : 'border-gray-200'}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium">
+                              {def.label}
+                              <span className="ml-2 text-xs font-normal text-gray-500">
+                                {start === end ? fmtDate(start) : `du ${fmtDate(start)} au ${fmtDate(end)}`}
+                              </span>
+                              {currentPhaseKey === def.key && (
+                                <span className="ml-2 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-normal text-orange-700">aujourd’hui</span>
+                              )}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPhase(def.key)}
+                              className={`rounded border px-2 py-0.5 text-xs ${previewPhase === def.key ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                            >
+                              Voir dans l’aperçu
+                            </button>
+                          </div>
+                          <textarea
+                            value={cfg.text}
+                            maxLength={200}
+                            rows={2}
+                            onChange={(e) => setPhase(def.key, { text: e.target.value })}
+                            className="mt-1 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                          />
+                          <label className="mt-1 flex items-center gap-2 text-xs text-gray-600">
+                            <input type="checkbox" checked={cfg.showCode} onChange={(e) => setPhase(def.key, { showCode: e.target.checked })} />
+                            Afficher le code promo à cette étape
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {phased && (
+                  <p className="text-xs text-gray-600">
+                    Pense à annoncer ta réduction dans le texte (ex. « -10 % sur tout le site ») : le bandeau n’affiche aucun chiffre tant que tu ne l’écris pas.
+                  </p>
+                )}
+              </div>
+            )}
+            {!phased && (
+              <label className="block text-xs text-gray-600">
+                Message
+                <textarea value={opts.banner.text} maxLength={200} rows={2} onChange={(e) => setBanner({ text: e.target.value })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
+              </label>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-xs text-gray-600">
                 Code promo à afficher (facultatif)
                 <input value={opts.banner.code} maxLength={40} placeholder={`ex. ${theme.codeExample}`} onChange={(e) => setBanner({ code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm font-mono" />
               </label>
-              <label className="block text-xs text-gray-600">
-                Compte à rebours jusqu’au (inclus)
-                <input type="date" value={opts.banner.countdownDate} onChange={(e) => e.target.value && setBanner({ countdownDate: e.target.value })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
-              </label>
+              {!phased && (
+                <label className="block text-xs text-gray-600">
+                  Compte à rebours jusqu’au (inclus)
+                  <input type="date" value={opts.banner.countdownDate} onChange={(e) => e.target.value && setBanner({ countdownDate: e.target.value })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
+                </label>
+              )}
               <label className="block text-xs text-gray-600">
                 Texte du bouton
                 <input value={opts.banner.ctaLabel} maxLength={40} onChange={(e) => setBanner({ ctaLabel: e.target.value })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />

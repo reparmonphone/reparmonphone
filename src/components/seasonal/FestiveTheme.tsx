@@ -1194,7 +1194,10 @@ function Banner({ look, opt, preview, calm, premium }: { look: Look; opt: ThemeO
     return () => clearInterval(id);
   }, [preview, look.session]);
 
-  const target = useMemo(() => new Date(`${opt.countdownDate}T23:59:59`).getTime(), [opt.countdownDate]);
+  const target = useMemo(
+    () => new Date(`${opt.countdownDate}T${opt.countdownAt === 'start' ? '00:00:00' : '23:59:59'}`).getTime(),
+    [opt.countdownDate, opt.countdownAt],
+  );
   if (closed) return null;
 
   const left = now === null ? null : target - now;
@@ -1239,7 +1242,7 @@ function Banner({ look, opt, preview, calm, premium }: { look: Look; opt: ThemeO
     <div className={`fs-banner${premium ? ' prem' : ''}${calm ? ' fs-calm' : ''}`} style={vars} role="region" aria-label={look.label}>
       <span className="pk" aria-hidden="true">{look.emoji}</span>
       <div className="tx">
-        <div className="msg">{done ? opt.countdownDoneText : opt.text}</div>
+        <div className="msg">{done && opt.countdownAt !== 'start' ? opt.countdownDoneText : opt.text}</div>
         {cd}
       </div>
       {opt.code && !done && (

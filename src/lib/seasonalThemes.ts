@@ -51,6 +51,22 @@ export type EffectDef = {
 
 export type Intensity = 'doux' | 'normal' | 'intense';
 
+/** Étape d'une opération commerciale en plusieurs temps (ex. Black Friday : teasing → Cyber Monday). */
+export type BannerPhaseDef = {
+  key: string;
+  label: string;
+  /** Jours par rapport à la date de référence du thème (le Black Friday) : -11 = 11 jours avant */
+  offset: number;
+  text: string;
+  showCode: boolean;
+  /** Jour visé par le compte à rebours, en décalage de la date de référence */
+  countdownOffset: number;
+  /** « start » = jusqu'au début de ce jour (00h00), « end » = jusqu'à la fin de ce jour (23h59) */
+  countdownAt: 'start' | 'end';
+};
+
+export type BannerPhaseConfig = { key: string; text: string; showCode: boolean };
+
 export type ThemeDef = {
   id: ThemeId;
   name: string;
@@ -75,6 +91,8 @@ export type ThemeDef = {
     /** Fin du compte à rebours : « MM-JJ » (année calculée automatiquement) ou « blackfriday » (4e vendredi de novembre) */
     countdownMonthDay: string;
     countdownDoneText: string;
+    /** Opération en plusieurs étapes (seul le Black Friday en définit) */
+    phases?: BannerPhaseDef[];
   };
 };
 
@@ -126,7 +144,7 @@ export const THEMES: ThemeDef[] = [
     name: 'Black Friday',
     emoji: '🛍️',
     tagline: 'Noir et or, poussière d’or, étiquette qui se balance, reflets dorés.',
-    suggestedStart: '11-20',
+    suggestedStart: '11-16',
     suggestedEnd: '11-30',
     premiumBadge: 'Haute définition',
     premiumDescription:
@@ -153,6 +171,44 @@ export const THEMES: ThemeDef[] = [
       ctaHref: '/boutique',
       countdownMonthDay: 'blackfriday',
       countdownDoneText: 'Merci d’avoir fait le Black Friday avec nous !',
+      phases: [
+        {
+          key: 'teasing',
+          label: 'Teasing',
+          offset: -11,
+          text: 'Le Black Friday arrive… Préparez-vous à profiter de nos offres !',
+          showCode: false,
+          countdownOffset: 0,
+          countdownAt: 'start',
+        },
+        {
+          key: 'avantpremiere',
+          label: 'Avant-première',
+          offset: -4,
+          text: 'Black Friday en avant-première : nos offres sont déjà disponibles !',
+          showCode: true,
+          countdownOffset: 0,
+          countdownAt: 'start',
+        },
+        {
+          key: 'blackfriday',
+          label: 'Black Friday',
+          offset: 0,
+          text: 'C’est le Black Friday ! Profitez de nos offres jusqu’à lundi.',
+          showCode: true,
+          countdownOffset: 3,
+          countdownAt: 'end',
+        },
+        {
+          key: 'cybermonday',
+          label: 'Cyber Monday',
+          offset: 3,
+          text: 'Cyber Monday : dernières heures pour profiter de l’offre !',
+          showCode: true,
+          countdownOffset: 3,
+          countdownAt: 'end',
+        },
+      ],
     },
   },
 
@@ -271,6 +327,11 @@ export type BannerConfig = {
   /** Date de fin du compte à rebours, AAAA-MM-JJ (fin de journée, heure de Paris) */
   countdownDate: string;
   countdownDoneText: string;
+  /** « start » : compte à rebours jusqu'à 00h00 de la date ; « end » (défaut) : jusqu'à 23h59 */
+  countdownAt: 'start' | 'end';
+  /** Opération en plusieurs étapes activée (thèmes qui en définissent) */
+  phasesEnabled: boolean;
+  phases: BannerPhaseConfig[];
 };
 
 export type ThemeOptions = {
@@ -349,6 +410,9 @@ export function defaultOptions(theme: ThemeDef, year = new Date().getFullYear())
       code: '',
       countdownDate: countdownFor(theme, year),
       countdownDoneText: theme.banner.countdownDoneText,
+      countdownAt: 'end',
+      phasesEnabled: !!theme.banner.phases,
+      phases: (theme.banner.phases ?? []).map((p) => ({ key: p.key, text: p.text, showCode: p.showCode })),
     },
   };
 }
@@ -406,6 +470,18 @@ export function normalizeConfig(raw: unknown, year = new Date().getFullYear()): 
         code: str(sb.code, '', 40).toUpperCase().replace(/[^A-Z0-9_-]/g, ''),
         countdownDate: isDate(sb.countdownDate) ? sb.countdownDate : d.banner.countdownDate,
         countdownDoneText: str(sb.countdownDoneText, d.banner.countdownDoneText, 80),
+        countdownAt: 'end',
+        phasesEnabled: t.banner.phases ? (typeof sb.phasesEnabled === 'boolean' ? sb.phasesEnabled : true) : false,
+        phases: (t.banner.phases ?? []).map((def) => {
+          const sp = (Array.isArray(sb.phases) ? sb.phases : []).find(
+            (x) => x && typeof x === 'object' && (x as Record<string, unknown>).key === def.key,
+          ) as Record<string, unknown> | undefined;
+          return {
+            key: def.key,
+            text: str(sp?.text, def.text, 200),
+            showCode: typeof sp?.showCode === 'boolean' ? sp.showCode : def.showCode,
+          };
+        }),
       },
     };
   }
@@ -440,6 +516,69 @@ export function inMonthDayWindow(md: string, from: string, to: string): boolean 
   return from <= to ? md >= from && md <= to : md >= from || md <= to;
 }
 
+function addDaysStr(date: string, n: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+/** Date de référence d'un thème à étapes (le Black Friday de l'année), sinon null. */
+export function phaseAnchor(theme: ThemeDef, options: ThemeOptions, year: number): string | null {
+  if (!theme.banner.phases || !options.banner.phasesEnabled) return null;
+  return theme.banner.countdownMonthDay === 'blackfriday' ? blackFridayDate(year) : null;
+}
+
+/** Dates de chaque étape pour l'année donnée (AAAA-MM-JJ de début ; la fin est la veille de l'étape suivante). */
+export function phaseSchedule(theme: ThemeDef, year: number): { def: BannerPhaseDef; start: string; end: string }[] {
+  const defs = theme.banner.phases ?? [];
+  if (theme.banner.countdownMonthDay !== 'blackfriday') return [];
+  const anchor = blackFridayDate(year);
+  const lastEnd = addDaysStr(anchor, Math.max(...defs.map((d) => d.countdownOffset), 0));
+  return defs.map((def, i) => ({
+    def,
+    start: addDaysStr(anchor, def.offset),
+    end: i < defs.length - 1 ? addDaysStr(anchor, defs[i + 1].offset - 1) : lastEnd,
+  }));
+}
+
+/** Fenêtre « MM-JJ » pendant laquelle le thème est visible : calculée d'après les étapes si elles sont actives, sinon réglée à la main. */
+export function themeWindow(theme: ThemeDef, options: ThemeOptions, year: number): { from: string; to: string } {
+  if (theme.banner.phases && options.banner.phasesEnabled) {
+    const sched = phaseSchedule(theme, year);
+    if (sched.length) return { from: sched[0].start.slice(5), to: sched[sched.length - 1].end.slice(5) };
+  }
+  return { from: options.from, to: options.to };
+}
+
+/**
+ * Applique l'étape en cours (ou l'étape demandée, pour l'aperçu de l'admin) au bandeau : message, code
+ * affiché ou non, et date visée par le compte à rebours. Sans effet pour les thèmes sans étapes.
+ */
+export function applyBannerPhase(theme: ThemeDef, options: ThemeOptions, today: string, forcedKey?: string | null): ThemeOptions {
+  const year = Number(today.slice(0, 4));
+  const anchor = phaseAnchor(theme, options, year);
+  const defs = theme.banner.phases;
+  if (!anchor || !defs || defs.length === 0) return options;
+
+  let def = forcedKey ? defs.find((d) => d.key === forcedKey) : undefined;
+  if (!def) {
+    const t = dayNumber(today);
+    def = defs[0];
+    for (const d of defs) if (t >= dayNumber(anchor) + d.offset) def = d;
+  }
+  const cfg = options.banner.phases.find((p) => p.key === def!.key);
+  return {
+    ...options,
+    banner: {
+      ...options.banner,
+      text: cfg?.text || def.text,
+      code: (cfg ? cfg.showCode : def.showCode) ? options.banner.code : '',
+      countdownDate: addDaysStr(anchor, def.countdownOffset),
+      countdownAt: def.countdownAt,
+    },
+  };
+}
+
 /** Un compte à rebours resté sur l'année dernière repart tout seul sur la prochaine occurrence. */
 export function rollCountdown(theme: ThemeDef, options: ThemeOptions, today: string): ThemeOptions {
   const cd = options.banner.countdownDate;
@@ -458,9 +597,12 @@ export function resolveActiveTheme(config: SeasonalConfig, now = new Date()): Pu
   let themeId = config.themeId;
   if (config.autoCalendar) {
     const md = today.slice(5);
+    const year = Number(today.slice(0, 4));
     const hit = THEMES.find((t) => {
       const o = config.options[t.id];
-      return !!o && inMonthDayWindow(md, o.from, o.to);
+      if (!o) return false;
+      const w = themeWindow(t, o, year);
+      return inMonthDayWindow(md, w.from, w.to);
     });
     if (!hit) return null;
     themeId = hit.id;
@@ -470,7 +612,7 @@ export function resolveActiveTheme(config: SeasonalConfig, now = new Date()): Pu
   const options = config.options[themeId];
   const theme = getTheme(themeId);
   if (!options || !theme) return null;
-  return { themeId, options: rollCountdown(theme, options, today) };
+  return { themeId, options: applyBannerPhase(theme, rollCountdown(theme, options, today), today) };
 }
 
 /** Effets visibles dans l'admin / actifs pour le style choisi. */
