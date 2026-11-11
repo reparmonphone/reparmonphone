@@ -12,6 +12,7 @@ import OrderNotesPanel from './OrderNotesPanel';
 import OrderItemsEditor from './OrderItemsEditor';
 import ReplacementPanel from './ReplacementPanel';
 import Link from 'next/link';
+import { departementFromPostalCode } from '@/lib/departements';
 import NoReviewToggle from '../NoReviewToggle';
 import ReviewStatusBadge from '../ReviewStatusBadge';
 
@@ -188,6 +189,11 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
               {order.shippingLine1}<br />
               {order.shippingZip} {order.shippingCity}
             </p>
+            {departementFromPostalCode(order.shippingZip) && (
+              <p className="text-sm font-semibold text-blue-700 mt-1">
+                Département : {departementFromPostalCode(order.shippingZip)}
+              </p>
+            )}
             {shippingMethodLabel && (
               <p className="text-xs text-gray-500 mt-2">
                 🚚 {shippingMethodLabel}
@@ -202,6 +208,9 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
                 {order.billingName && <>{order.billingName}<br /></>}
                 {order.billingLine1}<br />
                 {order.billingZip} {order.billingCity}
+                {departementFromPostalCode(order.billingZip) && (
+                  <><br /><span className="font-semibold text-blue-700">Département : {departementFromPostalCode(order.billingZip)}</span></>
+                )}
               </p>
             ) : (
               <p className="text-sm text-gray-400">Identique à la livraison</p>
