@@ -31,14 +31,14 @@ type Mode = 'finder' | 'quote' | 'device';
 const COPY: Record<Mode, { eyebrow: string; title: string; sub: string; last: string }> = {
   finder: {
     eyebrow: 'Trouveur de pièces',
-    title: 'Trouvez la bonne pièce pour votre téléphone',
+    title: 'Trouvez la bonne pièce pour votre smartphone ou tablette',
     sub: 'Marque, modèle, pièce : en quelques clics, sans erreur de compatibilité.',
     last: 'Pièce',
   },
   quote: {
     eyebrow: 'Devis instantané',
     title: 'Votre devis de réparation en 30 secondes',
-    sub: 'Choisissez votre téléphone et votre panne : le prix s’affiche tout de suite, puis vous prenez rendez-vous.',
+    sub: 'Choisissez votre smartphone ou tablette et votre panne : le prix s’affiche tout de suite, puis vous prenez rendez-vous.',
     last: 'Panne',
   },
   device: {
