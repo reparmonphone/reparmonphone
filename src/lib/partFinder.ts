@@ -53,19 +53,22 @@ export async function getFinderModels(brandSlug: string, lineSlug: string): Prom
   const models = await prisma.model.findMany({
     where: { productLine: { slug: lineSlug, brand: { slug: brandSlug } }, products: { some: STOCKED } },
     orderBy: { sortOrder: 'asc' },
-    select: { id: true, slug: true, name: true, products: { where: STOCKED, select: { pieceType: true, price: true, slug: true } } },
+    select: { id: true, slug: true, name: true, products: { where: STOCKED, select: { pieceType: true, price: true, slug: true, title: true } } },
   });
 
-  return models.map((m) => {
-    const base = `/pieces-detachees/${brandSlug}/${lineSlug}/${m.slug}`;
-    return {
-      id: m.id,
-      slug: m.slug,
-      name: modelFullName(line.brand.name, line.name, m.name),
-      pieces: buildPieces(base, m.products),
-      href: base,
-    };
-  });
+  return models
+    .map((m) => {
+      const base = `/pieces-detachees/${brandSlug}/${lineSlug}/${m.slug}`;
+      return {
+        id: m.id,
+        slug: m.slug,
+        name: modelFullName(line.brand.name, line.name, m.name),
+        pieces: buildPieces(base, m.products),
+        href: base,
+      };
+    })
+    // Un modèle qui n'a plus que des adhésifs/accessoires classés « écran » n'a plus aucune vraie pièce à proposer.
+    .filter((m) => m.pieces.length > 0);
 }
 
 // Pièces en stock d'un modèle précis (page « Mes appareils »).
@@ -77,7 +80,7 @@ export async function getModelPieces(modelId: string) {
       slug: true,
       name: true,
       productLine: { select: { slug: true, name: true, brand: { select: { slug: true, name: true } } } },
-      products: { where: STOCKED, select: { pieceType: true, price: true, slug: true } },
+      products: { where: STOCKED, select: { pieceType: true, price: true, slug: true, title: true } },
     },
   });
   if (!m) return null;
@@ -92,12 +95,23 @@ export async function getModelPieces(modelId: string) {
   };
 }
 
-type PieceRow = { pieceType: string; price: unknown; slug: string };
+type PieceRow = { pieceType: string; price: unknown; slug: string; title: string };
+
+// Dans la catégorie « Écrans » de la boutique se trouvent aussi des adhésifs, joints, films de protection…
+// Ce ne sont pas des écrans : ils ne doivent ni fixer le « dès X € » du devis, ni être proposés comme pièce.
+const NOT_A_SCREEN = /adhesif|sticker|autocollant|double[ -]?face|joint|colle\b|ruban|scotch|film|verre tremp|protege|protection/;
+const SCREEN_MIN_PRICE = 8; // un vrai écran de téléphone ne coûte jamais moins (garde-fou si le titre est atypique)
+
+function isRealPart(p: PieceRow): boolean {
+  if (p.pieceType !== 'ECRAN') return true;
+  const title = p.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return !NOT_A_SCREEN.test(title) && Number(p.price) >= SCREEN_MIN_PRICE;
+}
 
 function buildPieces(base: string, products: PieceRow[]): FinderModel['pieces'] {
   const counts = new Map<string, number>();
   const cheapest = new Map<string, { price: number; slug: string }>();
-  for (const p of products) {
+  for (const p of products.filter(isRealPart)) {
     counts.set(p.pieceType, (counts.get(p.pieceType) ?? 0) + 1);
     const price = Number(p.price);
     const cur = cheapest.get(p.pieceType);
