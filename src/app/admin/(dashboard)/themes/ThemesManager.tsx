@@ -8,6 +8,7 @@ import {
   effectsForStyle,
   defaultOptions,
   resolveActiveTheme,
+  inMonthDayWindow,
   type EffectDef,
   type Intensity,
   type SeasonalConfig,
@@ -31,8 +32,39 @@ const PAGES = [
 const INTENSITIES: { id: Intensity; label: string; hint: string }[] = [
   { id: 'doux', label: 'Doux', hint: 'Peu d’éléments, très sobre' },
   { id: 'normal', label: 'Normal', hint: 'Recommandé' },
-  { id: 'intense', label: 'Intense', hint: 'Plus de chauves-souris et de braises' },
+  { id: 'intense', label: 'Intense', hint: '' },
 ];
+
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+function splitMD(md: string): { m: number; d: number } {
+  const [m, d] = md.split('-').map(Number);
+  return { m: m || 1, d: d || 1 };
+}
+
+function joinMD(m: number, d: number): string {
+  return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** Choix « jour + mois » (la date revient chaque année). */
+function DayMonth({ value, onChange, label }: { value: string; onChange: (md: string) => void; label: string }) {
+  const { m, d } = splitMD(value);
+  const cls = 'rounded-lg border border-gray-300 bg-white px-1.5 py-1 text-sm';
+  return (
+    <span className="inline-flex items-center gap-1" role="group" aria-label={label}>
+      <select aria-label={`${label} : jour`} value={d} onChange={(e) => onChange(joinMD(m, Number(e.target.value)))} className={cls}>
+        {Array.from({ length: 31 }, (_, i) => i + 1).map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+      <select aria-label={`${label} : mois`} value={m} onChange={(e) => onChange(joinMD(Number(e.target.value), d))} className={cls}>
+        {MONTHS.map((name, i) => (
+          <option key={name} value={i + 1}>{name}</option>
+        ))}
+      </select>
+    </span>
+  );
+}
 
 function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -70,7 +102,19 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
   const setBanner = (patch: Partial<ThemeOptions['banner']>) => setOpts({ banner: { ...opts.banner, ...patch } });
 
   const liveNow = resolveActiveTheme(saved, new Date());
-  const savedEnabledButOutOfDates = saved.enabled && saved.scheduleEnabled && !liveNow;
+  const liveTheme = liveNow ? getTheme(liveNow.themeId) : undefined;
+  const savedEnabledButOutOfDates = saved.enabled && (saved.scheduleEnabled || saved.autoCalendar) && !liveNow;
+  const todayMD = today.slice(5);
+  const calendarTheme = THEMES.find((t) => {
+    const o = config.options[t.id] ?? defaultOptions(t);
+    return inMonthDayWindow(todayMD, o.from, o.to);
+  });
+  const setWindow = (id: string, patch: { from?: string; to?: string }) =>
+    setConfig((c) => {
+      const t = getTheme(id) ?? THEMES[0];
+      const cur = c.options[id] ?? defaultOptions(t);
+      return { ...c, options: { ...c.options, [id]: { ...cur, ...patch } } };
+    });
 
   /* ---------------------------------- Aperçu ---------------------------------- */
   const [page, setPage] = useState('/');
@@ -163,15 +207,20 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
         >
           <p className="font-semibold">
             {liveNow
-              ? `🟠 Le thème ${theme.name} est ACTIF sur le site`
+              ? `🟠 Le thème ${liveTheme?.name ?? theme.name} est ACTIF sur le site`
               : savedEnabledButOutOfDates
-                ? `🕒 Thème ${theme.name} programmé (pas encore / plus visible aujourd’hui)`
+                ? saved.autoCalendar
+                  ? '🕒 Calendrier automatique activé : aucun thème prévu aujourd’hui'
+                  : `🕒 Thème ${theme.name} programmé (pas encore / plus visible aujourd’hui)`
                 : '⚪ Aucun thème actif : le site est affiché normalement'}
           </p>
-          {savedEnabledButOutOfDates && (
+          {savedEnabledButOutOfDates && !saved.autoCalendar && (
             <p className="text-sm text-gray-600 mt-1">
               Il apparaîtra du {fmtDate(saved.start)} au {fmtDate(saved.end)} (aujourd’hui : {fmtDate(today)}).
             </p>
+          )}
+          {saved.enabled && saved.autoCalendar && (
+            <p className="text-sm text-gray-600 mt-1">Le site change de thème tout seul selon le calendrier ci-dessous (aujourd’hui : {fmtDate(today)}).</p>
           )}
         </div>
 
@@ -194,8 +243,8 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
               </button>
             ))}
             <div className="rounded-lg border border-dashed border-gray-300 p-3 text-xs text-gray-500">
-              <span className="text-2xl block">🎄 ❤️ 🛍️</span>
-              Bientôt : Noël, Saint-Valentin, Soldes d’été, Black Friday, Rentrée…
+              <span className="text-2xl block">☀️ 🎒</span>
+              Bientôt : Soldes d’été, Rentrée, Fête des mères…
             </div>
           </div>
         </section>
@@ -214,9 +263,9 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
                   opts.style === st.id ? 'border-orange-400 bg-orange-50 ring-1 ring-orange-300' : 'border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                <span className="font-medium">{st.emoji} {st.name}</span>
-                {st.id === 'premium' && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700">WebGL · haute définition</span>}
-                <span className="block text-xs text-gray-500 mt-0.5">{st.description}</span>
+                <span className="font-medium">{st.id === 'classique' ? theme.emoji : st.emoji} {st.name}</span>
+                {st.id === 'premium' && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700">{theme.premiumBadge ?? 'WebGL · haute définition'}</span>}
+                <span className="block text-xs text-gray-500 mt-0.5">{st.id === 'premium' ? theme.premiumDescription ?? st.description : st.description}</span>
               </button>
             ))}
           </div>
@@ -237,6 +286,46 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
           </div>
 
           <div className="flex items-start gap-3">
+            <Switch
+              checked={config.autoCalendar}
+              onChange={(v) => setConfig((c) => ({ ...c, autoCalendar: v, scheduleEnabled: v ? false : c.scheduleEnabled }))}
+              label="Calendrier automatique de l’année"
+            />
+            <div className="flex-1">
+              <p className="font-semibold">Calendrier automatique de l’année</p>
+              <p className="text-sm text-gray-500">
+                Le site change de thème tout seul chaque année (Halloween, Black Friday, Noël…). Chaque thème garde les réglages que tu as enregistrés pour lui.
+              </p>
+              {config.autoCalendar && (
+                <div className="mt-3 space-y-2">
+                  {THEMES.map((t) => {
+                    const o = config.options[t.id] ?? defaultOptions(t);
+                    return (
+                      <div key={t.id} className={`rounded-lg border p-2 ${calendarTheme?.id === t.id ? 'border-orange-300 bg-orange-50' : 'border-gray-200'}`}>
+                        <p className="text-sm font-medium">
+                          {t.emoji} {t.name}
+                          {calendarTheme?.id === t.id && <span className="ml-2 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-normal text-orange-700">aujourd’hui</span>}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600">
+                          <span>du</span>
+                          <DayMonth value={o.from} onChange={(md) => setWindow(t.id, { from: md })} label={`${t.name} début`} />
+                          <span>au</span>
+                          <DayMonth value={o.to} onChange={(md) => setWindow(t.id, { to: md })} label={`${t.name} fin`} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="text-xs text-gray-500">
+                    En dehors de ces dates, le site est affiché normalement. Ne fais pas se chevaucher deux thèmes : c’est le premier de la liste qui gagne.
+                    Choisis un thème plus haut pour régler et prévisualiser ses effets.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!config.autoCalendar && (
+          <div className="flex items-start gap-3">
             <Switch checked={config.scheduleEnabled} onChange={(v) => setConfig((c) => ({ ...c, scheduleEnabled: v }))} label="Programmer automatiquement" />
             <div className="flex-1">
               <p className="font-semibold">Programmation automatique</p>
@@ -255,6 +344,7 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
               )}
             </div>
           </div>
+          )}
         </section>
 
         {/* Intensité */}
@@ -271,7 +361,7 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
                 }`}
               >
                 {i.label}
-                <span className="block text-[11px] font-normal text-gray-500">{i.hint}</span>
+                <span className="block text-[11px] font-normal text-gray-500">{i.id === 'intense' ? theme.intensityHint : i.hint}</span>
               </button>
             ))}
           </div>
@@ -305,7 +395,7 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
                       <div className="min-w-0">
                         <p className="text-sm font-medium">
                           {label}
-                          {prem && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-normal text-violet-700">3D</span>}
+                          {prem && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-normal text-violet-700">{theme.id === 'halloween' ? '3D' : 'HD'}</span>}
                           {e.desktopOnly && <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-normal text-gray-500">ordinateur</span>}
                         </p>
                         <p className="text-xs text-gray-500">{description}</p>
@@ -331,7 +421,7 @@ export default function ThemesManager({ initial, today }: { initial: SeasonalCon
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-xs text-gray-600">
                 Code promo à afficher (facultatif)
-                <input value={opts.banner.code} maxLength={40} placeholder="ex. HALLOWEEN10" onChange={(e) => setBanner({ code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm font-mono" />
+                <input value={opts.banner.code} maxLength={40} placeholder={`ex. ${theme.codeExample}`} onChange={(e) => setBanner({ code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })} className="mt-0.5 block w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm font-mono" />
               </label>
               <label className="block text-xs text-gray-600">
                 Compte à rebours jusqu’au (inclus)

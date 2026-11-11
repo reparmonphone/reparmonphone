@@ -16,10 +16,20 @@ import { getTheme, type PublicTheme, type ThemeId, type ThemeOptions } from '@/l
 type ThemeProps = { options: ThemeOptions; preview: boolean; quiet?: boolean };
 
 const HalloweenTheme = dynamic(() => import('./HalloweenTheme'), { ssr: false });
+// Black Friday, Noël, Nouvel An et Saint-Valentin partagent le même moteur (FestiveTheme.tsx), chargé à la demande.
+const Festive = dynamic(() => import('./FestiveTheme'), { ssr: false });
+const BlackFridayTheme = (p: ThemeProps) => <Festive themeId="blackfriday" {...p} />;
+const NoelTheme = (p: ThemeProps) => <Festive themeId="noel" {...p} />;
+const NouvelAnTheme = (p: ThemeProps) => <Festive themeId="nouvelan" {...p} />;
+const ValentinTheme = (p: ThemeProps) => <Festive themeId="valentin" {...p} />;
 
 // Un thème = une entrée ici (voir seasonalThemes.ts pour la marche à suivre).
 const THEME_COMPONENTS: Record<ThemeId, ComponentType<ThemeProps>> = {
   halloween: HalloweenTheme,
+  blackfriday: BlackFridayTheme,
+  noel: NoelTheme,
+  nouvelan: NouvelAnTheme,
+  valentin: ValentinTheme,
 };
 
 export default function SeasonalTheme() {
