@@ -1,3 +1,5 @@
+import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { notFound, permanentRedirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
@@ -22,11 +24,25 @@ import { findToolKit, pickGuide, type ToolKitItem } from '@/lib/toolKit';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.reparmonphone.fr';
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const product = await prisma.product.findUnique({
-    where: { slug: params.slug },
+// Une seule lecture du produit par visite : generateMetadata() et la page appellent la même fonction, et
+// cache() de React réutilise le résultat au lieu de refaire la requête (une requête de moins par fiche,
+// ce qui soulage la connexion à la base quand beaucoup de fiches sont ouvertes en même temps).
+const getProduct = cache((slug: string) =>
+  prisma.product.findUnique({
+    where: { slug },
     include: { model: { include: { productLine: { include: { brand: true } } } } },
-  });
+  })
+);
+
+// Le kit d'outils est identique pour une même fiche : on le garde 24 h au lieu de refaire ~10 recherches à chaque génération.
+const getToolKitCached = unstable_cache(
+  async (tools: string[], productId: string) => findToolKit(tools, productId),
+  ['tool-kit-v1'],
+  { revalidate: 86400 }
+);
+
+export async function generateMetadata({ params }: { params: { slug: string } }) {
+  const product = await getProduct(params.slug);
   if (!product) return {};
 
   const brandName = product.model.productLine.brand.name;
@@ -78,10 +94,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
   // forçait donc TOUTE cette page à être régénérée à chaque visite au lieu d'être mise en cache —
   // ce qui explique une bonne partie du dépassement de quota Vercel (fiche produit = page la plus
   // visitée du site).
-  const product = await prisma.product.findUnique({
-    where: { slug: params.slug },
-    include: { model: { include: { productLine: { include: { brand: true } } } } },
-  });
+  const product = await getProduct(params.slug);
 
   // Une fiche produit renommée/supprimée (fusion de doublons, réorganisation catalogue) 301 vers sa
   // nouvelle adresse si une redirection a été enregistrée dans /admin/seo, plutôt qu'un 404 sec.
@@ -118,7 +131,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
     !['OUTILLAGE', 'ACCESSOIRE', 'AUTRE'].includes(product.pieceType)
   ) {
     try {
-      toolKit = await findToolKit(mainGuide.toolsNeeded, product.id);
+      toolKit = await getToolKitCached(mainGuide.toolsNeeded, product.id);
     } catch {
       toolKit = [];
     }
