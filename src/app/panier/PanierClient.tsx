@@ -515,6 +515,9 @@ export default function PanierClient({
                       );
                     })}
                   </div>
+                  <p className="mt-2 text-[11px] leading-snug text-gray-400">
+                    Les frais de port couvrent les frais de traitement de la commande, le conditionnement et l&apos;acheminement du colis.
+                  </p>
                   {zone && (
                     <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
                       📍 Tarif {zone.name} appliqué selon le code postal saisi.
