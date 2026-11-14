@@ -142,7 +142,37 @@ export default function PopupForm({ initial, today }: { initial: PromoConfig; to
         </section>
 
         <section className="space-y-3 rounded-xl border border-gray-100 bg-white p-5">
-          <h2 className="font-semibold">4. Quand l’afficher</h2>
+          <h2 className="font-semibold">4. Offre limitée (compte à rebours)</h2>
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" checked={c.countdownEnabled} onChange={(e) => set('countdownEnabled', e.target.checked)} className="accent-brand" />
+            Afficher un compte à rebours dans le pop-up
+          </label>
+          {c.countdownEnabled && (
+            <>
+              <div>
+                <span className={label}>Fin de l’offre (heure de Paris)</span>
+                <input
+                  type="datetime-local"
+                  className={input}
+                  value={c.countdownEnd}
+                  min={`${today}T00:00`}
+                  onChange={(e) => set('countdownEnd', e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={label}>Message sous le compte à rebours</span>
+                <input className={input} value={c.limitedText} maxLength={120} onChange={(e) => set('limitedText', e.target.value)} />
+              </div>
+              <p className="text-xs text-gray-500">
+                Le compte à rebours est le même pour tous les visiteurs. À l’heure choisie, le pop-up disparaît tout seul. Si l’offre se termine avant (plus de stock),
+                décoche « Activer » en haut de la page.
+              </p>
+            </>
+          )}
+        </section>
+
+        <section className="space-y-3 rounded-xl border border-gray-100 bg-white p-5">
+          <h2 className="font-semibold">5. Quand l’afficher</h2>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <span className={label}>Délai (secondes)</span>

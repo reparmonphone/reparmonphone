@@ -65,6 +65,7 @@ export default function PromoPopup() {
       .then((json) => {
         const p = json?.popup as PromoPayload | null | undefined;
         if (cancelled || !p || !p.title || !p.ctaHref) return;
+        if (p.countdownEnd && Date.now() >= p.countdownEnd) return; // offre terminée
         if (alreadySeen(p.version, p.repeatDays)) return;
         setData(p);
       })
@@ -116,6 +117,18 @@ export default function PromoPopup() {
       window.removeEventListener(COOKIE_CONSENT_EVENT, onConsent);
     };
   }, [data, excluded, open, pathname]);
+
+  // Offre limitée : le pop-up se referme tout seul à l'échéance du compte à rebours
+  useEffect(() => {
+    if (!open || !data?.countdownEnd) return;
+    const ms = data.countdownEnd - Date.now();
+    if (ms <= 0) {
+      setOpen(false);
+      return;
+    }
+    const id = window.setTimeout(() => setOpen(false), Math.min(ms, 2_000_000_000));
+    return () => window.clearTimeout(id);
+  }, [open, data]);
 
   // Échap pour fermer
   useEffect(() => {

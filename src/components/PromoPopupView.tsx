@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { PromoPayload } from '@/lib/promoPopup';
 
@@ -15,6 +16,63 @@ const CSS = `
 .pp-cta:hover{animation:pp-shine 1.4s linear infinite}
 @media (prefers-reduced-motion:reduce){.pp-overlay,.pp-card,.pp-img,.pp-cta:hover{animation:none!important}}
 `;
+
+function split(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return {
+    d: Math.floor(total / 86400),
+    h: Math.floor((total % 86400) / 3600),
+    m: Math.floor((total % 3600) / 60),
+    s: total % 60,
+  };
+}
+
+// Compte à rebours : même échéance pour tous les visiteurs (aucun faux compteur qui repart à zéro).
+function Countdown({ end, limitedText }: { end: number; limitedText: string }) {
+  const [left, setLeft] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setLeft(end - Date.now());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [end]);
+
+  if (left === null) return <div className="mt-3 h-[72px]" aria-hidden="true" />; // réserve la place avant le premier calcul
+  if (left <= 0) {
+    return <p className="mt-3 rounded-lg bg-gray-100 px-3 py-2 text-center text-sm font-semibold text-gray-600">Offre terminée</p>;
+  }
+  const t = split(left);
+  const urgent = left < 24 * 3600 * 1000;
+  const cells: [number, string][] = [
+    ...(t.d > 0 ? ([[t.d, t.d > 1 ? 'jours' : 'jour']] as [number, string][]) : []),
+    [t.h, 'h'],
+    [t.m, 'min'],
+    [t.s, 's'],
+  ];
+  return (
+    <div className="mt-3">
+      <p className={`text-[11px] font-bold uppercase tracking-wider ${urgent ? 'text-red-600' : 'text-brand-dark'}`}>
+        ⏳ L’offre se termine dans
+      </p>
+      <div
+        className="mt-1.5 flex justify-center gap-1.5 sm:justify-start"
+        role="timer"
+        aria-label={`Fin de l’offre dans ${t.d} jours, ${t.h} heures, ${t.m} minutes`}
+      >
+        {cells.map(([v, unit]) => (
+          <div
+            key={unit}
+            className={`min-w-[3rem] rounded-lg px-2 py-1.5 text-center text-white shadow ${urgent ? 'bg-red-600' : 'bg-gray-900'}`}
+          >
+            <div className="text-lg font-extrabold leading-none tabular-nums">{String(v).padStart(2, '0')}</div>
+            <div className="mt-0.5 text-[10px] uppercase tracking-wide opacity-80">{unit}</div>
+          </div>
+        ))}
+      </div>
+      {limitedText && <p className="mt-2 text-xs font-semibold text-gray-700">{limitedText}</p>}
+    </div>
+  );
+}
 
 // Vue du pop-up (utilisée par le site et par l'aperçu de l'admin).
 // inline = affichage dans une page (aperçu), sans voile ni positionnement fixe.
@@ -82,6 +140,8 @@ export default function PromoPopupView({
               ))}
             </ul>
           )}
+
+          {data.countdownEnd ? <Countdown end={data.countdownEnd} limitedText={data.limitedText} /> : null}
 
           {(data.price || data.oldPrice) && (
             <p className="mt-3 flex items-baseline justify-center gap-2 sm:justify-start">

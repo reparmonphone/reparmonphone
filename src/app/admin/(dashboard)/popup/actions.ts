@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { formatPrice } from '@/lib/format';
-import { SETTING_KEY, normalizeConfig } from '@/lib/promoPopup';
+import { SETTING_KEY, normalizeConfig, parisLocalToMs } from '@/lib/promoPopup';
 
 // Enregistre le pop-up d'ouverture. Rien n'est visible des visiteurs tant que « enabled » est faux.
 // Les visiteurs voient le changement en ~1 minute (cache de /api/popup), sans redéploiement.
@@ -15,6 +15,13 @@ export async function savePromoPopup(raw: unknown) {
   }
   if (config.scheduleEnabled && config.start && config.end && config.end < config.start) {
     return { error: 'La date de fin doit être après la date de début.' };
+  }
+  if (config.countdownEnabled) {
+    const end = parisLocalToMs(config.countdownEnd);
+    if (end === null) return { error: 'Pour le compte à rebours, choisis la date et l’heure de fin de l’offre.' };
+    if (config.enabled && end <= Date.now()) {
+      return { error: 'La fin du compte à rebours est déjà passée : choisis une date et une heure à venir.' };
+    }
   }
   const value = JSON.stringify(config);
   await prisma.siteSetting.upsert({

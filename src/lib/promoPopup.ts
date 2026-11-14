@@ -23,6 +23,11 @@ export type PromoConfig = {
   scheduleEnabled: boolean;
   start: string; // AAAA-MM-JJ
   end: string;
+  // Offre limitée : compte à rebours identique pour tous les visiteurs, jusqu'à une date et une heure précises
+  // (heure de Paris). À l'échéance, le pop-up disparaît tout seul.
+  countdownEnabled: boolean;
+  countdownEnd: string; // AAAA-MM-JJTHH:MM, heure de Paris
+  limitedText: string; // ex. « Quantités limitées : il n'y en aura pas pour tout le monde. »
 };
 
 export const DEFAULT_PROMO: PromoConfig = {
@@ -42,13 +47,21 @@ export const DEFAULT_PROMO: PromoConfig = {
   scheduleEnabled: false,
   start: '',
   end: '',
+  countdownEnabled: false,
+  countdownEnd: '',
+  limitedText: 'Quantités limitées : il n’y en aura pas pour tout le monde.',
 };
 
 export type PromoPayload = Pick<
   PromoConfig,
   'badge' | 'title' | 'text' | 'bullets' | 'price' | 'oldPrice' | 'imageUrl' | 'ctaLabel' | 'ctaHref' | 'dismissLabel' | 'delaySeconds' | 'repeatDays'
-> & { version: string };
+> & {
+  countdownEnd: number | null; // instant de fin (millisecondes), null = pas de compte à rebours
+  limitedText: string;
+  version: string;
+};
 
+const isDateTime = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s);
 const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const num = (v: unknown, min: number, max: number, def: number) => {
@@ -88,7 +101,36 @@ export function normalizeConfig(raw: unknown): PromoConfig {
     scheduleEnabled: r.scheduleEnabled === true,
     start: isDate(r.start) ? r.start : '',
     end: isDate(r.end) ? r.end : '',
+    countdownEnabled: r.countdownEnabled === true,
+    countdownEnd: isDateTime(r.countdownEnd) ? r.countdownEnd : '',
+    limitedText: typeof r.limitedText === 'string' ? str(r.limitedText, 120) : d.limitedText,
   };
+}
+
+// « 2026-11-30T23:59 » (heure de Paris) → instant en millisecondes, heure d'été/hiver comprise.
+export function parisLocalToMs(local: string): number | null {
+  if (!isDateTime(local)) return null;
+  const [datePart, timePart] = local.split('T');
+  const [y, mo, d] = datePart.split('-').map(Number);
+  const [h, mi] = timePart.split(':').map(Number);
+  const asUtc = Date.UTC(y, mo - 1, d, h, mi);
+  if (!Number.isFinite(asUtc)) return null;
+  const offsetAt = (ms: number) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Paris',
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).formatToParts(new Date(ms));
+    const g = (t: string) => Number(parts.find((x) => x.type === t)?.value);
+    return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute')) - Math.floor(ms / 60000) * 60000;
+  };
+  let ms = asUtc - offsetAt(asUtc);
+  ms = asUtc - offsetAt(ms); // second passage : change d'heure
+  return ms;
 }
 
 // Petite empreinte du contenu : si tu modifies le pop-up, les visiteurs qui l'avaient fermé le revoient.
@@ -112,13 +154,19 @@ export function buildPayload(c: PromoConfig): PromoPayload {
     dismissLabel: c.dismissLabel,
     delaySeconds: c.delaySeconds,
     repeatDays: c.repeatDays,
+    countdownEnd: c.countdownEnabled ? parisLocalToMs(c.countdownEnd) : null,
+    limitedText: c.limitedText,
   };
   return { ...body, version: hash(JSON.stringify(body)) };
 }
 
 // Ce que voient les visiteurs : null si désactivé, incomplet, ou hors des dates choisies.
-export function resolveActivePromo(c: PromoConfig, today = parisToday()): PromoPayload | null {
+export function resolveActivePromo(c: PromoConfig, today = parisToday(), now = Date.now()): PromoPayload | null {
   if (!c.enabled || !c.title || !c.ctaHref) return null;
+  if (c.countdownEnabled) {
+    const end = parisLocalToMs(c.countdownEnd);
+    if (end === null || now >= end) return null; // compte à rebours terminé (ou date manquante) : plus de pop-up
+  }
   if (c.scheduleEnabled) {
     if (c.start && today < c.start) return null;
     if (c.end && today > c.end) return null;
