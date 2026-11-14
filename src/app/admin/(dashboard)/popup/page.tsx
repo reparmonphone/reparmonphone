@@ -2,6 +2,9 @@ import { prisma } from '@/lib/prisma';
 import { SETTING_KEY, normalizeConfig, DEFAULT_PROMO } from '@/lib/promoPopup';
 import { parisToday } from '@/lib/seasonalThemes';
 import PopupForm from './PopupForm';
+import PopupStats from './PopupStats';
+
+export const dynamic = 'force-dynamic';
 
 export default async function AdminPopupPage() {
   let raw: unknown = null;
@@ -19,6 +22,7 @@ export default async function AdminPopupPage() {
         Propose une offre (un modèle reconditionné, une promotion…) à tous les visiteurs à leur arrivée sur le site.
         Prépare-le, regarde l’aperçu, puis coche « Activer » : tant que ce n’est pas activé, personne ne voit rien.
       </p>
+      <PopupStats ctaHref={config.ctaHref} title={config.title} />
       <PopupForm initial={config} today={parisToday()} />
     </div>
   );

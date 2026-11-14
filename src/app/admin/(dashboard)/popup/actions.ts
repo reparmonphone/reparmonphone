@@ -3,7 +3,9 @@
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
 import { formatPrice } from '@/lib/format';
-import { SETTING_KEY, normalizeConfig, parisLocalToMs } from '@/lib/promoPopup';
+import { revalidatePath } from 'next/cache';
+import { SETTING_KEY, normalizeConfig, parisLocalToMs, statsIdFor } from '@/lib/promoPopup';
+import { statsPrefix } from '@/lib/promoStats';
 
 // Enregistre le pop-up d'ouverture. Rien n'est visible des visiteurs tant que « enabled » est faux.
 // Les visiteurs voient le changement en ~1 minute (cache de /api/popup), sans redéploiement.
@@ -59,4 +61,13 @@ export async function fetchProductForPopup(input: string) {
       href: `/produit/${p.slug}`,
     },
   };
+}
+
+// Remet à zéro les compteurs (affichages et clics) de l'offre dont le lien est indiqué.
+export async function resetPromoStats(ctaHref: string) {
+  await requireAdminUser();
+  if (typeof ctaHref !== 'string' || !ctaHref) return { error: 'Aucune offre à remettre à zéro.' };
+  await prisma.siteSetting.deleteMany({ where: { key: { startsWith: statsPrefix(statsIdFor(ctaHref)) } } });
+  revalidatePath('/admin/popup');
+  return { ok: true as const };
 }

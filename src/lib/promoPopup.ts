@@ -59,6 +59,7 @@ export type PromoPayload = Pick<
   countdownEnd: number | null; // instant de fin (millisecondes), null = pas de compte à rebours
   limitedText: string;
   version: string;
+  statsId: string; // identifiant des compteurs : propre à l'offre (son lien), pas au texte
 };
 
 const isDateTime = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s);
@@ -140,6 +141,12 @@ function hash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+// Les compteurs (affichages, clics) suivent l'offre, identifiée par le lien du bouton : modifier le texte, le prix
+// ou la date du compte à rebours ne les remet pas à zéro ; changer de produit, si.
+export function statsIdFor(ctaHref: string): string {
+  return hash(ctaHref.split(/[?#]/)[0]);
+}
+
 export function buildPayload(c: PromoConfig): PromoPayload {
   const body = {
     badge: c.badge,
@@ -157,7 +164,7 @@ export function buildPayload(c: PromoConfig): PromoPayload {
     countdownEnd: c.countdownEnabled ? parisLocalToMs(c.countdownEnd) : null,
     limitedText: c.limitedText,
   };
-  return { ...body, version: hash(JSON.stringify(body)) };
+  return { ...body, version: hash(JSON.stringify(body)), statsId: statsIdFor(c.ctaHref) };
 }
 
 // Ce que voient les visiteurs : null si désactivé, incomplet, ou hors des dates choisies.

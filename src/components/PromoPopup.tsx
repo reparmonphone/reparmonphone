@@ -24,6 +24,21 @@ function pushEvent(event: string, params: Record<string, unknown> = {}) {
   w.dataLayer.push({ event, ...params });
 }
 
+// Compteurs anonymes (aucun identifiant, aucun cookie) : un affichage, un clic. Voir /admin/popup.
+function track(statsId: string | undefined, event: 'view' | 'click') {
+  if (!statsId) return;
+  try {
+    fetch('/api/popup/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: statsId, event }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // les compteurs ne doivent jamais gêner le visiteur
+  }
+}
+
 function alreadySeen(version: string, repeatDays: number): boolean {
   try {
     if (sessionStorage.getItem(KEY_PREFIX + version)) return true;
@@ -95,6 +110,7 @@ export default function PromoPopup() {
       setOpen(true);
       markSeen(data.version);
       pushEvent('promo_popup_view', { popup_title: data.title });
+      track(data.statsId, 'view');
     };
     const afterDelay = () => {
       if (getStoredConsent()) show();
@@ -150,6 +166,7 @@ export default function PromoPopup() {
       onClose={() => setOpen(false)}
       onCta={() => {
         pushEvent('promo_popup_click', { popup_title: data.title });
+        track(data.statsId, 'click');
         setOpen(false);
       }}
     />
