@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
   { href: '/admin/maintenance', label: '🚧 Mode maintenance' },
   { href: '/admin/themes', label: '🎃 Thèmes saisonniers' },
   { href: '/admin/vacances', label: '🏖️ Mode vacances' },
+  { href: '/admin/popup', label: '📣 Pop-up d’ouverture' },
   { href: '/admin/commandes', label: '🛒 Commandes', badgeKey: 'orders' },
   { href: '/admin/litiges', label: '⚠️ Litiges & réclamations', badgeKey: 'claims' },
   { href: '/admin/livraison', label: '🚚 Frais de port' },

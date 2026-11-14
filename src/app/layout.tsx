@@ -11,6 +11,7 @@ import TrackVisit from '@/components/TrackVisit';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import ExitIntentPopup from '@/components/ExitIntentPopup';
 import VacationPopup from '@/components/VacationPopup';
+import PromoPopup from '@/components/PromoPopup';
 import ManageCookiesLink from '@/components/ManageCookiesLink';
 import TrustpilotWidget from '@/components/TrustpilotWidget';
 import SmartlookLoader from '@/components/SmartlookLoader';
@@ -261,6 +262,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CookieConsentBanner />
         <ExitIntentPopup />
         <VacationPopup />
+        {/* Pop-up d'ouverture (offre à mettre en avant) : activé depuis /admin/popup, invisible sinon */}
+        <PromoPopup />
         <SmartlookLoader />
         <GoogleTagManagerLoader />
         <InstallAppPrompt />
