@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     // (convention déjà utilisée par le webhook Stripe : billingLine1 = null signifie "identique à la livraison").
     const shipLine1 = customer.shipDifferent ? customer.shipAddressLine1 : customer.addressLine1;
     const shipZip = customer.shipDifferent ? customer.shipAddressZip : customer.addressZip;
-    const shipCity = cityWithCountry(customer.shipDifferent ? customer.shipAddressCity : customer.addressCity, destCountry);
+    const shipCity = cityWithCountry((customer.shipDifferent ? customer.shipAddressCity : customer.addressCity) ?? '', destCountry);
 
     const order = await prisma.order.create({
       data: {

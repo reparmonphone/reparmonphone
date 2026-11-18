@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     // Comme pour SumUp, on collecte l'adresse nous-mêmes plutôt que de dépendre du profil PayPal de l'acheteur.
     const shipLine1 = customer.shipDifferent ? customer.shipAddressLine1 : customer.addressLine1;
     const shipZip = customer.shipDifferent ? customer.shipAddressZip : customer.addressZip;
-    const shipCity = cityWithCountry(customer.shipDifferent ? customer.shipAddressCity : customer.addressCity, destCountry);
+    const shipCity = cityWithCountry((customer.shipDifferent ? customer.shipAddressCity : customer.addressCity) ?? '', destCountry);
 
     const order = await prisma.order.create({
       data: {

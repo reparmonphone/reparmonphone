@@ -109,6 +109,8 @@ export function countryName(code: string | null | undefined): string {
 
 // Ajoute le pays à la ville pour les adresses hors de France (« Bruxelles (Belgique) ») : il s'affiche ainsi
 // partout où l'adresse est imprimée (admin, facture, e-mails, étiquettes) sans rien changer d'autre.
+export function cityWithCountry(city: string, code: string | null | undefined): string;
+export function cityWithCountry(city: string | null | undefined, code: string | null | undefined): string | undefined;
 export function cityWithCountry(city: string | null | undefined, code: string | null | undefined): string | undefined {
   if (city == null) return undefined;
   if (isDomesticCountry(code)) return city;
