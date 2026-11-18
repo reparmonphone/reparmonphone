@@ -17,6 +17,7 @@ import {
   type ShippingOptionZoneLinkData,
   type FreeShippingConfig,
 } from '@/lib/shippingZones';
+import type { InternationalPublic } from '@/lib/shippingInternational';
 
 type ShippingOption = { id: string; label: string; description: string | null; price: number; availableMetropole: boolean };
 type InitialCustomer = {
@@ -50,6 +51,7 @@ export default function PanierClient({
   shippingZoneRates,
   shippingOptionZoneLinks,
   freeShipping,
+  international,
   paymentMethods,
   initialCustomer,
   isGuest = false,
@@ -59,6 +61,7 @@ export default function PanierClient({
   shippingZoneRates: ShippingZoneRateData[];
   shippingOptionZoneLinks: ShippingOptionZoneLinkData[];
   freeShipping: FreeShippingConfig;
+  international: InternationalPublic;
   paymentMethods: PaymentMethods;
   initialCustomer: InitialCustomer;
   isGuest?: boolean;
@@ -78,6 +81,8 @@ export default function PanierClient({
   const [addressLine1, setAddressLine1] = useState(initialCustomer.addressLine1);
   const [addressZip, setAddressZip] = useState(initialCustomer.addressZip);
   const [addressCity, setAddressCity] = useState(initialCustomer.addressCity);
+  // Pays : « FR » = France (métropole et Outre-mer, gérés par code postal). Un autre pays ouvre la livraison à l'étranger.
+  const [addressCountry, setAddressCountry] = useState('FR');
 
   // Adresse de livraison, seulement si différente de la facturation
   const [shipDifferent, setShipDifferent] = useState(false);
@@ -85,6 +90,7 @@ export default function PanierClient({
   const [shipAddressLine1, setShipAddressLine1] = useState('');
   const [shipAddressZip, setShipAddressZip] = useState('');
   const [shipAddressCity, setShipAddressCity] = useState('');
+  const [shipAddressCountry, setShipAddressCountry] = useState('FR');
 
   // Code promo
   const [promoInput, setPromoInput] = useState('');
@@ -97,13 +103,18 @@ export default function PanierClient({
   // options proposées s'ajustent automatiquement dès que le client termine de saisir son code postal
   // (ex: un 973 pour la Guyane applique aussitôt la zone Outre-mer configurée dans /admin/livraison).
   const effectiveZip = shipDifferent ? shipAddressZip : addressZip;
-  const zone = findShippingZone(shippingZones, effectiveZip);
+  // Livraison à l'étranger : dès que le pays de livraison n'est pas la France, seules les options à tarif fixe
+  // « étranger » sont proposées (réglées dans /admin/livraison) ; les zones par code postal ne s'appliquent plus.
+  const effectiveCountry = shipDifferent ? shipAddressCountry : addressCountry;
+  const isForeign = international.enabled && effectiveCountry !== 'FR';
+  const foreignCountryName = international.countries.find((c) => c.code === effectiveCountry)?.name ?? '';
+  const zone = isForeign ? null : findShippingZone(shippingZones, effectiveZip);
   // Seules les options de livraison réellement proposées pour cette destination sont affichées — une
   // option Outre-mer (ex: Chronopost Express Outre-mer) ne doit pas apparaître pour la France, et
   // inversement, voir la case "Disponible" par destination dans /admin/livraison.
-  const availableShippingOptions = shippingOptions.filter((o) =>
-    isShippingOptionAvailable(o, zone, shippingOptionZoneLinks)
-  );
+  const availableShippingOptions: ShippingOption[] = isForeign
+    ? international.options.map((o) => ({ id: o.id, label: o.label, description: o.description || null, price: o.price, availableMetropole: true }))
+    : shippingOptions.filter((o) => isShippingOptionAvailable(o, zone, shippingOptionZoneLinks));
   const shipping = availableShippingOptions.find((s) => s.id === shippingId) ?? availableShippingOptions[0];
 
   // Si l'option sélectionnée n'est plus proposée pour la destination saisie (ex: le client tape un code
@@ -115,11 +126,13 @@ export default function PanierClient({
       setShippingId(availableShippingOptions[0].id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveZip, availableShippingOptions.map((o) => o.id).join(',')]);
+  }, [effectiveZip, effectiveCountry, availableShippingOptions.map((o) => o.id).join(',')]);
 
   const subtotal = totalPrice();
   const { price: shippingCost, freeShippingApplied } = shipping
-    ? resolveShippingPrice(shipping, shippingZones, shippingZoneRates, effectiveZip, { config: freeShipping, subtotal })
+    ? isForeign
+      ? { price: shipping.price, freeShippingApplied: false }
+      : resolveShippingPrice(shipping, shippingZones, shippingZoneRates, effectiveZip, { config: freeShipping, subtotal })
     : { price: 0, freeShippingApplied: false };
   const discount = appliedPromo?.discount ?? 0;
   const total = Math.max(0, subtotal + shippingCost - discount);
@@ -127,7 +140,7 @@ export default function PanierClient({
   // Message d'incitation "plus que X€ pour la livraison gratuite" — uniquement pertinent pour la
   // France métropolitaine (zone === null) et si le réglage est actif (voir /admin/livraison).
   const remainingForFreeShipping = Math.max(0, freeShipping.threshold - subtotal);
-  const showFreeShippingNudge = freeShipping.enabled && !zone && remainingForFreeShipping > 0;
+  const showFreeShippingNudge = freeShipping.enabled && !zone && !isForeign && remainingForFreeShipping > 0;
 
   async function applyPromoCode() {
     if (!promoInput.trim()) return;
@@ -264,11 +277,13 @@ export default function PanierClient({
       addressLine1,
       addressZip,
       addressCity,
+      addressCountry,
       shipDifferent,
       shipName,
       shipAddressLine1,
       shipAddressZip,
       shipAddressCity,
+      shipAddressCountry,
     };
 
     try {
@@ -388,7 +403,10 @@ export default function PanierClient({
             <input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} placeholder="Numéro et nom de rue *" className="col-span-2 border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
             <input value={addressZip} onChange={(e) => setAddressZip(e.target.value)} placeholder="Code postal *" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
           </div>
-          <input value={addressCity} onChange={(e) => setAddressCity(e.target.value)} placeholder="Ville *" className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-4" />
+          <input value={addressCity} onChange={(e) => setAddressCity(e.target.value)} placeholder="Ville *" className={`w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm ${international.enabled ? 'mb-3' : 'mb-4'}`} />
+          {international.enabled && (
+            <CountrySelect value={addressCountry} onChange={setAddressCountry} countries={international.countries} className="mb-4" />
+          )}
 
           <label className="flex items-center gap-2 text-sm mb-6 cursor-pointer">
             <input type="checkbox" checked={shipDifferent} onChange={(e) => setShipDifferent(e.target.checked)} />
@@ -404,6 +422,9 @@ export default function PanierClient({
                 <input value={shipAddressZip} onChange={(e) => setShipAddressZip(e.target.value)} placeholder="Code postal *" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <input value={shipAddressCity} onChange={(e) => setShipAddressCity(e.target.value)} placeholder="Ville *" className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" />
+              {international.enabled && (
+                <CountrySelect value={shipAddressCountry} onChange={setShipAddressCountry} countries={international.countries} className="mt-3" />
+              )}
             </div>
           )}
 
@@ -483,7 +504,7 @@ export default function PanierClient({
             {appliedPromo?.note && <p className="text-gray-500 text-xs mt-1.5">{appliedPromo.note}</p>}
           </div>
 
-          {shippingOptions.length > 0 && (
+          {(shippingOptions.length > 0 || isForeign) && (
             <div className="mb-4 pb-4 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-700 mb-2">Expédition</p>
               {availableShippingOptions.length === 0 ? (
@@ -494,13 +515,9 @@ export default function PanierClient({
                 <>
                   <div className="space-y-2">
                     {availableShippingOptions.map((opt) => {
-                      const { price: optPrice, freeShippingApplied: optFree } = resolveShippingPrice(
-                        opt,
-                        shippingZones,
-                        shippingZoneRates,
-                        effectiveZip,
-                        { config: freeShipping, subtotal }
-                      );
+                      const { price: optPrice, freeShippingApplied: optFree } = isForeign
+                        ? { price: opt.price, freeShippingApplied: false }
+                        : resolveShippingPrice(opt, shippingZones, shippingZoneRates, effectiveZip, { config: freeShipping, subtotal });
                       return (
                         <label key={opt.id} className="flex items-start gap-2 text-sm cursor-pointer">
                           <input type="radio" name="shipping" checked={shippingId === opt.id} onChange={() => setShippingId(opt.id)} className="mt-0.5" />
@@ -521,6 +538,11 @@ export default function PanierClient({
                   {zone && (
                     <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
                       📍 Tarif {zone.name} appliqué selon le code postal saisi.
+                    </p>
+                  )}
+                  {isForeign && (
+                    <p className="text-xs text-brand-dark bg-brand-light border border-brand/20 rounded-lg px-2.5 py-1.5 mt-2">
+                      🌍 Livraison à l&apos;étranger{foreignCountryName ? ` (${foreignCountryName})` : ''} : tarif applicable à toute l&apos;Union européenne.
                     </p>
                   )}
                   {freeShippingApplied && (
@@ -663,5 +685,38 @@ function StepBadge({ n, label, active }: { n: number; label: string; active?: bo
       </span>
       <span className={active ? 'font-semibold text-gray-800' : 'text-gray-400'}>{label.toUpperCase()}</span>
     </div>
+  );
+}
+
+// Liste déroulante du pays : « France » (métropole et Outre-mer) en premier, puis les pays où la livraison est ouverte.
+function CountrySelect({
+  value,
+  onChange,
+  countries,
+  className = '',
+}: {
+  value: string;
+  onChange: (code: string) => void;
+  countries: { code: string; name: string }[];
+  className?: string;
+}) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="sr-only">Pays</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete="country"
+        aria-label="Pays de livraison"
+        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white"
+      >
+        <option value="FR">France (métropole et Outre-mer)</option>
+        {countries.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

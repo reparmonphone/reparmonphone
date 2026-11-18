@@ -3,14 +3,17 @@ import ShippingOptionsList from './ShippingOptionsList';
 import ShippingZonesManager from './ShippingZonesManager';
 import FreeShippingSettings from './FreeShippingSettings';
 import { getFreeShippingConfig } from '@/lib/freeShipping';
+import { getInternationalConfig } from '@/lib/shippingInternationalServer';
+import InternationalSettings from './InternationalSettings';
 
 export default async function AdminLivraisonPage() {
-  const [options, zones, rates, optionZoneLinks, freeShipping] = await Promise.all([
+  const [options, zones, rates, optionZoneLinks, freeShipping, international] = await Promise.all([
     prisma.shippingOption.findMany({ orderBy: { order: 'asc' } }),
     prisma.shippingZone.findMany({ orderBy: { order: 'asc' } }),
     prisma.shippingZoneRate.findMany(),
     prisma.shippingOptionZone.findMany(),
     getFreeShippingConfig(),
+    getInternationalConfig(),
   ]);
 
   return (
@@ -34,6 +37,8 @@ export default async function AdminLivraisonPage() {
       </div>
 
       <FreeShippingSettings initialEnabled={freeShipping.enabled} initialThreshold={freeShipping.threshold} />
+
+      <InternationalSettings initial={international} />
 
       <ShippingZonesManager
         options={options.map((o) => ({ id: o.id, label: o.label, price: Number(o.price), availableMetropole: o.availableMetropole }))}

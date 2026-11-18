@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdminUser } from '@/lib/supabase-server';
+import { INTERNATIONAL_SETTING_KEY, normalizeInternational } from '@/lib/shippingInternational';
 
 function revalidateAll() {
   revalidatePath('/admin/livraison');
@@ -197,4 +198,30 @@ export async function setFreeShippingSettings(data: { enabled: boolean; threshol
   ]);
   revalidateAll();
   return { ok: true };
+}
+
+// Livraison à l'étranger (Union européenne) : activation, pays ouverts, libellés et tarifs des options.
+// Le panier et les routes de paiement relisent ce réglage : aucun redéploiement nécessaire.
+export async function saveInternationalShipping(data: {
+  enabled: boolean;
+  countries: string[];
+  options: { id: string; label: string; description: string; price: number | string; enabled: boolean }[];
+}) {
+  await requireAdminUser();
+  for (const o of data.options ?? []) {
+    const price = Number(String(o.price).replace(',', '.'));
+    if (!String(o.label ?? '').trim()) return { error: 'Chaque option doit avoir un libellé.' };
+    if (!Number.isFinite(price) || price < 0 || price > 500) return { error: 'Les prix doivent être compris entre 0 et 500 €.' };
+  }
+  const config = normalizeInternational(data);
+  if (config.enabled && config.countries.length === 0) return { error: 'Coche au moins un pays, ou désactive la livraison à l’étranger.' };
+  if (config.enabled && !config.options.some((o) => o.enabled)) return { error: 'Garde au moins une option de livraison active.' };
+  const value = JSON.stringify(config);
+  await prisma.siteSetting.upsert({
+    where: { key: INTERNATIONAL_SETTING_KEY },
+    update: { value },
+    create: { key: INTERNATIONAL_SETTING_KEY, value },
+  });
+  revalidateAll();
+  return { ok: true as const, config };
 }

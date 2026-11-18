@@ -1,4 +1,4 @@
-import { itemsTotal, laborTotal, proposalTotal, proposalUrl, type Proposal } from '@/lib/proposalShared';
+import { SITE_URL, itemsTotal, laborTotal, proposalTotal, proposalUrl, type Proposal } from '@/lib/proposalShared';
 
 // E-mail « Votre proposition » — fonction pure (pas d'accès base). HTML e-mail : tableaux + styles en ligne.
 
@@ -39,9 +39,13 @@ export function buildProposalEmail(p: Proposal): { subject: string; html: string
 <span style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 12px;"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
-  <tr><td style="background:${BRAND};padding:22px 32px;color:#ffffff;">
-    <div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.85;">ReparMonPhone</div>
-    <div style="font-size:22px;font-weight:700;margin-top:4px;">Votre proposition</div>
+  <tr><td align="center" style="background:#091a32;padding:20px 32px 16px 32px;">
+    <a href="${SITE_URL}" style="text-decoration:none;">
+      <img src="${SITE_URL}/email/logo-anim.gif" width="150" alt="ReparMonPhone · Pièces détachées &amp; accessoires" style="display:block;margin:0 auto;width:150px;max-width:100%;height:auto;border:0;border-radius:14px;font-size:20px;font-weight:800;color:#7fb5ff;text-align:center;">
+    </a>
+  </td></tr>
+  <tr><td style="background:${BRAND};padding:18px 32px;color:#ffffff;text-align:center;">
+    <div style="font-size:22px;font-weight:700;">Votre proposition</div>
   </td></tr>
   <tr><td style="padding:24px 32px 8px 32px;font-size:14px;line-height:1.6;color:#374151;">
     ${hello}<br>Voici la proposition que nous vous avons préparée. Elle est valable jusqu'au <strong>${dateFr(p.validUntil)}</strong>.

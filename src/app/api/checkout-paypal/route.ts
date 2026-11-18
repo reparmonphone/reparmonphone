@@ -9,6 +9,8 @@ import { getClientIp } from '@/lib/clientIp';
 import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
 import { getFreeShippingConfig } from '@/lib/freeShipping';
+import { getInternationalConfig } from '@/lib/shippingInternationalServer';
+import { deliveryCountry, billingCountry, isDomesticCountry, cityWithCountry, resolveInternationalShipping } from '@/lib/shippingInternational';
 
 export async function POST(req: NextRequest) {
   // Garde-fou global : toute erreur inattendue (produit introuvable, panier obsolète, erreur base de
@@ -59,13 +61,24 @@ export async function POST(req: NextRequest) {
       0
     );
 
-    const shippingOption = shippingOptionId
+    // Livraison à l'étranger (Union européenne) : si le pays de livraison choisi n'est pas la France (Outre-mer
+    // compris), le tarif vient du réglage « Livraison à l'étranger » de /admin/livraison, jamais du navigateur.
+    const destCountry = deliveryCountry(customer);
+    const foreignDest = isDomesticCountry(destCountry) ? null : destCountry;
+    let shippingLabel: string | null = null;
+    const shippingOption = shippingOptionId && !foreignDest
       ? await prisma.shippingOption.findUnique({ where: { id: shippingOptionId } })
       : null;
     // Recalcul du tarif de livraison côté serveur selon le code postal réel — voir src/lib/shippingZones.ts.
     const effectiveZipForShipping = customer.shipDifferent ? customer.shipAddressZip : customer.addressZip;
     let shippingCost = 0;
-    if (shippingOption) {
+    if (foreignDest) {
+      const intl = resolveInternationalShipping(await getInternationalConfig(), foreignDest, shippingOptionId);
+      if (!intl.ok) return NextResponse.json({ error: intl.error }, { status: 400 });
+      shippingCost = intl.price;
+      shippingLabel = intl.label;
+    } else if (shippingOption) {
+      shippingLabel = shippingOption.label;
       const [zones, rates, optionZoneLinks, freeShippingConfig] = await Promise.all([
         prisma.shippingZone.findMany(),
         prisma.shippingZoneRate.findMany({ where: { shippingOptionId: shippingOption.id } }),
@@ -125,7 +138,7 @@ export async function POST(req: NextRequest) {
     // Comme pour SumUp, on collecte l'adresse nous-mêmes plutôt que de dépendre du profil PayPal de l'acheteur.
     const shipLine1 = customer.shipDifferent ? customer.shipAddressLine1 : customer.addressLine1;
     const shipZip = customer.shipDifferent ? customer.shipAddressZip : customer.addressZip;
-    const shipCity = customer.shipDifferent ? customer.shipAddressCity : customer.addressCity;
+    const shipCity = cityWithCountry(customer.shipDifferent ? customer.shipAddressCity : customer.addressCity, destCountry);
 
     const order = await prisma.order.create({
       data: {
@@ -140,10 +153,10 @@ export async function POST(req: NextRequest) {
         billingName: customer.shipDifferent ? customer.name : null,
         billingLine1: customer.shipDifferent ? customer.addressLine1 : null,
         billingZip: customer.shipDifferent ? customer.addressZip : null,
-        billingCity: customer.shipDifferent ? customer.addressCity : null,
+        billingCity: customer.shipDifferent ? cityWithCountry(customer.addressCity, billingCountry(customer)) : null,
         subtotal,
         shippingCost,
-        shippingMethod: shippingOption?.label ?? null,
+        shippingMethod: shippingLabel,
         promoCode: appliedPromoCode,
         ipAddress: clientIp,
         discountAmount,

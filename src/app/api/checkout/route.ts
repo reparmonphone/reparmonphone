@@ -9,6 +9,8 @@ import { checkBanForRequest, banResponse } from '@/lib/bannedClients';
 import { resolveShippingPrice, findShippingZone, isShippingOptionAvailable } from '@/lib/shippingZones';
 import { DOMTOM_STRIPE_COUNTRY_CODES } from '@/lib/shippingCountryCodes';
 import { getFreeShippingConfig } from '@/lib/freeShipping';
+import { getInternationalConfig } from '@/lib/shippingInternationalServer';
+import { deliveryCountry, isDomesticCountry, resolveInternationalShipping } from '@/lib/shippingInternational';
 
 export async function POST(req: NextRequest) {
   // Garde-fou global : toute erreur inattendue (produit introuvable, panier obsolète, erreur base de
@@ -52,7 +54,11 @@ export async function POST(req: NextRequest) {
       0
     );
 
-    const shippingOption = shippingOptionId
+    // Livraison à l'étranger (Union européenne) : voir /admin/livraison, carte « Livraison à l'étranger ».
+    const destCountry = deliveryCountry(customer);
+    const foreignDest = isDomesticCountry(destCountry) ? null : destCountry;
+    let shippingLabel: string | null = null;
+    const shippingOption = shippingOptionId && !foreignDest
       ? await prisma.shippingOption.findUnique({ where: { id: shippingOptionId } })
       : null;
     // Recalcul du tarif de livraison côté serveur selon le code postal réel (jamais celui affiché côté
@@ -61,7 +67,13 @@ export async function POST(req: NextRequest) {
     // déjà /api/checkout-sumup et /api/checkout-paypal.
     const effectiveZip = customer?.shipDifferent ? customer?.shipAddressZip : customer?.addressZip;
     let shippingCost = 0;
-    if (shippingOption) {
+    if (foreignDest) {
+      const intl = resolveInternationalShipping(await getInternationalConfig(), foreignDest, shippingOptionId);
+      if (!intl.ok) return NextResponse.json({ error: intl.error }, { status: 400 });
+      shippingCost = intl.price;
+      shippingLabel = intl.label;
+    } else if (shippingOption) {
+      shippingLabel = shippingOption.label;
       const [zones, rates, optionZoneLinks, freeShippingConfig] = await Promise.all([
         prisma.shippingZone.findMany(),
         prisma.shippingZoneRate.findMany({ where: { shippingOptionId: shippingOption.id } }),
@@ -139,7 +151,7 @@ export async function POST(req: NextRequest) {
         shippingZip: 'À compléter',
         subtotal,
         shippingCost,
-        shippingMethod: shippingOption?.label ?? null,
+        shippingMethod: shippingLabel,
         promoCode: appliedPromoCode,
         ipAddress: clientIp,
         discountAmount,
@@ -171,11 +183,11 @@ export async function POST(req: NextRequest) {
       quantity: i.quantity,
     }));
 
-    if (shippingOption && shippingCost > 0) {
+    if (shippingLabel && shippingCost > 0) {
       lineItems.push({
         price_data: {
           currency: 'eur',
-          product_data: { name: `Livraison — ${shippingOption.label}`, images: [] },
+          product_data: { name: `Livraison — ${shippingLabel}`, images: [] },
           unit_amount: Math.round(shippingCost * 100),
         },
         quantity: 1,
@@ -184,12 +196,15 @@ export async function POST(req: NextRequest) {
 
     const origin = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
+    const allowedCountries = (foreignDest ? [foreignDest] : ['FR', ...DOMTOM_STRIPE_COUNTRY_CODES]) as Array<'FR'>;
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: lineItems,
       discounts: stripeCouponId ? [{ coupon: stripeCouponId }] : undefined,
-      shipping_address_collection: { allowed_countries: ['FR', ...DOMTOM_STRIPE_COUNTRY_CODES] },
+      // Livraison à l'étranger : la page Stripe n'accepte que le pays choisi dans le panier (celui du tarif payé).
+      shipping_address_collection: { allowed_countries: allowedCountries },
       billing_address_collection: 'required',
       customer_email: user?.email ?? undefined,
       metadata: { orderId: order.id },

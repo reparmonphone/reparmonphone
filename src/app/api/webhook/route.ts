@@ -7,6 +7,7 @@ import { sendNewOrderAdminNotification, fidelityBlockHtml } from '@/lib/orderEma
 import { loadBanEntries, matchBan } from '@/lib/bannedClients';
 import { isFullName } from '@/lib/fullName';
 import Stripe from 'stripe';
+import { cityWithCountry } from '@/lib/shippingInternational';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -126,11 +127,11 @@ export async function POST(req: NextRequest) {
       customerEmail: session.customer_details?.email ?? undefined,
       customerPhone: session.customer_details?.phone ?? undefined,
       shippingLine1: shippingAddress?.line1 ?? undefined,
-      shippingCity: shippingAddress?.city ?? undefined,
+      shippingCity: cityWithCountry(shippingAddress?.city, shippingAddress?.country),
       shippingZip: shippingAddress?.postal_code ?? undefined,
       billingName: billingName ?? undefined,
       billingLine1: billingAddress?.line1 ?? undefined,
-      billingCity: billingAddress?.city ?? undefined,
+      billingCity: cityWithCountry(billingAddress?.city, billingAddress?.country),
       billingZip: billingAddress?.postal_code ?? undefined,
       paymentBrand,
       paymentLast4,
