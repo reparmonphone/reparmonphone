@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
   { href: '/admin/vacances', label: '🏖️ Mode vacances' },
   { href: '/admin/popup', label: '📣 Pop-up d’ouverture' },
   { href: '/admin/commandes', label: '🛒 Commandes', badgeKey: 'orders' },
+  { href: '/admin/propositions', label: '🧾 Propositions clients' },
   { href: '/admin/litiges', label: '⚠️ Litiges & réclamations', badgeKey: 'claims' },
   { href: '/admin/livraison', label: '🚚 Frais de port' },
   { href: '/admin/paiements', label: '💳 Moyens de paiement' },
