@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
   { href: '/admin/paiements', label: '💳 Moyens de paiement' },
   { href: '/admin/codes-promo', label: '🏷️ Codes promo' },
   { href: '/admin/statistiques', label: '📈 Statistiques' },
+  { href: '/admin/carte-commandes', label: '🗺️ Carte des commandes' },
   { href: GA4_REALTIME_URL, label: '📊 Google Analytics', external: true },
   { href: '/admin/benefice', label: '💰 Bénéfice' },
   { href: '/admin/etudes', label: '🧪 Études' },
